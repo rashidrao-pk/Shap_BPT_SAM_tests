@@ -34,35 +34,22 @@ Tests for SAM inspired ShapBPT - using Segment Anything Model for Improved ShapB
 | 📦 PyPI Package           | https://pypi.org/project/shap-bpt/                     |
 | 📄 Documentation          | https://shapbpt.readthedocs.io                         |
 
-Install from PyPI:
+<!-- Install from PyPI:
 
 ```bash
 pip install shap-bpt
-```
-
-<!-- **Python Package 📦** :
--  PyPI: https://pypi.org/project/shap-bpt/
--   Install: `pip install shap-bpt`
-
-**Paper**:
-- [AAAI2026 Version](https://ojs.aaai.org/index.php/AAAI/article/view/39699)
-- [arXiv version](https://arxiv.org/abs/2602.07047)
-
-**Results**:
--   [Tests](https://github.com/rashidrao-pk/shap_bpt_tests)
-
-**Documentation**:
--   https://shapbpt.readthedocs.io -->
+``` -->
 
 ---
 
+<!--
 ShapBPT is a Python library for generating **faithful, data-aware image explanations** based on **Owen values**, a structured variant of Shapley values.
 Unlike classical SHAP partitioning, where features are grouped using _axis-aligned_, image-agnostic splits, ShapBPT constructs a **Binary Partition Tree (BPT)** that mirrors the _morphology_ and _structure_ of the image itself.
 This leads to explanations aligned with meaningful visual regions rather than arbitrary pixel blocks.
 
 <!-- ShapBPT is a novel eXplainable AI (XAI) method that computes the Owen approximation of the Shapley coefficients following a data-aware binary hierarchical coalition structure derived from the Binary Partition Tree computer vision algorithm.  -->
 
-### Why ShapBPT? Key Advantages
+<!-- ### Why ShapBPT? Key Advantages
 
 - **Model-agnostic**: ShapBPT only requires a _masking function_, not access to model internals.
 - **Data-aware explanation structure**: Explanations follow meaningful image segments derived from the BPT, improving interpretability.
@@ -82,16 +69,16 @@ A **Binary Partition Tree** is a hierarchical bottom-up segmentation of an image
 This hierarchy provides ShapBPT with a **data-aware coalition structure** used to compute Shapley feature attributions.
 Where SHAP’s Partition Explainer uses _Axis-Aligned_ splits, ShapBPT uses **morphological clusters** guided by the actual image content.
 
-Because regions can be recursively split down to individual pixels, the method gracefully balances **efficiency** and **fidelity**.
+Because regions can be recursively split down to individual pixels, the method gracefully balances **efficiency** and **fidelity**. -->
 
 <!-- A Binary Partition Tree (BPT) is a hierarchical binary partitioning of an image, that is performed bottom-up minimazing a data-aware distance function. -->
-<center>
+<!-- <center>
 <img src="docs/files/Fig1_explain_bpt-1.png">
-</center>
-<!-- A BPT is conceptually similar to the approach of the [Partition Explainer of SHAP](https://shap-lrjball.readthedocs.io/en/latest/example_notebooks/partition_explainer/Partition.html), which uses Axis-Aligned (AA) partitions. Instead, ShapBPT works over a hierarchy that 
+</center> -->
+<!-- A BPT is conceptually similar to the approach of the [Partition Explainer of SHAP](https://shap-lrjball.readthedocs.io/en/latest/example_notebooks/partition_explainer/Partition.html), which uses Axis-Aligned (AA) partitions. Instead, ShapBPT works over a hierarchy that
 is data-aware. -->
 
-### How it is built and used
+<!-- ### How it is built and used
 
 A **Binary Partition Tree** is built bottom-up, starting from the individual pixels and then merging adjacent regions that minimize a distance function, until all regions are merged into a single cluster. The tree that forms is the BPT tree.
 
@@ -120,7 +107,7 @@ $$
   \nu: N \times H \times W \rightarrow B \times M
 $$
 
-that takes in input a set of $N$ binary masks and returns model predictions.
+that takes in input a set of $N$ binary masks and returns model predictions. -->
 
 <!-- Consider a machine learning classifier $f$ with input
 $$
@@ -134,7 +121,7 @@ Instead, it relies on a masking function, i.e. a function with signature
 $$\nu: N \times H \times W \rightarrow B \times M$$
 where $N$ is the batch size, $H \times W$ is the image size, and $M$ is the number of classes. -->
 
-### Step 2. Run the explainer
+<!-- ### Step 2. Run the explainer
 
 ```python
 import shap_bpt
@@ -151,9 +138,9 @@ shap_values = explainer.explain_instance(
     method="BPT",            # choose "BPT" (data-aware) or "AA" (axis-aligned)
     batch_size=batch_size
 )
-```
+``` -->
 
-### Step 3. Visualize the attribution map
+<!-- ### Step 3. Visualize the attribution map
 
 ```python
 shap_bpt.plot_owen_values(explainer, shap_values, class_names)
@@ -167,7 +154,7 @@ With `eval_budget=100` and `method='AA'` we obtain the explanation:
 
 <center><img src="docs/files/aa_plot.png"></center>
 
-See the provided notebooks for examples on how to setup and run ShapBPT.
+See the provided notebooks for examples on how to setup and run ShapBPT. -->
 
 <!-- Once the masking function is defined, an explanation can be built using the following code.
 ```python
@@ -181,7 +168,7 @@ shap_values = explainer.explain_instance(eval_budget, method='BPT', batch_size=b
 
 ---
 
-## How It Works: Owen Value Approximation
+<!-- ## How It Works: Owen Value Approximation
 
 ShapBPT evaluates the **Owen value** over a BPT coalition structure.
 The library uses the formula
@@ -198,7 +185,7 @@ $$
 
 assuming, without loss of generality, that $`i \in T_{1}`$.
 
-This hierarchical structure is what makes ShapBPT **efficient**, especially compared to full Shapley enumeration.
+This hierarchical structure is what makes ShapBPT **efficient**, especially compared to full Shapley enumeration. -->
 
 <!-- The obtained Shapley values can be visualized using
 ```python
@@ -239,8 +226,6 @@ Explainer.explain_instance(max_evals, # budget in terms of model evaluations
 ```
 The typical use is to set a `max_evals` budget, and compute the explanations.
 It is also possible to use other stopping criteria, like the area of the regions before they become indivisible (default 1, cannot be less than 1), or the maximum weight (root is 1, every split multiplies by $\frac{1}{2}$). -->
-
----
 
 ## Installation
 

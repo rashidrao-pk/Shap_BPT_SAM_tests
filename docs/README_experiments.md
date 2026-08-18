@@ -27,10 +27,10 @@ For example, `E1_1_1` means YOLOv11 with `noise` background and
 
 | Prefix | Task             | Model                            |                           Classes                           | Script                                |
 | :----: | :--------------- | :------------------------------- | :---------------------------------------------------------: | :------------------------------------ |
-|  `E1`  | Object detection | YOLOv11 / YOLO custom checkpoint | `len(model.names)`; usually 80 for COCO or 26 for `yolo_26` | `examples/scripts/run_yolo_full.py`   |
-|  `E2`  | Classification   | ResNet-50 ImageNet               |                            1000                             | `examples/scripts/run_resnet_full.py` |
-|  `E3`  | Classification   | ViT-B/16 ImageNet                |                            1000                             | `examples/scripts/run_vit_full.py`    |
-|  `E4`  | Object detection | DETR ResNet-50                   |        COCO-style detection labels from model config        | `examples/scripts/run_detr_full.py`   |
+|  `E1`  | Object detection | YOLOv11 / YOLO custom checkpoint | `len(model.names)`; usually 80 for COCO or 26 for `yolo_26` | `src/scripts/run_yolo_full.py`   |
+|  `E2`  | Classification   | ResNet-50 ImageNet               |                            1000                             | `src/scripts/run_resnet_full.py` |
+|  `E3`  | Classification   | ViT-B/16 ImageNet                |                            1000                             | `src/scripts/run_vit_full.py`    |
+|  `E4`  | Object detection | DETR ResNet-50                   |        COCO-style detection labels from model config        | `src/scripts/run_detr_full.py`   |
 
 ## Background Replacement IDs
 
@@ -55,7 +55,7 @@ These suffixes are appended only for YOLOv11 runs by default.
 |  `_4`  |         `500` | Default explanation budget    |
 |  `_5`  |        `1000` | High explanation budget       |
 
-Examples:
+src:
 
 |  Exp No  | Model     | Background Replacement Values | Task           |
 | :------: | :-------- | :---------------------------- | :------------- |
@@ -96,7 +96,7 @@ Class count:
 Smoke test:
 
 ```bash
-python examples/scripts/run_yolo_full.py \
+python src/scripts/run_yolo_full.py \
   --config MSCOCO_epito \
   --limit 2 \
   --max-evals 500 \
@@ -111,7 +111,7 @@ python examples/scripts/run_yolo_full.py \
 Custom YOLO-26:
 
 ```bash
-python examples/scripts/run_yolo_full.py \
+python src/scripts/run_yolo_full.py \
   --config MSCOCO_epito \
   --model yolo_26 \
   --bg-type noise \
@@ -130,7 +130,7 @@ Run each background replacement by changing `--bg-type`.
 
 ```bash
 for bg in noise blurred black white full; do
-  python examples/scripts/run_yolo_full.py \
+  python src/scripts/run_yolo_full.py \
     --config MSCOCO_epito \
     --eval-batch-size 2048 \
     --auc-batch-size 1024 \
@@ -147,7 +147,7 @@ Run a YOLO budget ablation with fixed background:
 
 ```bash
 for budget in 50 100 250 500 1000; do
-  python examples/scripts/run_yolo_full.py \
+  python src/scripts/run_yolo_full.py \
     --config MSCOCO_epito \
     --model yolo11s \
     --limit 2 \
@@ -183,7 +183,7 @@ The score vector is the ResNet-50 softmax output over 1000 ImageNet classes.
 Smoke test:
 
 ```bash
-python examples/scripts/run_resnet_full.py \
+python src/scripts/run_resnet_full.py \
   --config MSCOCO_epito \
   --limit 2 \
   --verbose-level medium \
@@ -200,7 +200,7 @@ resnet_xai_results_E2_1
 ```
 
 ```bash
-python examples/scripts/run_resnet_full.py \
+python src/scripts/run_resnet_full.py \
   --config MSCOCO_epito \
   --verbose-level medium \
   --bg-type noise \
@@ -217,7 +217,7 @@ is the ViT-B/16 softmax output over 1000 ImageNet classes.
 Smoke test:
 
 ```bash
-python examples/scripts/run_vit_full.py \
+python src/scripts/run_vit_full.py \
   --config MSCOCO_epito \
   --limit 2 \
   --verbose-level medium \
@@ -234,7 +234,7 @@ xai_results_E3_1
 ```
 
 ```bash
-python examples/scripts/run_vit_full.py \
+python src/scripts/run_vit_full.py \
   --config MSCOCO_epito \
   --verbose-level medium \
   --bg-type noise \
@@ -262,7 +262,7 @@ pip install transformers
 Smoke test:
 
 ```bash
-python examples/scripts/run_detr_full.py \
+python src/scripts/run_detr_full.py \
   --config MSCOCO_mac \
   --limit 2 \
   --max-evals 50 \
@@ -281,7 +281,7 @@ xai_results_E4_1
 ```
 
 ```bash
-python examples/scripts/run_detr_full.py \
+python src/scripts/run_detr_full.py \
   --config MSCOCO_epito \
   --max-evals 500 \
   --verbose-level medium \
@@ -298,7 +298,7 @@ Generate boxplots, the full HTML report, and the outlier report from saved
 results:
 
 ```bash
-python examples/scripts/summarize_results.py \
+python src/scripts/summarize_results.py \
   --results-dir /path/to/xai_results_E1_1 \
   --boxplots \
   --html-report \
@@ -354,17 +354,17 @@ E1_1_1, E1_1_2, E1_1_3, E1_1_4, E1_1_5
 ## RUN EXPs
 
 ```bash
-./examples/scripts/prepare_setup.sh
+./src/scripts/prepare_setup.sh
 ```
 
 ```bash
-python examples/scripts/compare_experiments.py \
-  --results-root /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/results \
+python src/scripts/compare_experiments.py \
+  --results-root /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/src/results \
   --experiments xai_results_E1_1_2 xai_results_E1_2_2 xai_results_E2_1 xai_results_E3_1 xai_results_E4_1 \
-  --output-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/results/overall_comparison
+  --output-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/src/results/overall_comparison
 
 
-python examples/scripts/compare_experiments.py \
+python src/scripts/compare_experiments.py \
   --results-dirs /path/xai_results_E1_1_2 /path/xai_results_E3_1
 
 

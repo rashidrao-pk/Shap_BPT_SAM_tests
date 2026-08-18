@@ -2,7 +2,7 @@
 """Run the YOLO + ShapBPT full-image-set experiment.
 
 This script is a cleaned, runnable version of
-examples/notebooks/Object_yolo_ms_coco_full_image_set_tests.ipynb.
+src/notebooks/Object_yolo_ms_coco_full_image_set_tests.ipynb.
 It computes explanations, AUC metrics, timing summaries, plots, and a
 single HTML report from saved per-image results.
 """
@@ -212,7 +212,7 @@ def find_project_root(start: Path | None = None) -> Path:
 def load_config(project_root: Path, config_name_or_path: str) -> dict:
     config_path = Path(config_name_or_path)
     if not config_path.suffix:
-        config_path = project_root / "examples" / "configs" / f"{config_name_or_path}.yaml"
+        config_path = project_root / "src" / "configs" / f"{config_name_or_path}.yaml"
     if not config_path.is_absolute():
         config_path = project_root / config_path
     with config_path.open("r") as f:
@@ -220,7 +220,7 @@ def load_config(project_root: Path, config_name_or_path: str) -> dict:
 
 
 def resolve_checkpoint_dir(project_root: Path, checkpoint_dir: str | None = None) -> Path:
-    path = Path(checkpoint_dir).expanduser() if checkpoint_dir else project_root / "examples" / "notebooks" / "checkpoints"
+    path = Path(checkpoint_dir).expanduser() if checkpoint_dir else project_root / "src" / "notebooks" / "checkpoints"
     if not path.is_absolute():
         path = project_root / path
     path.mkdir(parents=True, exist_ok=True)
@@ -230,8 +230,8 @@ def resolve_checkpoint_dir(project_root: Path, checkpoint_dir: str | None = None
 def checkpoint_search_dirs(project_root: Path, primary: Path) -> list[Path]:
     dirs = [
         primary,
-        project_root / "examples" / "notebooks" / "checkpoints",
-        project_root / "examples" / "checkpoints",
+        project_root / "src" / "notebooks" / "checkpoints",
+        project_root / "src" / "checkpoints",
         project_root / "checkpoints",
     ]
     unique_dirs = []
@@ -1283,7 +1283,7 @@ function filterImages() {{
 
 def run(args):
     project_root = find_project_root()
-    scripts_dir = project_root / "examples" / "scripts"
+    scripts_dir = project_root / "src" / "scripts"
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
     import utils_sam as uts
@@ -1639,13 +1639,13 @@ def run(args):
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", default="MSCOCO_mac", help="Config name from examples/configs or path to YAML.")
+    parser.add_argument("--config", default="MSCOCO_mac", help="Config name from src/configs or path to YAML.")
     parser.add_argument("--model", default="yolo11s", help="YOLO model/checkpoint name. Examples: yolo11s, yolo_26.")
     parser.add_argument("--weights", default=None, help="Explicit YOLO weights path. Overrides --model.")
     parser.add_argument(
         "--checkpoint-dir",
         default=None,
-        help="Directory for YOLO checkpoint cache. Default: examples/notebooks/checkpoints.",
+        help="Directory for YOLO checkpoint cache. Default: src/notebooks/checkpoints.",
     )
     parser.add_argument("--device", default=None, choices=["auto", "cpu", "cuda", "mps"], help="Override config device.")
     parser.add_argument("--output-dir", default=None, help="Override config output.dir; xai_results is created inside it.")

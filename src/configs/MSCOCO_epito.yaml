@@ -41,4 +41,4 @@ evaluation:
   # --eval-batch-size", type=int, default=16
 output:
   folder: "results"
-  dir: /beegfs/home/mrashid/repos/XAI/shap_bpt_sam/examples
+  dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/src

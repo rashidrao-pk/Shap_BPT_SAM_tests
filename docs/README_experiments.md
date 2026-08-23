@@ -25,8 +25,8 @@ For example, `E1_1_1` means YOLOv11 with `noise` background and
 `max_evals=50`; `E1_1_4` means YOLOv11 with `noise` background and
 `max_evals=500`.
 
-| Prefix | Task             | Model                            |                           Classes                           | Script                                |
-| :----: | :--------------- | :------------------------------- | :---------------------------------------------------------: | :------------------------------------ |
+| Prefix | Task             | Model                            |                           Classes                           | Script                           |
+| :----: | :--------------- | :------------------------------- | :---------------------------------------------------------: | :------------------------------- |
 |  `E1`  | Object detection | YOLOv11 / YOLO custom checkpoint | `len(model.names)`; usually 80 for COCO or 26 for `yolo_26` | `src/scripts/run_yolo_full.py`   |
 |  `E2`  | Classification   | ResNet-50 ImageNet               |                            1000                             | `src/scripts/run_resnet_full.py` |
 |  `E3`  | Classification   | ViT-B/16 ImageNet                |                            1000                             | `src/scripts/run_vit_full.py`    |
@@ -364,8 +364,13 @@ python src/scripts/compare_experiments.py \
   --output-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/src/results/overall_comparison
 
 
-python src/scripts/compare_experiments.py \
-  --results-dirs /path/xai_results_E1_1_2 /path/xai_results_E3_1
+python examples/scripts/compare_experiments.py \
+  --results-root /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/results \
+  --output-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/results/overall_comparison
 
+
+python src/scripts/check_experiment_progress.py \
+  --config MSCOCO_mac \
+  --html-report
 
 ```

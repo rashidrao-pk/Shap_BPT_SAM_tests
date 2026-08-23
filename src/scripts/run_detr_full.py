@@ -345,6 +345,80 @@ def plot_detr_xai(input_data, partitions, shap_values, id2label, image_id, save_
     return fig
 
 
+def latest_file(folder: Path, pattern: str, exclude=()) -> Path | None:
+    matches = [path for path in folder.glob(pattern) if path.name not in set(exclude)]
+    if not matches:
+        return None
+    return max(matches, key=lambda path: path.stat().st_mtime)
+
+
+def load_existing_auc_rows(path_results: Path) -> list[dict]:
+    current_path = path_results / "auc_results_all_images_current_run.csv"
+    final_path = latest_file(path_results, "auc_results_all_images_*.csv", exclude={"auc_results_all_images_current_run.csv"})
+    csv_path = current_path if current_path.exists() else final_path
+    if csv_path is None or not csv_path.exists():
+        return []
+    df = pd.read_csv(csv_path)
+    if df.empty:
+        return []
+    print(f"Loaded existing AUC rows from: {csv_path}")
+    return df.to_dict("records")
+
+
+def image_rows_are_complete(auc_table_rows: list[dict], image_no: int, methods: list[str]) -> bool:
+    if not auc_table_rows:
+        return False
+    rows = [row for row in auc_table_rows if int(row.get("image_no", -1)) == int(image_no)]
+    if not rows:
+        return False
+    methods_present = {str(row.get("method")) for row in rows}
+    return set(methods).issubset(methods_present)
+
+
+def image_outputs_are_complete(path_results_img: Path, image_no: int, methods: list[str], require_plots: bool) -> bool:
+    image_id = normalize_image_id(image_no)
+    prediction_paths = [
+        path_results_img / f"{image_no}_predictions.json",
+        path_results_img / f"{image_id}_predictions.json",
+    ]
+    if not any(path.exists() for path in prediction_paths):
+        return False
+    for method in methods:
+        heatmap_paths = [
+            path_results_img / f"{method}_{image_no}.png",
+            path_results_img / f"{method}_{image_id}.png",
+        ]
+        if not any(path.exists() for path in heatmap_paths):
+            return False
+    if not require_plots:
+        return True
+    expected_patterns = [
+        "*_xai_results.png",
+        "auc_results_*.png",
+        "faithfulness_curves_*.png",
+    ]
+    return all(any(path_results_img.glob(pattern)) for pattern in expected_patterns)
+
+
+def should_skip_image(path_results: Path, auc_table_rows: list[dict], image_no: int, methods: list[str], args) -> bool:
+    if not args.resume:
+        return False
+    path_results_img = path_results / str(image_no)
+    if not path_results_img.exists():
+        return False
+    rows_ok = True if not args.compute_auc else image_rows_are_complete(auc_table_rows, image_no, methods)
+    return rows_ok and image_outputs_are_complete(
+        path_results_img,
+        image_no,
+        methods,
+        require_plots=args.save_plots and args.require_resume_plots,
+    )
+
+
+def drop_image_auc_rows(auc_table_rows: list[dict], image_no: int) -> list[dict]:
+    return [row for row in auc_table_rows if int(row.get("image_no", -1)) != int(image_no)]
+
+
 def run(args):
     project_root = find_project_root()
     scripts_dir = project_root / "examples" / "scripts"
@@ -434,7 +508,8 @@ def run(args):
 
     partition_summary_df = build_partition_summary(image_ids, masks_base_path, path_results, uts2)
     failures = []
-    auc_table_rows = []
+    auc_table_rows = load_existing_auc_rows(path_results) if args.resume else []
+    skipped_images = 0
     iteration_durations = []
     method_progress = args.verbose_level in {"medium", "high"}
 
@@ -449,7 +524,16 @@ def run(args):
         if resource_logging:
             reset_iteration_resource_counters(device)
         image_no = int(image_id)
+        image_was_skipped = False
         try:
+            if should_skip_image(path_results, auc_table_rows, image_no, METHOD_ORDER, args):
+                image_was_skipped = True
+                skipped_images += 1
+                if resource_logging and (iteration_index == 1 or (args.verbose_k > 0 and iteration_index % args.verbose_k == 0)):
+                    tqdm.write(f"SKIP {image_id}: complete per-image outputs and CSV rows already exist.")
+                continue
+            auc_table_rows = drop_image_auc_rows(auc_table_rows, image_no)
+
             timing_start = time.time()
             input_data = load_detr_image_to_explain(
                 image_id,
@@ -616,7 +700,7 @@ def run(args):
                     f"iteration={format_duration(iteration_duration)}, avg={format_duration(avg_time)}, "
                     f"pending={pending}, eta={format_duration(avg_time * pending)}{iteration_resource_summary(device)}"
                 )
-            if resource_logging and iteration_index == 1:
+            if resource_logging and iteration_index == 1 and not image_was_skipped:
                 measured = sum(first_iteration_breakdown.values())
                 parts = [f"{key}={format_duration(value)}" for key, value in first_iteration_breakdown.items()]
                 parts.append(f"other={format_duration(max(0.0, iteration_duration - measured))}")
@@ -642,7 +726,8 @@ def run(args):
     if args.build_html:
         build_xai_results_webpage(path_results)
 
-    print(f"Completed images: {len(image_ids) - len(failures)}")
+    print(f"Computed images this run: {len(image_ids) - len(failures) - skipped_images}")
+    print(f"Skipped complete images: {skipped_images}")
     print(f"Failures: {len(failures)}")
 
 
@@ -670,10 +755,16 @@ def parse_args():
     parser.add_argument("--verbose-level", default="low", choices=["low", "medium", "high"])
     parser.add_argument("--verbose-k", type=int, default=10, help="Print medium/high resource summary every K images after image 1.")
     parser.add_argument("--fail-fast", action="store_true")
+    parser.add_argument("--no-resume", dest="resume", action="store_false", help="Recompute images even when complete outputs and CSV rows already exist.")
+    parser.add_argument(
+        "--require-resume-plots",
+        action="store_true",
+        help="When resuming, require XAI grid, AUC curves, and faithfulness curves in addition to heatmaps and CSV rows before skipping an image.",
+    )
     parser.add_argument("--no-auc", dest="compute_auc", action="store_false")
     parser.add_argument("--no-plots", dest="save_plots", action="store_false")
     parser.add_argument("--no-html", dest="build_html", action="store_false")
-    parser.set_defaults(compute_auc=True, save_plots=True, build_html=True, exp_suffix=True)
+    parser.set_defaults(compute_auc=True, save_plots=True, build_html=True, exp_suffix=True, resume=True, require_resume_plots=False)
     return parser.parse_args()
 
 

@@ -391,10 +391,12 @@ def run(args):
     partial_path = output_dir / "experiment_progress_pending.csv"
     summary_df.to_csv(summary_path, index=False)
     partial_df.to_csv(partial_path, index=False)
+    print('=' * 60)
     print(f"\nSaved summary: {summary_path}")
     print(f"Saved pending details: {partial_path}")
     if args.html_report:
         html_path = write_html_report(summary_df, partial_df, output_dir)
+        print('-' * 60)
         print(f"Saved HTML report: {html_path}")
 
     if args.show_pending and not partial_df.empty:

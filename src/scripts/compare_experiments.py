@@ -431,12 +431,15 @@ def run(args):
         plot_paths.append(quality_time_path)
 
     report_path = build_html_report(ranked, combined, metadata, plot_paths, output_dir)
-
+    print('=' * 60)
     print(f"Saved combined rows: {combined_path}")
+    print('-' * 60)
     print(f"Saved method summary: {summary_path}")
+    print('-' * 60)
     print(f"Saved method ranking: {ranked_path}")
+    print('-' * 60)
     print(f"Saved HTML report: {report_path}")
-
+    print('-' * 60)
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)

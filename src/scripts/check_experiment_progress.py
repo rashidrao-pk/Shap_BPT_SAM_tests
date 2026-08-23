@@ -238,7 +238,6 @@ def summarize_experiment(results_dir: Path, expected_ids: set[str], methods: lis
     pending = max(0, total - completed)
     summary = {
         "experiment": experiment_name,
-        "folder": str(results_dir),
         "model": run_info.get("model", run_info.get("model_group", "")),
         "bg_type": run_info.get("background_replacement_values", run_info.get("bg_type", "")),
         "max_evals": run_info.get("max_evals", ""),
@@ -250,6 +249,7 @@ def summarize_experiment(results_dir: Path, expected_ids: set[str], methods: lis
         "pending_images": pending,
         "completion_percent": round(100.0 * completed / total, 2) if total else 0.0,
         "status": "complete" if total and pending == 0 else "partial",
+        "folder": str(results_dir),
         "auc_csv": str(auc_csv) if auc_csv else "",
     }
     return summary, partial_rows

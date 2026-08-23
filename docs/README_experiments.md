@@ -364,7 +364,7 @@ python src/scripts/compare_experiments.py \
   --output-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/src/results/overall_comparison
 
 
-python examples/scripts/compare_experiments.py \
+python src/scripts/compare_experiments.py \
   --results-root /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/results \
   --output-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/results/overall_comparison
 

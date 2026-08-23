@@ -20,6 +20,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+try:
+    from scipy.stats import wilcoxon
+except ImportError:
+    wilcoxon = None
 
 
 METHOD_ORDER = ["BPT", "sam", "coverage", "compact", "filled", "refined", "refined_filled"]
@@ -60,6 +64,16 @@ EXP_MODEL_NAMES = {
     "E4": "DETR",
 }
 
+METHOD_REGION_COLUMNS = {
+    "BPT": ["n_bpt_regions", "n_regions_bpt"],
+    "sam": ["n_sam_masks", "n_masks"],
+    "coverage": ["n_coverage_masks"],
+    "compact": ["n_compact_masks", "n_unique_compact", "n_coverage_masks"],
+    "filled": ["n_filled_masks", "n_unique_filler"],
+    "refined": ["n_refined_instances", "n_refined_masks"],
+    "refined_filled": ["n_refined_filled", "n_unique_refined_filled", "n_unique_filler"],
+}
+
 
 def latest_file(folder: Path, pattern: str, exclude=()) -> Path | None:
     exclude = set(exclude)
@@ -88,6 +102,11 @@ def infer_model_name(exp_no: str, run_info: dict | None = None) -> str:
             return "DETR"
     prefix = exp_no.split("_", 1)[0]
     return EXP_MODEL_NAMES.get(prefix, prefix)
+
+
+def infer_exp_type(exp_no: str) -> str:
+    match = re.match(r"(E\d+)", str(exp_no))
+    return match.group(1) if match else str(exp_no)
 
 
 def read_json(path: Path) -> dict | None:
@@ -125,6 +144,49 @@ def load_total_time(results_dir: Path) -> pd.DataFrame:
     return df[keep].copy()
 
 
+def load_partition_summary(results_dir: Path) -> pd.DataFrame:
+    path = results_dir / "partition_summary.csv"
+    if not path.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(path)
+    if df.empty or "image_id" not in df.columns:
+        return pd.DataFrame()
+    return df
+
+
+def load_region_counts(results_dir: Path, exp_no: str, model_name: str) -> pd.DataFrame:
+    partition_df = load_partition_summary(results_dir)
+    if partition_df.empty:
+        return pd.DataFrame()
+    partition_df = partition_df.copy()
+    partition_df["image_id_str"] = partition_df["image_id"].apply(normalize_image_id)
+    rows = []
+    for _, row in partition_df.iterrows():
+        for method, candidates in METHOD_REGION_COLUMNS.items():
+            region_count = np.nan
+            region_source = ""
+            for column in candidates:
+                if column in partition_df.columns and pd.notna(row.get(column)):
+                    region_count = row[column]
+                    region_source = column
+                    break
+            if pd.isna(region_count):
+                continue
+            rows.append(
+                {
+                    "experiment": exp_no,
+                    "exp_type": infer_exp_type(exp_no),
+                    "model": model_name,
+                    "image_id_str": row["image_id_str"],
+                    "method": method,
+                    "n_regions": float(region_count),
+                    "region_source": region_source,
+                    "results_dir": str(results_dir),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def load_experiment(results_dir: Path) -> tuple[pd.DataFrame, dict]:
     results_dir = results_dir.expanduser().resolve()
     run_info = read_json(results_dir / "run_info.json") or {}
@@ -133,6 +195,7 @@ def load_experiment(results_dir: Path) -> tuple[pd.DataFrame, dict]:
     auc_csv = resolve_auc_csv(results_dir)
     auc_df = pd.read_csv(auc_csv)
     auc_df["experiment"] = exp_no
+    auc_df["exp_type"] = infer_exp_type(exp_no)
     auc_df["model"] = model_name
     auc_df["results_dir"] = str(results_dir)
     auc_df["auc_csv"] = str(auc_csv)
@@ -140,6 +203,7 @@ def load_experiment(results_dir: Path) -> tuple[pd.DataFrame, dict]:
         auc_df["image_id_str"] = auc_df["image_id"].apply(normalize_image_id)
     metadata = {
         "experiment": exp_no,
+        "exp_type": infer_exp_type(exp_no),
         "model": model_name,
         "results_dir": str(results_dir),
         "auc_csv": str(auc_csv),
@@ -159,7 +223,7 @@ def summarize_by_experiment_method(combined: pd.DataFrame, results_dirs: list[Pa
         agg_spec[f"{metric}_median"] = (metric, "median")
 
     summary = (
-        combined.groupby(["experiment", "model", "method"], dropna=False, observed=True)
+        combined.groupby(["experiment", "exp_type", "model", "method"], dropna=False, observed=True)
         .agg(**agg_spec)
         .reset_index()
     )
@@ -168,16 +232,18 @@ def summarize_by_experiment_method(combined: pd.DataFrame, results_dirs: list[Pa
     for results_dir in results_dirs:
         run_info = read_json(results_dir / "run_info.json") or {}
         exp_no = infer_exp_no(results_dir, run_info)
+        exp_type = infer_exp_type(exp_no)
         model_name = infer_model_name(exp_no, run_info)
         time_df = load_total_time(results_dir)
         if time_df.empty:
             continue
         time_df["experiment"] = exp_no
+        time_df["exp_type"] = exp_type
         time_df["model"] = model_name
         time_frames.append(time_df)
     if time_frames:
         time_all = pd.concat(time_frames, ignore_index=True)
-        summary = summary.merge(time_all, on=["experiment", "model", "method"], how="left")
+        summary = summary.merge(time_all, on=["experiment", "exp_type", "model", "method"], how="left")
     return summary
 
 
@@ -210,6 +276,220 @@ def add_ranking_columns(summary: pd.DataFrame, metrics: list[str]) -> pd.DataFra
         ranked["composite_score"] = np.nan
         ranked["composite_rank"] = np.nan
     return ranked.sort_values(["composite_rank", "experiment", "method"]).reset_index(drop=True)
+
+
+def raw_metric_list(combined: pd.DataFrame, metrics: list[str]) -> list[str]:
+    return [metric for metric in metrics if metric in combined.columns and metric != "total_time_mean"]
+
+
+def summarize_raw_by_method(combined: pd.DataFrame, group_cols: list[str], metrics: list[str]) -> pd.DataFrame:
+    metric_cols = raw_metric_list(combined, metrics)
+    if not metric_cols:
+        return pd.DataFrame()
+    agg_spec = {
+        "images": ("image_no", "nunique") if "image_no" in combined.columns else ("image_id", "nunique"),
+        "rows": ("method", "size"),
+    }
+    for metric in metric_cols:
+        agg_spec[f"{metric}_mean"] = (metric, "mean")
+        agg_spec[f"{metric}_std"] = (metric, "std")
+        agg_spec[f"{metric}_median"] = (metric, "median")
+
+    by = [*group_cols, "method"] if group_cols else ["method"]
+    return combined.groupby(by, dropna=False, observed=True).agg(**agg_spec).reset_index()
+
+
+def best_method_for_metric(view: pd.DataFrame, metric: str) -> pd.Series | None:
+    col = metric if metric == "total_time_mean" else f"{metric}_mean"
+    if col not in view.columns:
+        return None
+    values = view.dropna(subset=[col])
+    if values.empty:
+        return None
+    ascending = METRIC_DIRECTIONS.get(metric, "higher") == "lower"
+    return values.sort_values(col, ascending=ascending).iloc[0]
+
+
+def build_winner_table(named_summaries: list[tuple[str, list[str], pd.DataFrame]], metrics: list[str]) -> pd.DataFrame:
+    rows = []
+    metric_cols = [metric for metric in metrics if metric in METRIC_DIRECTIONS]
+    for scope_name, group_cols, summary in named_summaries:
+        if summary.empty:
+            continue
+        grouped = [((), summary)] if not group_cols else summary.groupby(group_cols, dropna=False, observed=True)
+        for group_key, view in grouped:
+            if not isinstance(group_key, tuple):
+                group_key = (group_key,)
+            group_values = dict(zip(group_cols, group_key))
+            for metric in metric_cols:
+                best = best_method_for_metric(view, metric)
+                if best is None:
+                    continue
+                rows.append(
+                    {
+                        "scope": scope_name,
+                        **group_values,
+                        "metric": metric,
+                        "best_direction": METRIC_DIRECTIONS[metric],
+                        "winning_method": best["method"],
+                        "winning_mean": best[metric if metric == "total_time_mean" else f"{metric}_mean"],
+                        "images": best.get("images", np.nan),
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def build_overall_vote_table(winner_table: pd.DataFrame) -> pd.DataFrame:
+    if winner_table.empty:
+        return pd.DataFrame()
+    votes = (
+        winner_table.groupby(["scope", "winning_method"], dropna=False)
+        .size()
+        .reset_index(name="metric_wins")
+        .sort_values(["scope", "metric_wins", "winning_method"], ascending=[True, False, True])
+    )
+    totals = votes.groupby("scope")["metric_wins"].transform("sum")
+    votes["win_percent"] = (100.0 * votes["metric_wins"] / totals).round(2)
+    return votes
+
+
+def attach_region_counts(combined: pd.DataFrame, region_counts: pd.DataFrame) -> pd.DataFrame:
+    if region_counts.empty:
+        return pd.DataFrame()
+    auc = combined.copy()
+    if "image_id_str" not in auc.columns:
+        image_col = "image_id" if "image_id" in auc.columns else "image_no"
+        auc["image_id_str"] = auc[image_col].apply(normalize_image_id)
+    region_counts = region_counts.copy()
+    region_counts["method"] = region_counts["method"].astype(str)
+    auc["method"] = auc["method"].astype(str)
+    merge_cols = ["experiment", "image_id_str", "method"]
+    keep = [*merge_cols, "n_regions", "region_source"]
+    return auc.merge(region_counts[keep], on=merge_cols, how="inner")
+
+
+def summarize_region_metric_relationship(region_metric_df: pd.DataFrame, metrics: list[str]) -> pd.DataFrame:
+    if region_metric_df.empty:
+        return pd.DataFrame()
+    rows = []
+    available = [metric for metric in ["auc_ins", "auc_del", *metrics] if metric in region_metric_df.columns]
+    available = list(dict.fromkeys(available))
+    for (experiment, model, method), group in region_metric_df.groupby(["experiment", "model", "method"], dropna=False):
+        for metric in available:
+            view = group[["n_regions", metric]].dropna()
+            if len(view) < 2:
+                continue
+            if view["n_regions"].nunique() < 2 or view[metric].nunique() < 2:
+                corr = np.nan
+            else:
+                corr = view["n_regions"].corr(view[metric], method="spearman")
+            rows.append(
+                {
+                    "experiment": experiment,
+                    "model": model,
+                    "method": method,
+                    "metric": metric,
+                    "n": len(view),
+                    "mean_regions": view["n_regions"].mean(),
+                    "mean_metric": view[metric].mean(),
+                    "spearman_regions_vs_metric": corr,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def paired_key_columns(df: pd.DataFrame) -> list[str]:
+    cols = []
+    if "experiment" in df.columns:
+        cols.append("experiment")
+    if "image_id_str" in df.columns:
+        cols.append("image_id_str")
+    elif "image_id" in df.columns:
+        cols.append("image_id")
+    elif "image_no" in df.columns:
+        cols.append("image_no")
+    return cols
+
+
+def wilcoxon_pvalue(diff: np.ndarray) -> float:
+    diff = diff[np.isfinite(diff)]
+    diff = diff[diff != 0]
+    if len(diff) < 2 or wilcoxon is None:
+        return np.nan
+    try:
+        return float(wilcoxon(diff, alternative="two-sided").pvalue)
+    except ValueError:
+        return np.nan
+
+
+def significance_for_scope(combined: pd.DataFrame, group_cols: list[str], metrics: list[str], scope_name: str) -> pd.DataFrame:
+    metric_cols = raw_metric_list(combined, metrics)
+    if not metric_cols:
+        return pd.DataFrame()
+    df = combined.copy()
+    if "image_id_str" not in df.columns:
+        image_col = "image_id" if "image_id" in df.columns else "image_no"
+        df["image_id_str"] = df[image_col].apply(normalize_image_id)
+    df["method"] = df["method"].astype(str)
+
+    rows = []
+    grouped = [((), df)] if not group_cols else df.groupby(group_cols, dropna=False, observed=True)
+    for group_key, group in grouped:
+        if not isinstance(group_key, tuple):
+            group_key = (group_key,)
+        group_values = dict(zip(group_cols, group_key))
+        key_cols = paired_key_columns(group)
+        for metric in metric_cols:
+            means = group.groupby("method", observed=True)[metric].mean().dropna()
+            if len(means) < 2:
+                continue
+            best_method = means.idxmin() if METRIC_DIRECTIONS[metric] == "lower" else means.idxmax()
+            pivot = group.pivot_table(index=key_cols, columns="method", values=metric, aggfunc="mean")
+            if best_method not in pivot.columns:
+                continue
+            for method in means.index:
+                if method == best_method or method not in pivot.columns:
+                    continue
+                pair = pivot[[best_method, method]].dropna()
+                if len(pair) < 2:
+                    continue
+                if METRIC_DIRECTIONS[metric] == "lower":
+                    diff = pair[method].to_numpy(dtype=float) - pair[best_method].to_numpy(dtype=float)
+                else:
+                    diff = pair[best_method].to_numpy(dtype=float) - pair[method].to_numpy(dtype=float)
+                rows.append(
+                    {
+                        "scope": scope_name,
+                        **group_values,
+                        "metric": metric,
+                        "direction": METRIC_DIRECTIONS[metric],
+                        "best_method": best_method,
+                        "compared_method": method,
+                        "n_pairs": len(pair),
+                        "best_mean": pair[best_method].mean(),
+                        "compared_mean": pair[method].mean(),
+                        "mean_improvement_in_better_direction": float(np.nanmean(diff)),
+                        "median_improvement_in_better_direction": float(np.nanmedian(diff)),
+                        "win_rate": float(np.mean(diff > 0)),
+                        "wilcoxon_p": wilcoxon_pvalue(diff),
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def build_significance_table(combined: pd.DataFrame, metrics: list[str]) -> pd.DataFrame:
+    tables = [
+        significance_for_scope(combined, ["experiment"], metrics, "per_experiment"),
+        significance_for_scope(combined, ["exp_type", "model"], metrics, "per_experiment_type"),
+        significance_for_scope(combined, [], metrics, "overall"),
+    ]
+    tables = [table for table in tables if not table.empty]
+    if not tables:
+        return pd.DataFrame()
+    result = pd.concat(tables, ignore_index=True)
+    if "wilcoxon_p" in result.columns:
+        result["significant_p_lt_0_05"] = result["wilcoxon_p"] < 0.05
+    return result
 
 
 def plot_metric_bars(ranked: pd.DataFrame, metrics: list[str], output_dir: Path) -> Path:
@@ -282,6 +562,98 @@ def plot_quality_time_scatter(ranked: pd.DataFrame, output_dir: Path) -> Path | 
     return out_path
 
 
+def plot_all_methods_boxplots(combined: pd.DataFrame, metrics: list[str], output_dir: Path) -> Path | None:
+    available = raw_metric_list(combined, metrics)
+    if not available:
+        return None
+
+    n_cols = 2
+    n_rows = int(np.ceil(len(available) / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(8.5 * n_cols, 4.5 * n_rows), squeeze=False)
+    methods = [method for method in METHOD_ORDER if method in set(combined["method"].astype(str))]
+
+    for ax, metric in zip(axes.flat, available):
+        values = [
+            pd.to_numeric(combined.loc[combined["method"].astype(str) == method, metric], errors="coerce").dropna().to_numpy()
+            for method in methods
+        ]
+        nonempty = [(method, vals) for method, vals in zip(methods, values) if len(vals)]
+        if not nonempty:
+            ax.axis("off")
+            continue
+        labels, data = zip(*nonempty)
+        try:
+            box = ax.boxplot(data, tick_labels=labels, showmeans=True, patch_artist=True)
+        except TypeError:
+            box = ax.boxplot(data, labels=labels, showmeans=True, patch_artist=True)
+        means = np.array([np.mean(vals) for vals in data], dtype=float)
+        ascending = METRIC_DIRECTIONS[metric] == "lower"
+        best_idx = int(np.argmin(means) if ascending else np.argmax(means))
+        worst_idx = int(np.argmax(means) if ascending else np.argmin(means))
+        for i, patch in enumerate(box["boxes"]):
+            if i == best_idx:
+                patch.set_facecolor("#22c55e")
+                patch.set_alpha(0.70)
+            elif i == worst_idx:
+                patch.set_facecolor("#ef4444")
+                patch.set_alpha(0.55)
+            else:
+                patch.set_facecolor("#93c5fd")
+                patch.set_alpha(0.45)
+        ax.set_title(f"{metric} across all experiments ({METRIC_DIRECTIONS[metric]} is better)")
+        ax.set_ylabel(metric)
+        ax.tick_params(axis="x", rotation=25)
+        ax.grid(axis="y", alpha=0.25)
+        best_label = labels[best_idx]
+        worst_label = labels[worst_idx]
+        ax.text(
+            0.02,
+            0.98,
+            f"Best mean: {best_label}\nWorst mean: {worst_label}",
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=9,
+            bbox=dict(facecolor="white", edgecolor="#e5e7eb", alpha=0.85),
+        )
+
+    for ax in axes.flat[len(available):]:
+        ax.axis("off")
+    plt.tight_layout()
+    out_path = output_dir / "all_methods_metric_boxplots.png"
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    return out_path
+
+
+def plot_regions_vs_auc(region_metric_df: pd.DataFrame, output_dir: Path) -> Path | None:
+    if region_metric_df.empty or not {"n_regions", "auc_ins", "auc_del"}.issubset(region_metric_df.columns):
+        return None
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5), squeeze=False)
+    plot_specs = [
+        ("auc_ins", "Number of regions vs AUC+ (higher better)"),
+        ("auc_del", "Number of regions vs AUC- (lower better)"),
+    ]
+    methods = [method for method in METHOD_ORDER if method in set(region_metric_df["method"].astype(str))]
+    cmap = plt.get_cmap("tab10")
+    for ax, (metric, title) in zip(axes.flat, plot_specs):
+        for i, method in enumerate(methods):
+            view = region_metric_df[region_metric_df["method"].astype(str) == method][["n_regions", metric]].dropna()
+            if view.empty:
+                continue
+            ax.scatter(view["n_regions"], view[metric], s=28, alpha=0.55, label=method, color=cmap(i % cmap.N))
+        ax.set_xlabel("Number of regions / masks")
+        ax.set_ylabel(metric)
+        ax.set_title(title)
+        ax.grid(alpha=0.25)
+    axes.flat[0].legend(title="Method", fontsize=8)
+    plt.tight_layout()
+    out_path = output_dir / "regions_vs_auc_scatter.png"
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    return out_path
+
+
 def dataframe_to_html(df: pd.DataFrame, max_rows: int | None = None) -> str:
     view = df.copy()
     if max_rows is not None:
@@ -298,7 +670,19 @@ def rel_path(path: Path | None, output_dir: Path) -> str:
         return html.escape(str(path))
 
 
-def build_html_report(ranked: pd.DataFrame, combined: pd.DataFrame, metadata: list[dict], image_paths: list[Path], output_dir: Path) -> Path:
+def build_html_report(
+    ranked: pd.DataFrame,
+    combined: pd.DataFrame,
+    metadata: list[dict],
+    winner_table: pd.DataFrame,
+    vote_table: pd.DataFrame,
+    experiment_type_summary: pd.DataFrame,
+    overall_method_summary: pd.DataFrame,
+    region_relationship: pd.DataFrame,
+    significance_table: pd.DataFrame,
+    image_paths: list[Path],
+    output_dir: Path,
+) -> Path:
     image_html = "\n".join(
         f"<figure><figcaption>{html.escape(path.stem)}</figcaption><img src='{rel_path(path, output_dir)}' alt='{html.escape(path.stem)}'></figure>"
         for path in image_paths
@@ -368,6 +752,34 @@ window.addEventListener('DOMContentLoaded', () => {{
     <div class="table-wrap">{dataframe_to_html(ranked, max_rows=100)}</div>
   </section>
   <section>
+    <h2>Winning Methods</h2>
+    <p>This table reports the method with the best mean value for each metric and scope.</p>
+    <div class="table-wrap">{dataframe_to_html(winner_table, max_rows=200)}</div>
+  </section>
+  <section>
+    <h2>Win Counts</h2>
+    <p>Counts how often each method wins across the selected metrics.</p>
+    <div class="table-wrap">{dataframe_to_html(vote_table, max_rows=100)}</div>
+  </section>
+  <section>
+    <h2>Experiment-Type Means</h2>
+    <div class="table-wrap">{dataframe_to_html(experiment_type_summary, max_rows=120)}</div>
+  </section>
+  <section>
+    <h2>Overall Method Means</h2>
+    <div class="table-wrap">{dataframe_to_html(overall_method_summary, max_rows=40)}</div>
+  </section>
+  <section>
+    <h2>Regions Vs Metrics</h2>
+    <p>Spearman correlation between number of regions/masks and each metric. Positive correlation means the metric increases as region count increases.</p>
+    <div class="table-wrap">{dataframe_to_html(region_relationship, max_rows=120)}</div>
+  </section>
+  <section>
+    <h2>Statistical Significance</h2>
+    <p>Paired Wilcoxon tests compare the best-mean method against each other method using matched images. The improvement is positive when the best method is better according to the metric direction.</p>
+    <div class="table-wrap">{dataframe_to_html(significance_table, max_rows=200)}</div>
+  </section>
+  <section>
     <h2>Plots</h2>
     {image_html}
   </section>
@@ -399,11 +811,14 @@ def run(args):
     output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else results_dirs[0].parent / "experiment_comparison"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    frames, metadata = [], []
+    frames, metadata, region_frames = [], [], []
     for results_dir in results_dirs:
         auc_df, meta = load_experiment(results_dir)
         frames.append(auc_df)
         metadata.append(meta)
+        regions = load_region_counts(results_dir, meta["experiment"], meta["model"])
+        if not regions.empty:
+            region_frames.append(regions)
         print(f"Loaded {meta['experiment']}: {len(auc_df)} rows from {meta['auc_csv']}")
 
     combined = pd.concat(frames, ignore_index=True)
@@ -414,32 +829,86 @@ def run(args):
     summary = summarize_by_experiment_method(combined, results_dirs)
     metrics = args.metrics or DEFAULT_METRICS
     ranked = add_ranking_columns(summary, metrics)
+    experiment_type_summary = summarize_raw_by_method(combined, ["exp_type", "model"], metrics)
+    overall_method_summary = summarize_raw_by_method(combined, [], metrics)
+    winner_table = build_winner_table(
+        [
+            ("per_experiment", ["experiment"], summary),
+            ("per_experiment_type", ["exp_type", "model"], experiment_type_summary),
+            ("overall", [], overall_method_summary),
+        ],
+        metrics,
+    )
+    vote_table = build_overall_vote_table(winner_table)
+    region_counts = pd.concat(region_frames, ignore_index=True) if region_frames else pd.DataFrame()
+    region_metric_df = attach_region_counts(combined, region_counts)
+    region_relationship = summarize_region_metric_relationship(region_metric_df, metrics)
+    significance_table = build_significance_table(combined, metrics)
 
     combined_path = output_dir / "combined_auc_results.csv"
     summary_path = output_dir / "combined_method_summary.csv"
     ranked_path = output_dir / "combined_method_ranking.csv"
+    experiment_type_summary_path = output_dir / "experiment_type_method_summary.csv"
+    overall_method_summary_path = output_dir / "overall_method_summary.csv"
+    winner_table_path = output_dir / "winner_table.csv"
+    vote_table_path = output_dir / "winner_vote_counts.csv"
+    region_counts_path = output_dir / "region_counts_by_image_method.csv"
+    region_metric_path = output_dir / "region_counts_with_metrics.csv"
+    region_relationship_path = output_dir / "regions_vs_metric_summary.csv"
+    significance_path = output_dir / "statistical_significance_wilcoxon.csv"
     combined.to_csv(combined_path, index=False)
     summary.to_csv(summary_path, index=False)
     ranked.to_csv(ranked_path, index=False)
+    experiment_type_summary.to_csv(experiment_type_summary_path, index=False)
+    overall_method_summary.to_csv(overall_method_summary_path, index=False)
+    winner_table.to_csv(winner_table_path, index=False)
+    vote_table.to_csv(vote_table_path, index=False)
+    region_counts.to_csv(region_counts_path, index=False)
+    region_metric_df.to_csv(region_metric_path, index=False)
+    region_relationship.to_csv(region_relationship_path, index=False)
+    significance_table.to_csv(significance_path, index=False)
 
     plot_paths = [
         plot_metric_bars(ranked, metrics, output_dir),
         plot_composite_heatmap(ranked, metrics, output_dir),
     ]
+    all_methods_boxplot_path = plot_all_methods_boxplots(combined, metrics, output_dir)
+    if all_methods_boxplot_path is not None:
+        plot_paths.append(all_methods_boxplot_path)
+    regions_vs_auc_path = plot_regions_vs_auc(region_metric_df, output_dir)
+    if regions_vs_auc_path is not None:
+        plot_paths.append(regions_vs_auc_path)
     quality_time_path = plot_quality_time_scatter(ranked, output_dir)
     if quality_time_path is not None:
         plot_paths.append(quality_time_path)
 
-    report_path = build_html_report(ranked, combined, metadata, plot_paths, output_dir)
-    print('=' * 60)
+    report_path = build_html_report(
+        ranked,
+        combined,
+        metadata,
+        winner_table,
+        vote_table,
+        experiment_type_summary,
+        overall_method_summary,
+        region_relationship,
+        significance_table,
+        plot_paths,
+        output_dir,
+    )
+
     print(f"Saved combined rows: {combined_path}")
-    print('-' * 60)
     print(f"Saved method summary: {summary_path}")
-    print('-' * 60)
     print(f"Saved method ranking: {ranked_path}")
-    print('-' * 60)
+    print(f"Saved experiment-type summary: {experiment_type_summary_path}")
+    print(f"Saved overall method summary: {overall_method_summary_path}")
+    print(f"Saved winner table: {winner_table_path}")
+    print(f"Saved winner vote counts: {vote_table_path}")
+    print(f"Saved region counts: {region_counts_path}")
+    print(f"Saved region-count metric table: {region_metric_path}")
+    print(f"Saved region-count summary: {region_relationship_path}")
+    print(f"Saved statistical significance table: {significance_path}")
     print(f"Saved HTML report: {report_path}")
-    print('-' * 60)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)

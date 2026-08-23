@@ -70,7 +70,8 @@ checkpoints
 
 # Results
 results.zip
-src/results/
+src/results/*
+src/results/splits
 
 
 /docs/.DS_Store/

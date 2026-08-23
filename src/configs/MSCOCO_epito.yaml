@@ -40,5 +40,5 @@ evaluation:
   #   batch_size : number of images to process in a single batch during evaluation
   # --eval-batch-size", type=int, default=16
 output:
-  folder: "results"
+  folder: "/beegfs/home/mrashid/repos/XAI/shap_bpt_sam/examples/results"
   dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/src

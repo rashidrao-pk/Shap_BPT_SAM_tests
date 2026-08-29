@@ -19,9 +19,9 @@ data:
   image_dir: "/Users/rashid/data/DS/MS_COCO/val2017"
   annotation_file: "/Users/rashid/data/DS/MS_COCO/annotations/annotations_trainval2017/annotations/instances_val2017.json"
 
-  masks_path: "/Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/data"
-  mask_dir: "risultati_120"
-  mask_dir_final: "120_refined_filled"
+  masks_path: "/Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/"
+  mask_dir: "data"
+  mask_dir_final: "300_boosted_filled"
 
 model:
   yolo_model_name: "yolo11s"

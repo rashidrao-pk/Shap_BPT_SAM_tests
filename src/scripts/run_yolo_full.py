@@ -43,7 +43,8 @@ from ultralytics import YOLO
 from ultralytics.utils.downloads import attempt_download_asset, safe_download
 
 
-METHOD_ORDER = ["BPT", "sam", "greedy_selection", "compact_selection", "filled", "boosted", "boosted_filled"]
+METHOD_ORDER = ["BPT", "sam", "greedy_selection", "compact_selection", "filled", "boosted", "boosted_filled", "sam_kernelshap"]
+
 PARTITION_TIME_BY_METHOD = {
     "BPT": None,
     "sam": "time_sam",
@@ -52,20 +53,9 @@ PARTITION_TIME_BY_METHOD = {
     "filled": "time_filler",
     "refined": "time_refined",
     "refined_filled": "time_refined_filled",
+    "sam_kernelshap": "time_sam",
 }
 FAITHFULNESS_METRIC_COLUMNS = [
-    "drop_at_10",
-    "drop_at_20",
-    "drop_at_30",
-    "insert_at_10",
-    "insert_at_20",
-    "insert_at_30",
-    "sufficiency_at_10",
-    "sufficiency_at_20",
-    "sufficiency_gap_at_10",
-    "sufficiency_gap_at_20",
-    "comprehensiveness_at_10",
-    "comprehensiveness_at_20",
     "sensitivity_n_corr",
     "stability_top10_jaccard",
 ]
@@ -559,7 +549,13 @@ def image_has_segmentation(coco: COCO, image_no: int) -> bool:
 
 
 def collect_image_ids(masks_base_path: Path) -> list[str]:
-    image_ids = [p.name.split("_")[0] for p in masks_base_path.glob("*_refined.npy")]
+    image_ids = []
+    for path in masks_base_path.glob("*"):
+        if path.suffix not in {".npy", ".json"}:
+            continue
+        image_id = path.name.split("_", 1)[0]
+        if image_id.isdigit():
+            image_ids.append(image_id)
     return sorted(set(normalize_image_id(image_id) for image_id in image_ids))
 
 
@@ -1356,6 +1352,8 @@ def run(args):
         config.setdefault("output", {})
         config["output"]["dir"] = str(Path(args.output_dir).expanduser())
         config["output"]["folder"] = ""
+    kernel_shap_samples = args.kernel_shap_samples or args.max_evals
+    kernel_shap_batch_size = args.kernel_shap_batch_size or args.eval_batch_size
 
     device = select_device(args.device or config.get("device", "auto"))
     checkpoint_dir = resolve_checkpoint_dir(project_root, args.checkpoint_dir)
@@ -1376,6 +1374,8 @@ def run(args):
             f"max_evals={args.max_evals}, "
             f"explain_batch_size={args.eval_batch_size}, "
             f"auc_eval_batch_size={args.auc_batch_size}, "
+            f"kernel_shap_samples={kernel_shap_samples}, "
+            f"kernel_shap_batch_size={kernel_shap_batch_size}, "
             f"methods={','.join(METHOD_ORDER)}, "
             f"num_explained_classes={args.num_explained_classes}, "
             f"class_aggregation={args.class_aggregation}, "
@@ -1406,6 +1406,8 @@ def run(args):
             "max_evals": args.max_evals,
             "eval_batch_size": args.eval_batch_size,
             "auc_batch_size": args.auc_batch_size,
+            "kernel_shap_samples": kernel_shap_samples,
+            "kernel_shap_batch_size": kernel_shap_batch_size,
             "num_explained_classes": args.num_explained_classes,
             "methods": METHOD_ORDER,
             "config": args.config,
@@ -1533,21 +1535,35 @@ def run(args):
                     bptree = None
                 else:
                     timing_start = time.time()
+                    partition_type = "sam" if method == "sam_kernelshap" else method
                     partitions[method], partition_capped[method] = uts2.load_refine_partitions(
-                        input_data["image_to_explain"], str(masks_base_path), image_id, partition_type=method
+                        input_data["image_to_explain"], str(masks_base_path), image_id, partition_type=partition_type
                     )
                     first_iteration_breakdown["load_partitions"] += time.time() - timing_start
-                    timing_start = time.time()
-                    bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"], prebuilt_partitions=partition_capped[method])
-                    first_iteration_breakdown["build_bpt"] += time.time() - timing_start
+                    if method == "sam_kernelshap":
+                        bptree = None
+                    else:
+                        timing_start = time.time()
+                        bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"], prebuilt_partitions=partition_capped[method])
+                        first_iteration_breakdown["build_bpt"] += time.time() - timing_start
 
                 start = time.time()
-                shap_values[method] = explainer.explain_instance(
-                    args.max_evals,
-                    bpt=bptree,
-                    method="BPT",
-                    batch_size=args.eval_batch_size,
-                )
+                if method == "sam_kernelshap":
+                    shap_values[method] = utx.kernel_shap_partition_regions(
+                        predict_masked,
+                        partition_capped[method],
+                        predicted_cls,
+                        n_samples=kernel_shap_samples,
+                        batch_size=kernel_shap_batch_size,
+                        seed=0,
+                    )
+                else:
+                    shap_values[method] = explainer.explain_instance(
+                        args.max_evals,
+                        bpt=bptree,
+                        method="BPT",
+                        batch_size=args.eval_batch_size,
+                    )
                 time_exp = time.time() - start
                 first_iteration_breakdown["explanation"] += time_exp
                 first_iteration_method_times[method] = time_exp
@@ -1732,6 +1748,8 @@ def parse_args():
     parser.add_argument("--num-explained-classes", type=int, default=4)
     parser.add_argument("--eval-batch-size", type=int, default=16)
     parser.add_argument("--auc-batch-size", type=int, default=4)
+    parser.add_argument("--kernel-shap-samples", type=int, default=None, help="Number of region coalitions for sam_kernelshap. Default: --max-evals.")
+    parser.add_argument("--kernel-shap-batch-size", type=int, default=None, help="Prediction batch size for sam_kernelshap. Default: --eval-batch-size.")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--verbose-level", default="low", choices=["low", "medium", "high"])
     parser.add_argument("--verbose-k", type=int, default=10, help="Print medium/high resource summary every K images after image 1.")

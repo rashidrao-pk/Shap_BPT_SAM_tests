@@ -271,6 +271,8 @@ def run(args):
         config.setdefault("output", {})
         config["output"]["dir"] = str(Path(args.output_dir).expanduser())
         config["output"]["folder"] = ""
+    kernel_shap_samples = args.kernel_shap_samples or args.max_evals
+    kernel_shap_batch_size = args.kernel_shap_batch_size or args.eval_batch_size
 
     device = select_device(args.device or config.get("device", "auto"))
     model, preprocess, categories = load_resnet50_model(args, device)
@@ -292,6 +294,8 @@ def run(args):
             f"explain_batch_size={args.eval_batch_size}, "
             f"auc_eval_batch_size={args.auc_batch_size}, "
             f"resnet_batch_size={args.resnet_batch_size}, "
+            f"kernel_shap_samples={kernel_shap_samples}, "
+            f"kernel_shap_batch_size={kernel_shap_batch_size}, "
             f"methods={','.join(METHOD_ORDER)}, "
             f"num_explained_classes={args.num_explained_classes}, "
             f"bg_type={args.bg_type}, "
@@ -321,6 +325,8 @@ def run(args):
             "eval_batch_size": args.eval_batch_size,
             "auc_batch_size": args.auc_batch_size,
             "resnet_batch_size": args.resnet_batch_size,
+            "kernel_shap_samples": kernel_shap_samples,
+            "kernel_shap_batch_size": kernel_shap_batch_size,
             "num_explained_classes": args.num_explained_classes,
             "methods": METHOD_ORDER,
             "config": args.config,
@@ -446,21 +452,35 @@ def run(args):
                     bptree = None
                 else:
                     timing_start = time.time()
+                    partition_type = "sam" if method == "sam_kernelshap" else method
                     partitions[method], partition_capped[method] = uts2.load_refine_partitions(
-                        input_data["image_to_explain"], str(masks_base_path), image_id, partition_type=method
+                        input_data["image_to_explain"], str(masks_base_path), image_id, partition_type=partition_type
                     )
                     first_iteration_breakdown["load_partitions"] += time.time() - timing_start
-                    timing_start = time.time()
-                    bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"], prebuilt_partitions=partition_capped[method])
-                    first_iteration_breakdown["build_bpt"] += time.time() - timing_start
+                    if method == "sam_kernelshap":
+                        bptree = None
+                    else:
+                        timing_start = time.time()
+                        bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"], prebuilt_partitions=partition_capped[method])
+                        first_iteration_breakdown["build_bpt"] += time.time() - timing_start
 
                 start = time.time()
-                shap_values[method] = explainer.explain_instance(
-                    args.max_evals,
-                    bpt=bptree,
-                    method="BPT",
-                    batch_size=args.eval_batch_size,
-                )
+                if method == "sam_kernelshap":
+                    shap_values[method] = utx.kernel_shap_partition_regions(
+                        predict_masked,
+                        partition_capped[method],
+                        predicted_cls,
+                        n_samples=kernel_shap_samples,
+                        batch_size=kernel_shap_batch_size,
+                        seed=0,
+                    )
+                else:
+                    shap_values[method] = explainer.explain_instance(
+                        args.max_evals,
+                        bpt=bptree,
+                        method="BPT",
+                        batch_size=args.eval_batch_size,
+                    )
                 time_exp = time.time() - start
                 first_iteration_breakdown["explanation"] += time_exp
                 first_iteration_method_times[method] = time_exp
@@ -637,6 +657,8 @@ def parse_args():
     parser.add_argument("--eval-batch-size", type=int, default=256)
     parser.add_argument("--auc-batch-size", type=int, default=128)
     parser.add_argument("--resnet-batch-size", type=int, default=256)
+    parser.add_argument("--kernel-shap-samples", type=int, default=None, help="Number of region coalitions for sam_kernelshap. Default: --max-evals.")
+    parser.add_argument("--kernel-shap-batch-size", type=int, default=None, help="Prediction batch size for sam_kernelshap. Default: --eval-batch-size.")
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--verbose-level", default="low", choices=["low", "medium", "high"])

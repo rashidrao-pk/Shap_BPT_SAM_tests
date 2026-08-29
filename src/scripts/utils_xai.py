@@ -2,6 +2,7 @@
 from pathlib import Path
 import html
 import json
+from math import comb
 import os
 import re
 import zlib
@@ -11,6 +12,107 @@ import cv2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+
+def _kernel_shap_subset_weight(subset_size, n_features):
+    if subset_size == 0 or subset_size == n_features:
+        return 1e6
+    return (n_features - 1) / (comb(n_features, subset_size) * subset_size * (n_features - subset_size))
+
+
+def sample_kernel_shap_coalitions(n_features, n_samples=512, seed=0):
+    """Sample binary coalitions for KernelSHAP in region-feature space."""
+    if n_features < 2:
+        raise ValueError(f"KernelSHAP needs at least 2 features, got {n_features}.")
+
+    rng = np.random.default_rng(seed)
+    rows = [np.zeros(n_features, dtype=np.uint8), np.ones(n_features, dtype=np.uint8)]
+
+    for i in range(n_features):
+        z = np.zeros(n_features, dtype=np.uint8)
+        z[i] = 1
+        rows.append(z)
+
+        z = np.ones(n_features, dtype=np.uint8)
+        z[i] = 0
+        rows.append(z)
+
+    sizes = np.arange(1, n_features)
+    size_probs = np.array([(n_features - 1) / (s * (n_features - s)) for s in sizes], dtype=float)
+    size_probs = size_probs / size_probs.sum()
+
+    seen = {row.tobytes() for row in rows}
+    max_attempts = max(5000, int(n_samples) * 20)
+    attempts = 0
+    while len(rows) < n_samples and attempts < max_attempts:
+        attempts += 1
+        subset_size = int(rng.choice(sizes, p=size_probs))
+        active = rng.choice(n_features, size=subset_size, replace=False)
+        z = np.zeros(n_features, dtype=np.uint8)
+        z[active] = 1
+        key = z.tobytes()
+        if key not in seen:
+            rows.append(z)
+            seen.add(key)
+
+    return np.stack(rows[:n_samples], axis=0)
+
+
+def coalitions_to_region_masks(coalitions, partition, labels):
+    labels = np.asarray(labels)
+    label_indexes = np.searchsorted(labels, np.asarray(partition).ravel())
+    return coalitions[:, label_indexes].reshape((len(coalitions), *partition.shape)).astype(bool, copy=False)
+
+
+def kernel_shap_partition_regions(
+    predict_masked,
+    partition,
+    target_cls,
+    n_samples=512,
+    batch_size=128,
+    seed=0,
+    return_info=False,
+):
+    """Compute KernelSHAP values where each partition label is one interpretable feature."""
+    partition = np.asarray(partition)
+    labels = np.array(sorted(np.unique(partition)))
+    n_features = len(labels)
+    if n_features < 2:
+        raise ValueError(f"KernelSHAP needs at least 2 regions, got {n_features}.")
+
+    coalitions = sample_kernel_shap_coalitions(n_features, n_samples=n_samples, seed=seed)
+    weights = np.array([_kernel_shap_subset_weight(int(z.sum()), n_features) for z in coalitions], dtype=float)
+
+    y_values = []
+    for start in range(0, len(coalitions), batch_size):
+        z_batch = coalitions[start:start + batch_size]
+        mask_batch = coalitions_to_region_masks(z_batch, partition, labels)
+        preds = predict_masked(mask_batch)
+        y_values.append(preds[:, target_cls])
+    y_values = np.concatenate(y_values, axis=0).astype(float)
+
+    X = np.column_stack([np.ones(len(coalitions)), coalitions.astype(float)])
+    sqrt_w = np.sqrt(weights)
+    beta, *_ = np.linalg.lstsq(X * sqrt_w[:, None], y_values * sqrt_w, rcond=None)
+
+    phi = beta[1:]
+    heatmap = np.zeros(partition.shape, dtype=float)
+    for label, value in zip(labels, phi):
+        heatmap[partition == label] = value
+
+    shap_values = heatmap[None, ...]
+    if not return_info:
+        return shap_values
+
+    return shap_values, {
+        "labels": labels,
+        "coalitions": coalitions,
+        "weights": weights,
+        "scores": y_values,
+        "base_value": float(beta[0]),
+        "sum_phi": float(phi.sum()),
+        "full_minus_empty": float(y_values[1] - y_values[0]),
+    }
 
 
 def get_annotation(coco,image_no,category_name=None):
@@ -1295,10 +1397,10 @@ import utils_sam_2 as uts2
 shapley_values_colormap = utx.get_shapley_values_colormap()
 def plot_xai(input_data,partitions,shap_values, model, results, image_id,
               destroy_fig=False, save_path=None, save_fig=False):
-    n_panels = 3 + len(shap_values)
-    ncols = 3
+    n_panels = 4 + len(shap_values)
+    ncols = 4
     nrows = int(np.ceil(n_panels / ncols))
-    fig, axes = plt.subplots(nrows, ncols, figsize=(15, 3.4 * nrows))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(20, 3.8 * nrows))
     axes = np.atleast_1d(axes).flatten()
     axes[0].imshow(input_data['image_to_explain'])
     axes[0].set_title(f"Original Image - {image_id}")
@@ -1310,19 +1412,27 @@ def plot_xai(input_data,partitions,shap_values, model, results, image_id,
                          save_fig=False,
                          ax=axes[1])
     axes[1].set_title(f"YOLO Predictions for {input_data['fixed_category']}")
-    mask_type = 'sam'
-    masks = partitions[mask_type]
 
-    N = max(np.max(mask) for mask in masks)
-    cmap, norm = uts.black_rainbow_colormap(N, rainbow_name="turbo")
-    
-    image = axes[2].imshow(masks, cmap=cmap, norm=norm, aspect="auto")
-    colorbar = fig.colorbar(image, ax=axes[2], ticks=np.arange(N + 1))
-    colorbar.set_label("Index")
-    bg_ratio = uts.background_ratio(masks, bg_label=0)
+    def plot_partition_panel(ax, mask_type):
+        if mask_type not in partitions:
+            ax.text(0.5, 0.5, f"{mask_type}\nnot loaded", ha="center", va="center", fontsize=12)
+            ax.set_title(f"{mask_type} partition")
+            ax.axis("off")
+            return
 
-    axes[2].set_title(f'{mask_type} : {len(np.unique(masks))} - BG: {bg_ratio["bg_percent"]:.2f}%', fontsize=14);
-    axes[2].set_xticks([]); axes[2].set_yticks([]);
+        masks = partitions[mask_type]
+        N = int(np.max(masks))
+        cmap, norm = uts.black_rainbow_colormap(N, rainbow_name="turbo")
+        image = ax.imshow(masks, cmap=cmap, norm=norm)
+        colorbar = fig.colorbar(image, ax=ax, fraction=0.035)
+        colorbar.set_label("Index")
+        bg_ratio = uts.background_ratio(masks, bg_label=0)
+        ax.set_title(f'{mask_type}: {len(np.unique(masks))} labels - BG: {bg_ratio["bg_percent"]:.2f}%', fontsize=13)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    plot_partition_panel(axes[2], "sam")
+    plot_partition_panel(axes[3], "boosted_filled")
     
     # axes[2].set_title(f"partition")
     # axes[2].axis('off')
@@ -1333,11 +1443,12 @@ def plot_xai(input_data,partitions,shap_values, model, results, image_id,
         sv,mv = utx.scale_shap_values(sv, robust_percentile=99.5, factor=1)
         max_abs = np.max(np.abs(sv))
         # print(method, max_abs, mv)
-        im = axes[i + 3].imshow(sv[0], vmin=-mv, vmax=mv, cmap=shapley_values_colormap)
-        fig.colorbar(im, ax=axes[i + 3], fraction=0.03)#, location='bottom') #,  fraction=0.5, 
-        axes[i + 3].set_title(f"{method} Explanation")
+        panel_index = i + 4
+        im = axes[panel_index].imshow(sv[0], vmin=-mv, vmax=mv, cmap=shapley_values_colormap)
+        fig.colorbar(im, ax=axes[panel_index], fraction=0.03)#, location='bottom') #,  fraction=0.5, 
+        axes[panel_index].set_title(f"{method} Explanation")
         # axes[i + 1].axis('off')
-        axes[i + 3].set_xticks([]); axes[i + 3].set_yticks([])
+        axes[panel_index].set_xticks([]); axes[panel_index].set_yticks([])
     for ax in axes[n_panels:]:
         ax.axis('off')
     plt.tight_layout()

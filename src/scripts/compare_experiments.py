@@ -689,6 +689,9 @@ def build_html_report(
         if path is not None
     )
     metadata_df = pd.DataFrame([{k: v for k, v in item.items() if k != "run_info"} for item in metadata])
+    sig_overall = significance_table[significance_table["scope"].astype(str) == "overall"].copy() if "scope" in significance_table.columns else pd.DataFrame()
+    sig_by_model = significance_table[significance_table["scope"].astype(str) == "per_experiment_type"].copy() if "scope" in significance_table.columns else pd.DataFrame()
+    sig_by_experiment = significance_table[significance_table["scope"].astype(str) == "per_experiment"].copy() if "scope" in significance_table.columns else pd.DataFrame()
     html_doc = f"""<!doctype html>
 <html>
 <head>
@@ -706,6 +709,11 @@ th {{ position: sticky; top: 0; background: #eef2ff; cursor: pointer; }}
 figure {{ margin: 0 0 20px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }}
 figcaption {{ padding: 8px 10px; font-weight: 700; background: #f1f5f9; }}
 img {{ display: block; width: 100%; height: auto; }}
+details.explain {{ margin: 10px 0 12px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; }}
+details.explain summary {{ cursor: pointer; font-weight: 700; color: #1f2937; }}
+details.explain p {{ margin: 8px 0; line-height: 1.45; }}
+details.explain ul {{ margin: 8px 0 0 20px; padding: 0; line-height: 1.45; }}
+code {{ background: #eef2ff; padding: 1px 4px; border-radius: 4px; }}
 </style>
 <script>
 function sortTable(th) {{
@@ -744,44 +752,145 @@ window.addEventListener('DOMContentLoaded', () => {{
 <main>
   <section>
     <h2>Experiments</h2>
+    <details class="explain">
+      <summary>How to read this section</summary>
+      <p>This table lists the experiment folders that were loaded, their inferred experiment id, model family, and source CSV. Use it first to verify that the comparison includes the intended runs, for example YOLO, ResNet-50, ViT-B/16, and DETR.</p>
+      <p>The experiment id is parsed from folder names such as <code>xai_results_E1_1_4</code>. The first part usually identifies the model family: <code>E1</code> YOLO, <code>E2</code> ResNet-50, <code>E3</code> ViT-B/16, <code>E4</code> DETR.</p>
+    </details>
     <div class="table-wrap">{dataframe_to_html(metadata_df)}</div>
   </section>
   <section>
     <h2>Overall Ranking</h2>
     <p>Composite score is the mean of normalized selected metrics. For lower-is-better metrics, the normalized score is inverted.</p>
+    <details class="explain">
+      <summary>How the ranking is computed</summary>
+      <p>Each selected metric is min-max normalized across method/experiment rows. Metrics where lower is better, such as <code>auc_del</code>, <code>sufficiency_gap</code>, and <code>total_time_mean</code>, are inverted after normalization so that 1 always means best.</p>
+      <p>The <code>composite_score</code> is the mean of those normalized metric scores. This is useful as a high-level summary, but the paper conclusion should also report the individual metrics because different metrics test different faithfulness properties.</p>
+      <ul>
+        <li><code>auc_ins</code> / AUC+ higher is better: important pixels should recover confidence quickly when inserted.</li>
+        <li><code>auc_del</code> / AUC- lower is better: removing important pixels should reduce confidence quickly.</li>
+        <li><code>total_time_mean</code> lower is better: it measures efficiency rather than explanation quality.</li>
+      </ul>
+    </details>
     <div class="table-wrap">{dataframe_to_html(ranked, max_rows=100)}</div>
   </section>
   <section>
     <h2>Winning Methods</h2>
     <p>This table reports the method with the best mean value for each metric and scope.</p>
+    <details class="explain">
+      <summary>How to use winner rows</summary>
+      <p>This is the cleanest table for writing conclusions. For each scope and metric it reports the method with the best mean value according to the metric direction. Scopes are <code>per_experiment</code>, <code>per_experiment_type</code>, and <code>overall</code>.</p>
+      <p>Use <code>per_experiment_type</code> to say which method wins for each model family. Use <code>overall</code> to support a global conclusion across all loaded experiments.</p>
+    </details>
     <div class="table-wrap">{dataframe_to_html(winner_table, max_rows=200)}</div>
   </section>
   <section>
     <h2>Win Counts</h2>
     <p>Counts how often each method wins across the selected metrics.</p>
+    <details class="explain">
+      <summary>What win counts mean</summary>
+      <p>This table counts how many metrics each method wins within a scope. It is a compact robustness check: a method that wins many metrics is more consistently strong than a method that wins only one metric.</p>
+      <p>Do not treat win count as a statistical test. It is a descriptive summary. Pair it with the Wilcoxon table below for significance.</p>
+    </details>
     <div class="table-wrap">{dataframe_to_html(vote_table, max_rows=100)}</div>
   </section>
   <section>
     <h2>Experiment-Type Means</h2>
+    <details class="explain">
+      <summary>How to read model-family means</summary>
+      <p>This table averages metrics by experiment type and method, for example all <code>E1</code> rows for YOLO or all <code>E4</code> rows for DETR. It answers: which XAI method is best within each model family?</p>
+      <p>This is useful because detection models and classification models can behave differently under insertion/deletion tests.</p>
+    </details>
     <div class="table-wrap">{dataframe_to_html(experiment_type_summary, max_rows=120)}</div>
   </section>
   <section>
     <h2>Overall Method Means</h2>
+    <details class="explain">
+      <summary>How to read overall means</summary>
+      <p>This table pools all loaded experiments and reports mean, standard deviation, and median for each method. It answers: if we ignore experiment type and look globally, which method has the best average behavior?</p>
+      <p>Use this for the global headline result, but keep model-family results nearby so reviewers can see whether the global winner is consistent or driven by one model.</p>
+    </details>
     <div class="table-wrap">{dataframe_to_html(overall_method_summary, max_rows=40)}</div>
   </section>
   <section>
     <h2>Regions Vs Metrics</h2>
     <p>Spearman correlation between number of regions/masks and each metric. Positive correlation means the metric increases as region count increases.</p>
+    <details class="explain">
+      <summary>Why region-count analysis matters</summary>
+      <p>This checks whether better faithfulness is simply caused by having more or fewer regions. The table reports Spearman rank correlation between <code>n_regions</code> and each metric for each experiment/method.</p>
+      <ul>
+        <li>Positive correlation for <code>auc_ins</code>: more regions tend to improve insertion AUC.</li>
+        <li>Negative correlation for <code>auc_del</code>: more regions tend to improve deletion AUC because lower AUC- is better.</li>
+        <li>Near-zero correlation: method performance is less explained by region count alone.</li>
+      </ul>
+      <p>This is a complexity/fairness check for partition-based explanations.</p>
+    </details>
     <div class="table-wrap">{dataframe_to_html(region_relationship, max_rows=120)}</div>
   </section>
   <section>
     <h2>Statistical Significance</h2>
     <p>Paired Wilcoxon tests compare the best-mean method against each other method using matched images. The improvement is positive when the best method is better according to the metric direction.</p>
+    <details class="explain">
+      <summary>How to interpret the statistical test</summary>
+      <p>The Wilcoxon signed-rank test compares two methods on the same images. It is paired and non-parametric, so it is appropriate when metric distributions are not guaranteed to be Gaussian.</p>
+      <p>The column <code>wilcoxon_p</code> is the p-value. <code>significant_p_lt_0_05</code> marks p &lt; 0.05. The columns <code>mean_improvement_in_better_direction</code> and <code>median_improvement_in_better_direction</code> are positive when the best method is better according to the metric direction.</p>
+      <p>For paper text, prefer a statement like: "Method X improves AUC+ over Method Y with paired Wilcoxon p &lt; 0.05 on N matched images."</p>
+    </details>
     <div class="table-wrap">{dataframe_to_html(significance_table, max_rows=200)}</div>
   </section>
   <section>
+    <h2>Statistical Significance By Model</h2>
+    <details class="explain" open>
+      <summary>Why this section is important</summary>
+      <p>This table repeats only the <code>per_experiment_type</code> Wilcoxon tests, so each model family is easy to inspect separately. For example, it lets you compare YOLO (<code>E1</code>), ResNet-50 (<code>E2</code>), ViT-B/16 (<code>E3</code>), and DETR (<code>E4</code>) without mixing them into the pooled overall result.</p>
+      <p>Use this for statements such as: "For DETR, method X significantly improves AUC+ over method Y," or "The same winner remains significant across classification and detection models."</p>
+    </details>
+    <div class="table-wrap">{dataframe_to_html(sig_by_model, max_rows=None)}</div>
+  </section>
+  <section>
+    <h2>Statistical Significance By Experiment</h2>
+    <details class="explain">
+      <summary>How this differs from model-level significance</summary>
+      <p>This table uses the <code>per_experiment</code> scope, so each exact run folder is tested separately. This is useful when the same model has multiple backgrounds or budgets, for example <code>E1_1_1</code>, <code>E1_1_4</code>, or <code>E1_2_4</code>.</p>
+    </details>
+    <div class="table-wrap">{dataframe_to_html(sig_by_experiment, max_rows=None)}</div>
+  </section>
+  <section>
+    <h2>Overall Statistical Significance</h2>
+    <details class="explain">
+      <summary>How to use the pooled test</summary>
+      <p>This table uses all loaded experiments together. It is a high-level global test, but it should be interpreted alongside the model-level table above, because a pooled result can hide different behavior between detection and classification models.</p>
+    </details>
+    <div class="table-wrap">{dataframe_to_html(sig_overall, max_rows=None)}</div>
+  </section>
+  <section>
     <h2>Plots</h2>
+    <details class="explain">
+      <summary>How to read the plots</summary>
+      <p>The plots provide visual checks for the tables above. The metric boxplots show method distributions across images and experiments; green marks the best mean and red marks the worst mean. The region scatter plot shows whether performance changes with partition complexity.</p>
+      <p>Use plots for intuition and tables for exact values.</p>
+    </details>
     {image_html}
+  </section>
+  <section>
+    <h2>References</h2>
+    <details class="explain" open>
+      <summary>Methods and evaluation concepts used in this report</summary>
+      <ul>
+        <li>Shapley values: Shapley, L. S. (1953). "A value for n-person games." Contributions to the Theory of Games.</li>
+        <li>Owen values / hierarchical coalitions: Owen, G. (1977). "Values of games with a priori unions." Mathematical Economics and Game Theory.</li>
+        <li>Insertion/deletion faithfulness metrics: Petsiuk, V., Das, A., and Saenko, K. (2018). "RISE: Randomized Input Sampling for Explanation of Black-box Models." BMVC.</li>
+        <li>Deletion/insertion style evaluation is also commonly used in saliency-map evaluation, for example Samek et al. (2017), "Evaluating the visualization of what a deep neural network has learned."</li>
+        <li>Sufficiency and comprehensiveness: DeYoung et al. (2020). "ERASER: A Benchmark to Evaluate Rationalized NLP Models." ACL. The same idea is often adapted to vision by keeping or removing top-attributed evidence.</li>
+        <li>Stability / sensitivity of explanations: Alvarez-Melis and Jaakkola (2018). "On the Robustness of Interpretability Methods." ICML Workshop.</li>
+        <li>Spearman rank correlation: Spearman, C. (1904). "The proof and measurement of association between two things." American Journal of Psychology.</li>
+        <li>Wilcoxon signed-rank test: Wilcoxon, F. (1945). "Individual comparisons by ranking methods." Biometrics Bulletin.</li>
+        <li>Segment Anything masks: Kirillov et al. (2023). "Segment Anything." ICCV.</li>
+        <li>DETR detection model: Carion et al. (2020). "End-to-End Object Detection with Transformers." ECCV.</li>
+        <li>ViT classification model: Dosovitskiy et al. (2021). "An Image is Worth 16x16 Words." ICLR.</li>
+        <li>ResNet classification model: He et al. (2016). "Deep Residual Learning for Image Recognition." CVPR.</li>
+      </ul>
+    </details>
   </section>
 </main>
 </body>
@@ -856,6 +965,9 @@ def run(args):
     region_metric_path = output_dir / "region_counts_with_metrics.csv"
     region_relationship_path = output_dir / "regions_vs_metric_summary.csv"
     significance_path = output_dir / "statistical_significance_wilcoxon.csv"
+    significance_by_model_path = output_dir / "statistical_significance_by_model.csv"
+    significance_by_experiment_path = output_dir / "statistical_significance_by_experiment.csv"
+    significance_overall_path = output_dir / "statistical_significance_overall.csv"
     combined.to_csv(combined_path, index=False)
     summary.to_csv(summary_path, index=False)
     ranked.to_csv(ranked_path, index=False)
@@ -867,6 +979,14 @@ def run(args):
     region_metric_df.to_csv(region_metric_path, index=False)
     region_relationship.to_csv(region_relationship_path, index=False)
     significance_table.to_csv(significance_path, index=False)
+    if "scope" in significance_table.columns:
+        significance_table[significance_table["scope"].astype(str) == "per_experiment_type"].to_csv(significance_by_model_path, index=False)
+        significance_table[significance_table["scope"].astype(str) == "per_experiment"].to_csv(significance_by_experiment_path, index=False)
+        significance_table[significance_table["scope"].astype(str) == "overall"].to_csv(significance_overall_path, index=False)
+    else:
+        pd.DataFrame().to_csv(significance_by_model_path, index=False)
+        pd.DataFrame().to_csv(significance_by_experiment_path, index=False)
+        pd.DataFrame().to_csv(significance_overall_path, index=False)
 
     plot_paths = [
         plot_metric_bars(ranked, metrics, output_dir),
@@ -907,6 +1027,9 @@ def run(args):
     print(f"Saved region-count metric table: {region_metric_path}")
     print(f"Saved region-count summary: {region_relationship_path}")
     print(f"Saved statistical significance table: {significance_path}")
+    print(f"Saved statistical significance by model: {significance_by_model_path}")
+    print(f"Saved statistical significance by experiment: {significance_by_experiment_path}")
+    print(f"Saved overall statistical significance: {significance_overall_path}")
     print(f"Saved HTML report: {report_path}")
 
 

@@ -26,6 +26,19 @@ import yaml
 DEFAULT_METHODS = ["BPT", "sam", "coverage", "compact", "filled", "refined", "refined_filled"]
 
 
+def format_duration(seconds: float | int | None) -> str:
+    if seconds is None or pd.isna(seconds):
+        return ""
+    seconds = max(0, int(round(float(seconds))))
+    hours, rem = divmod(seconds, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+
 def normalize_image_id(value) -> str:
     text = str(value)
     if text.endswith(".0"):
@@ -129,11 +142,18 @@ def resolve_auc_csv(results_dir: Path) -> Path | None:
     return latest_file(results_dir, "auc_results_all_images_*.csv", exclude={"auc_results_all_images_current_run.csv"})
 
 
-def load_auc_status(results_dir: Path, methods: list[str]) -> tuple[Path | None, dict[str, set[str]], set[str]]:
+def load_auc_table(results_dir: Path) -> tuple[Path | None, pd.DataFrame]:
     auc_csv = resolve_auc_csv(results_dir)
     if auc_csv is None:
-        return None, {}, set()
+        return None, pd.DataFrame()
     df = pd.read_csv(auc_csv)
+    return auc_csv, df
+
+
+def load_auc_status(results_dir: Path, methods: list[str]) -> tuple[Path | None, dict[str, set[str]], set[str]]:
+    auc_csv, df = load_auc_table(results_dir)
+    if auc_csv is None:
+        return None, {}, set()
     if df.empty:
         return auc_csv, {}, set()
 
@@ -149,6 +169,85 @@ def load_auc_status(results_dir: Path, methods: list[str]) -> tuple[Path | None,
     required = set(methods)
     complete = {image_id for image_id, present in rows_by_image.items() if required.issubset(present)}
     return auc_csv, rows_by_image, complete
+
+
+def load_partition_time_by_image(results_dir: Path) -> dict[str, float]:
+    summary_path = results_dir / "partition_summary.csv"
+    if not summary_path.exists():
+        return {}
+    df = pd.read_csv(summary_path)
+    if df.empty or "image_id" not in df.columns:
+        return {}
+    time_col = "total_time_sec" if "total_time_sec" in df.columns else None
+    if time_col is None:
+        return {}
+    times = {}
+    for _, row in df.iterrows():
+        image_id = normalize_image_id(row["image_id"])
+        value = pd.to_numeric(row.get(time_col, 0.0), errors="coerce")
+        times[image_id] = 0.0 if pd.isna(value) else float(value)
+    return times
+
+
+def estimate_time_progress(results_dir: Path, auc_csv: Path | None, completed_images: list[str], pending_images: int) -> dict:
+    if auc_csv is None or not auc_csv.exists():
+        return {
+            # "time_taken_until_now_sec": 0.0,
+            # "time_taken_until_now": "0s",
+            "avg_time_per_completed_image_sec": 0.0,
+            "avg_time_per_completed_image": "0s",
+            "estimated_time_required_sec": 0.0,
+            "estimated_time_required": "0s",
+        }
+
+    auc_df = pd.read_csv(auc_csv)
+    if auc_df.empty:
+        taken = 0.0
+        completed_count = len(completed_images)
+    else:
+        image_col = "image_id" if "image_id" in auc_df.columns else "image_no"
+        if image_col in auc_df.columns:
+            auc_df["image_id_str"] = auc_df[image_col].apply(normalize_image_id)
+        else:
+            auc_df["image_id_str"] = ""
+        for col in ["time_exp", "time_eval"]:
+            if col not in auc_df.columns:
+                auc_df[col] = 0.0
+            auc_df[col] = pd.to_numeric(auc_df[col], errors="coerce").fillna(0.0)
+
+        per_image = auc_df.groupby("image_id_str", dropna=False)[["time_exp", "time_eval"]].sum()
+        per_image["auc_time_sec"] = per_image["time_exp"] + per_image["time_eval"]
+        partition_times = load_partition_time_by_image(results_dir)
+        per_image["partition_time_sec"] = [partition_times.get(str(image_id), 0.0) for image_id in per_image.index]
+        per_image["total_time_sec"] = per_image["auc_time_sec"] + per_image["partition_time_sec"]
+        taken = float(per_image["total_time_sec"].sum())
+        completed_set = set(completed_images)
+        completed_per_image = per_image.loc[[idx for idx in per_image.index if idx in completed_set]]
+        completed_count = len(completed_per_image) if not completed_per_image.empty else len(completed_images)
+        if completed_count:
+            avg = float(completed_per_image["total_time_sec"].mean()) if not completed_per_image.empty else taken / completed_count
+        else:
+            avg = 0.0
+        required = avg * pending_images
+        return {
+            "time_taken_until_now_sec": round(taken, 3),
+            "time_taken_until_now": format_duration(taken),
+            "avg_time_per_completed_image_sec": round(avg, 3),
+            "avg_time_per_completed_image": format_duration(avg),
+            "estimated_time_required_sec": round(required, 3),
+            "estimated_time_required": format_duration(required),
+        }
+
+    avg = taken / completed_count if completed_count else 0.0
+    required = avg * pending_images
+    return {
+        "time_taken_until_now_sec": round(taken, 3),
+        "time_taken_until_now": format_duration(taken),
+        "avg_time_per_completed_image_sec": round(avg, 3),
+        "avg_time_per_completed_image": format_duration(avg),
+        "estimated_time_required_sec": round(required, 3),
+        "estimated_time_required": format_duration(required),
+    }
 
 
 def image_dir_candidates(results_dir: Path, image_id: str) -> list[Path]:
@@ -236,8 +335,10 @@ def summarize_experiment(results_dir: Path, expected_ids: set[str], methods: lis
     total = len(image_ids)
     completed = len(complete_images)
     pending = max(0, total - completed)
+    time_progress = estimate_time_progress(results_dir, auc_csv, complete_images, pending)
     summary = {
         "experiment": experiment_name,
+        "folder": str(results_dir),
         "model": run_info.get("model", run_info.get("model_group", "")),
         "bg_type": run_info.get("background_replacement_values", run_info.get("bg_type", "")),
         "max_evals": run_info.get("max_evals", ""),
@@ -249,13 +350,41 @@ def summarize_experiment(results_dir: Path, expected_ids: set[str], methods: lis
         "pending_images": pending,
         "completion_percent": round(100.0 * completed / total, 2) if total else 0.0,
         "status": "complete" if total and pending == 0 else "partial",
-        "folder": str(results_dir),
+        **time_progress,
         "auc_csv": str(auc_csv) if auc_csv else "",
     }
     return summary, partial_rows
 
 
+def order_summary_columns(summary_df: pd.DataFrame) -> pd.DataFrame:
+    preferred = [
+        "experiment",
+        "model",
+        "bg_type",
+        "max_evals",
+        "methods_expected",
+        "expected_images",
+        "csv_images_seen",
+        "csv_images_complete",
+        "completed_images",
+        "pending_images",
+        "completion_percent",
+        "status",
+        "time_taken_until_now",
+        "estimated_time_required",
+        "avg_time_per_completed_image",
+        "time_taken_until_now_sec",
+        "estimated_time_required_sec",
+        "avg_time_per_completed_image_sec",
+        "folder",
+        "auc_csv",
+    ]
+    ordered_cols = [col for col in preferred if col in summary_df.columns] + [col for col in summary_df.columns if col not in preferred]
+    return summary_df[ordered_cols]
+
+
 def write_html_report(summary_df: pd.DataFrame, partial_df: pd.DataFrame, output_dir: Path) -> Path:
+    summary_df = order_summary_columns(summary_df)
     summary_html = summary_df.to_html(index=False, escape=True, border=0, classes="data-table", table_id="summary-table")
     if partial_df.empty:
         partial_html = "<p>No pending images.</p>"
@@ -366,6 +495,7 @@ def run(args):
 
     if summary_df.empty:
         raise RuntimeError("No experiment summaries could be created.")
+    summary_df = order_summary_columns(summary_df)
 
     display_cols = [
         "experiment",
@@ -378,6 +508,9 @@ def run(args):
         "pending_images",
         "completion_percent",
         "status",
+        "time_taken_until_now",
+        "estimated_time_required",
+        "avg_time_per_completed_image",
     ]
     print("\nExperiment progress:")
     print(summary_df[display_cols].to_string(index=False))
@@ -391,12 +524,10 @@ def run(args):
     partial_path = output_dir / "experiment_progress_pending.csv"
     summary_df.to_csv(summary_path, index=False)
     partial_df.to_csv(partial_path, index=False)
-    print('=' * 60)
     print(f"\nSaved summary: {summary_path}")
     print(f"Saved pending details: {partial_path}")
     if args.html_report:
         html_path = write_html_report(summary_df, partial_df, output_dir)
-        print('-' * 60)
         print(f"Saved HTML report: {html_path}")
 
     if args.show_pending and not partial_df.empty:

@@ -310,3 +310,17 @@ If you use this work in your research, please cite:
 
 This project follows a [Code of Conduct](CODE_OF_CONDUCT.md).  
 By participating, you agree to uphold these standards.
+
+# 👥 Contributing
+
+We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
+
+<p align="center">
+  <a href="https://github.com/rashidrao-pk/Shap_BPT_SAM_tests/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=rashidrao-pk/Shap_BPT_SAM_tests" alt="Contributors to Shap_BPT_SAM_tests" />
+  </a>
+</p>
+
+<p align="center">
+  <b>Thank you to all our contributors!</b>
+</p>

@@ -1,10 +1,11 @@
 # ShapBPT using SAM
+
 ## move Dataset to epito
 
 ```bash
 # Upload MS COCO Dataset
 
-zip /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/src/data/risultati_120 
+zip /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/src/data/risultati_120
 
 scp /Users/rashid/data/DS/MS_COCO.zip mrashid@slurm.hpc4ai.unito.it:/beegfs/home/mrashid/datasets
 
@@ -29,12 +30,11 @@ find /beegfs/home/mrashid/datasets/SAM_BPT/risultati_120/120_refined_filled -typ
 ```
 
 - partition path
-    -   [/beegfs/home/mrashid/datasets/risultati_120](/beegfs/home/mrashid/datasets/risultati_120)
+  - [/beegfs/home/mrashid/datasets/risultati_120](/beegfs/home/mrashid/datasets/risultati_120)
 - Dataset Path
-    -   /beegfs/home/mrashid/datasets/MS_COCO
+  - /beegfs/home/mrashid/datasets/MS_COCO
 - Code Repo:
-    -   [github.com/ElleR01/shap_bpt_sam](www.github.com/ElleR01/shap_bpt_sam)
-
+  - [github.com/ElleR01/shap_bpt_sam](www.github.com/ElleR01/shap_bpt_sam)
 
 ```bash
 ls
@@ -73,7 +73,6 @@ export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages/
 cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
 ```
 
-
 ```bash
 cd /beegfs/home/mrashid/repos/XAI/shap_bpt_sam
 pip install Cython
@@ -91,10 +90,10 @@ sinfo --format="%P %G %C"
 
 export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages/
 
-#  TEST GPU 
+#  TEST GPU
 python src/scripts/test.py
 python src/scripts/test_GPU.py
-# 
+#
 python /beegfs/home/mrashid/repos/XAI/shap_bpt_sam/src/scripts/run_yolo_full.py
 
 python -m py_compile src/scripts/run_yolo_full.py
@@ -142,10 +141,12 @@ python src/scripts/summarize_results.py \
 ```
 
 > Warning
+
 ```bash
 # Flush Results?
 # rm -r /beegfs/home/mrashid/repos/XAI/shap_bpt_sam/src/results/xai_results
 ```
+
 ```bash
 squeue -u mrashid
 squeue -u mrashid -o "%.18i %.12P %.20j %.8T %.10M %.10l %.6D %R"
@@ -155,7 +156,7 @@ sattach <JOB_ID>.0
 srun --jobid=<JOB_ID> --pty bash
 
 
-scancel 92873 
+scancel 92873
 
 sacct -j 92623 \
   --format=JobID,JobName%25,State,Elapsed,ExitCode,MaxRSS,NodeList
@@ -170,7 +171,6 @@ find /beegfs/home/mrashid/repos/XAI/shap_bpt_sam \
   | sort | tail -100
 
 ```
-
 
 ```bash
 zip -r /beegfs/home/mrashid/repos/XAI/shap_bpt_sam/results.zip /beegfs/home/mrashid/repos/XAI/shap_bpt_sam/src/results/

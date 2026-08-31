@@ -1743,15 +1743,18 @@ def parse_args():
     parser.add_argument("--max-evals", type=int, default=500)
     parser.add_argument("--limit", type=int, default=None, help="Limit number of images for a smoke test.")
     parser.add_argument("--image-ids", nargs="*", default=None, help="Optional explicit image ids.")
-    parser.add_argument("--bg-type", default="noise", choices=["black", "gray", "white", "blurred", "noise", "full"])
-    parser.add_argument("--class-aggregation", default="sum", choices=["sum", "max"])
+    parser.add_argument("--bg-type", default="noise", 
+                        choices=["black", "gray", "white", "blurred", "noise", "full"])
+    parser.add_argument("--class-aggregation", default="sum", 
+                        choices=["sum", "max"])
     parser.add_argument("--num-explained-classes", type=int, default=4)
     parser.add_argument("--eval-batch-size", type=int, default=16)
     parser.add_argument("--auc-batch-size", type=int, default=4)
     parser.add_argument("--kernel-shap-samples", type=int, default=None, help="Number of region coalitions for sam_kernelshap. Default: --max-evals.")
     parser.add_argument("--kernel-shap-batch-size", type=int, default=None, help="Prediction batch size for sam_kernelshap. Default: --eval-batch-size.")
     parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--verbose-level", default="low", choices=["low", "medium", "high"])
+    parser.add_argument("--verbose-level", default="low", 
+                        choices=["low", "medium", "high"])
     parser.add_argument("--verbose-k", type=int, default=10, help="Print medium/high resource summary every K images after image 1.")
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--no-resume", dest="resume", action="store_false", help="Recompute images even when complete outputs and CSV rows already exist.")

@@ -53,6 +53,7 @@ docs/_build/
 ## Model checkpoints for yolo
 src/notebooks/checkpoints/*
 src/notebooks/checkpoints/yolo11s.pt
+src/checkpoints
 
 ## Partitions
 src/partitions_100/
@@ -72,7 +73,7 @@ checkpoints/*
 results.zip
 src/results/*
 src/results/splits
-
+outputs/*
 
 /docs/.DS_Store/
 /docs/source/.DS_Store/

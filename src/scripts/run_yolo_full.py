@@ -43,7 +43,16 @@ from ultralytics import YOLO
 from ultralytics.utils.downloads import attempt_download_asset, safe_download
 
 
-METHOD_ORDER = ["BPT", "sam", "greedy_selection", "compact_selection", "filled", "boosted", "boosted_filled", "sam_kernelshap"]
+# METHOD_ORDER = ["BPT", "sam", "greedy_selection", "compact_selection", "filled", "boosted", "boosted_filled", "sam_kernelshap"]
+METHOD_ORDER = [
+                "BPT", 
+                # "sam", 
+                # "greedy_selection", 
+                # "compact_selection", 
+                # "filled", 
+                "boosted", 
+                # "sam_kernelshap"
+                ]
 
 PARTITION_TIME_BY_METHOD = {
     "BPT": None,

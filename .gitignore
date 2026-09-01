@@ -64,10 +64,10 @@ src/notebooks/paper_figures/
 src/partitions_new_120
 
 ## Checkpoints for SAM
-src/notebooks/checkpoints/
+src/notebooks/checkpoints/*
 src/notebooks/checkpoints/yolo11s.pt
-checkpoints
-
+checkpoints/*
+    
 # Results
 results.zip
 src/results/*

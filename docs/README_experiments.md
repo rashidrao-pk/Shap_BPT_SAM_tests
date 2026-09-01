@@ -292,19 +292,6 @@ python src/scripts/run_detr_full.py \
   --auc-batch-size 64
 ```
 
-## Summarizing Results
-
-Generate boxplots, the full HTML report, and the outlier report from saved
-results:
-
-```bash
-python src/scripts/summarize_results.py \
-  --results-dir /path/to/xai_results_E1_1 \
-  --boxplots \
-  --html-report \
-  --outlier-report
-```
-
 For intermediate runs, the summarizer reads:
 
 ```text
@@ -349,6 +336,31 @@ Then add the budget ablation for YOLOv11:
 
 ```text
 E1_1_1, E1_1_2, E1_1_3, E1_1_4, E1_1_5
+```
+
+## Summarizing Results
+
+Generate boxplots, the full HTML report, and the outlier report from saved
+results:
+
+```bash
+python src/scripts/summarize_results.py \
+  --results-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/results/xai_results_E2_1 \
+  --boxplots \
+  --html-report \
+  --outlier-report
+
+python src/scripts/summarize_results.py \
+  --results-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/results/xai_results_E3_1 \
+  --boxplots \
+  --html-report \
+  --outlier-report
+
+python src/scripts/summarize_results.py \
+  --results-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/results/xai_results_E1_1_4 \
+  --boxplots \
+  --html-report \
+  --outlier-report
 ```
 
 ## RUN EXPs

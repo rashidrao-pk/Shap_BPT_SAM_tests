@@ -26,7 +26,9 @@ except ImportError:
     wilcoxon = None
 
 
-METHOD_ORDER = ["BPT", "sam", "coverage", "compact", "filled", "refined", "refined_filled"]
+# METHOD_ORDER = ["BPT", "sam", "coverage", "compact", "filled", "refined", "refined_filled"]
+METHOD_ORDER = ["BPT", "sam", "greedy_selection", "compact_selection", "filled", "boosted", "boosted_filled", "sam_kernelshap"]
+
 
 METRIC_DIRECTIONS = {
     "auc_ins": "higher",
@@ -52,8 +54,8 @@ DEFAULT_METRICS = [
     "auc_ins",
     "auc_del",
     "sensitivity_n_corr",
-    "comprehensiveness_at_20",
-    "sufficiency_gap_at_20",
+    # "comprehensiveness_at_20",
+    # "sufficiency_gap_at_20",
     "total_time_mean",
 ]
 
@@ -581,15 +583,16 @@ def plot_all_methods_boxplots(combined: pd.DataFrame, metrics: list[str], output
         if not nonempty:
             ax.axis("off")
             continue
+        ascending = METRIC_DIRECTIONS[metric] == "lower"
+        nonempty = sorted(nonempty, key=lambda item: np.mean(item[1]), reverse=not ascending)
         labels, data = zip(*nonempty)
         try:
             box = ax.boxplot(data, tick_labels=labels, showmeans=True, patch_artist=True)
         except TypeError:
             box = ax.boxplot(data, labels=labels, showmeans=True, patch_artist=True)
         means = np.array([np.mean(vals) for vals in data], dtype=float)
-        ascending = METRIC_DIRECTIONS[metric] == "lower"
-        best_idx = int(np.argmin(means) if ascending else np.argmax(means))
-        worst_idx = int(np.argmax(means) if ascending else np.argmin(means))
+        best_idx = 0
+        worst_idx = len(labels) - 1
         for i, patch in enumerate(box["boxes"]):
             if i == best_idx:
                 patch.set_facecolor("#22c55e")

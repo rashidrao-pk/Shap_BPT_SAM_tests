@@ -229,9 +229,19 @@ zip -r /beegfs/home/mrashid/repos/XAI/shap_bpt_sam/xai_results_E3_1.zip /beegfs/
 
 
 cd /beegfs/home/mrashid/repos/XAI/shap_bpt_sam/src/results
+
+cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs
+
+
 zip -r /beegfs/home/mrashid/repos/XAI/shap_bpt_sam/xai_results_E3_1.zip xai_results_E3_1
-zip -r /beegfs/home/mrashid/repos/XAI/shap_bpt_sam/results.zip results
+zip -r /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results_for_2.zip results
 
 scp mrashid@slurm.hpc4ai.unito.it:/beegfs/home/mrashid/repos/XAI/shap_bpt_sam/xai_results_E3_1.zip ~/Downloads/
 scp mrashid@slurm.hpc4ai.unito.it:/beegfs/home/mrashid/repos/XAI/shap_bpt_sam/results.zip ~/Downloads/
+
+
+zip -r /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results_for_2.zip results
+zip -r /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/xai_results_E4_1.zip xai_results_E4_1
+scp mrashid@slurm.hpc4ai.unito.it:/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/xai_results_E4_1.zip ~/Downloads/
+
 ```

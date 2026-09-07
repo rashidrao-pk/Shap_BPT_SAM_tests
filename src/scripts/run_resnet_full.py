@@ -35,7 +35,7 @@ from pycocotools.coco import COCO
 from torchvision.models import ResNet50_Weights, resnet50
 from tqdm.auto import tqdm
 
-from run_yolo_full import (
+from run_yolo_full_all import (
     METHOD_ORDER,
     PARTITION_TIME_BY_METHOD,
     BACKGROUND_REPLACEMENT_DETAILS,

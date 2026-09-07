@@ -46,11 +46,11 @@ ls
 cd /beegfs/home/mrashid/repos/XAI
 git clone git@github.com:ElleR01/shap_bpt_sam.git
 ```
-
+<!-- /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/src/scripts/prepare_setup.sh -->
 ```bash
 # srun -p epito --gres=gpu:a100:1 --pty bash
 # tmux
-tmux new -s shapbpt
+tmux new -s shapbpt-vit
 
 ## GET PREVIOUS Session
 tmux ls
@@ -66,12 +66,58 @@ tmux attach -t shapbpt
 
 tmux list-panes -t shapbpt -F '#{pane_pid} #{pane_current_command} #{pane_current_path}'
 
+ssh epito-mercurio
 
-srun -p epito --gres=gpu:a100:1 --pty bash
+# TEST FOR Yolo
+srun -p epito --gres=gpu:a100:1 -J "ShapBPT Yolo" --time=06:00:00 --pty bash
+tmux new -s shapbpt-yolo
 source /beegfs/home/mrashid/pt_312/bin/activate
 export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages/
 cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
+# ----------------------------------------------------------------------------
+# TEST FOR Resnet
+srun -p epito --gres=gpu:a100:1 -J "ShapBPT Resnet" --time=06:00:00 --pty bash
+tmux new -s shapbpt-resnet
+source /beegfs/home/mrashid/pt_312/bin/activate
+export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages/
+cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
+# ----------------------------------------------------------------------------
+# TEST FOR ViT
+srun -p epito --gres=gpu:a100:1 -J "ShapBPT ViT" --time=06:00:00 --pty bash
+tmux new -s shapbpt-vit
+source /beegfs/home/mrashid/pt_312/bin/activate
+export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages/
+cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
+# ----------------------------------------------------------------------------
+# TEST FOR DETR
+srun -p epito --gres=gpu:a100:1 -J "ShapBPT Detr" --time=06:00:00 --pty bash
+tmux new -s shapbpt-detr
+source /beegfs/home/mrashid/pt_312/bin/activate
+export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages/
+cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
+# ----------------------------------------------------------------------------
+# source /beegfs/home/mrashid/pt_312/bin/activate
+# export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages/
+# cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
 ```
+
+
+## Reconnect:
+
+```bash
+ssh epito
+squeue -u mrashid
+# 419800  epito  ShapBPT Tests  RUNNING  epito02
+
+srun --jobid=419800 --overlap --pty /bin/bash --noprofile --norc
+
+tmux ls
+
+tmux attach -t shapbpt
+
+```
+
+
 
 ```bash
 cd /beegfs/home/mrashid/repos/XAI/shap_bpt_sam
@@ -146,6 +192,9 @@ python src/scripts/summarize_results.py \
 # Flush Results?
 # rm -r /beegfs/home/mrashid/repos/XAI/shap_bpt_sam/src/results/xai_results
 ```
+
+
+
 
 ```bash
 squeue -u mrashid

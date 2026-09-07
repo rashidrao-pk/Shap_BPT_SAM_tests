@@ -5,75 +5,6 @@ the BPT/SAM partition variants.
 
 Each full-run script saves:
 
-- `run_info.json`: model, background replacement, batch sizes, methods, paths.
-- `experiment_mapping.csv`: experiment number mapping table.
-- `experiment_mapping.json`: same mapping in JSON format.
-- `auc_results_all_images_current_run.csv`: updated after each completed image.
-- Aggregate AUC/time plots and an HTML report at the end of the run.
-
-## Experiment IDs
-
-The first part of the experiment ID identifies the model family. The suffix
-identifies the background replacement value. For YOLOv11 budget ablations, a
-second suffix identifies the explanation budget:
-
-```text
-E1_<background_id>_<budget_id>
-```
-
-For example, `E1_1_1` means YOLOv11 with `noise` background and
-`max_evals=50`; `E1_1_4` means YOLOv11 with `noise` background and
-`max_evals=500`.
-
-| Prefix | Task             | Model                            |                           Classes                           | Script                           |
-| :----: | :--------------- | :------------------------------- | :---------------------------------------------------------: | :------------------------------- |
-|  `E1`  | Object detection | YOLOv11 / YOLO custom checkpoint | `len(model.names)`; usually 80 for COCO or 26 for `yolo_26` | `src/scripts/run_yolo_full.py`   |
-|  `E2`  | Classification   | ResNet-50 ImageNet               |                            1000                             | `src/scripts/run_resnet_full.py` |
-|  `E3`  | Classification   | ViT-B/16 ImageNet                |                            1000                             | `src/scripts/run_vit_full.py`    |
-|  `E4`  | Object detection | DETR ResNet-50                   |        COCO-style detection labels from model config        | `src/scripts/run_detr_full.py`   |
-
-## Background Replacement IDs
-
-| Suffix | Background Replacement Values | Details                                                         |
-| :----: | :---------------------------- | :-------------------------------------------------------------- |
-|  `_1`  | `noise`                       | Gaussian random background, blurred with sigma=2                |
-
-## YOLO Budget Ablation IDs
-
-These suffixes are appended only for YOLOv11 runs by default.
-
-| Suffix | `--max-evals` | Details                       |
-| :----: | ------------: | :---------------------------- |
-|  `_4`  |         `500` | Default explanation budget    |
-|  `_5`  |        `1000` | High explanation budget       |
-
-src:
-
-|  Exp No  | Model     | Background Replacement Values | Task           |
-| :------: | :-------- | :---------------------------- | :------------- |
-| `E1_1_4` | YOLOv11   | `noise`, `max_evals=500`      | Detection      |
-| `E1_1_5` | YOLOv11   | `noise`, `max_evals=1000`      | Detection      |
-|  `E2_1`  | ResNet-50 | `noise`, `max_evals=500`   | Classification |
-|  `E3_1`  | ViT-B/16  | `noise`, `max_evals=500`   | Classification |
-|  `E4_1`  | DETR      | `noise`, `max_evals=500`   | Detection      |
-
-## Partition / Explanation Methods
-
-All model experiments use the same explanation method set when the corresponding
-partition files exist:
-
-| Method           | Meaning                             |
-| :--------------- | :---------------------------------- |
-| `BPT`            | Stock BPT built from the image      |
-| `sam`            | SAM partition labels                |
-| `greedy_selection`       | Coverage-adjusted SAM partitions    |
-| `compact_selection`        | Compact/refined partition variant   |
-| `filled`         | Filled partition variant            |
-| `boosted`        | Boosted SAM partition labels        |
-| `boosted_filled` | Boosted and filled partition labels |
-
-
-------------------------------------------------------------------------------------------------------------------------------
 
 ## E1: YOLOv11 Detection
 
@@ -81,11 +12,6 @@ Use this for object-detection explanations on MS-COCO. The score vector is built
 from detected class confidences. Use `--class-aggregation sum` to sum detections
 per class or `--class-aggregation max` to keep only the maximum confidence per
 class.
-
-Class count:
-
-- COCO YOLO models: usually 80 classes.
-- Custom `yolo_26`: 26 classes, inferred from `model.names`.
 
 Smoke test:
 
@@ -116,11 +42,6 @@ python src/scripts/run_yolo_full.py \
   --class-aggregation sum
 ```
 
-
-<!-- The scripts automatically append the experiment suffix unless disabled with: -->
-<!-- You can also override the experiment ID manually: -->
-
-
 Use `--no-budget-suffix` to restore the older two-part YOLO folder name such as
 `xai_results_E1_1`.
 
@@ -145,11 +66,6 @@ python src/scripts/run_resnet_full.py \
   --resnet-batch-size 512
 ```
 
-Default result folder for `noise`:
-
-```text
-resnet_xai_results_E2_1
-```
 
 ```bash
 python src/scripts/run_resnet_full.py \

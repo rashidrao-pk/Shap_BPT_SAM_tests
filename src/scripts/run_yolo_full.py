@@ -1348,6 +1348,7 @@ function filterImages() {{
 
 
 def run(args):
+    global METHOD_ORDER
     project_root = find_project_root()
     scripts_dir = project_root / "src" / "scripts"
     if str(scripts_dir) not in sys.path:
@@ -1357,6 +1358,15 @@ def run(args):
     import utils_xai as utx
 
     config = load_config(project_root, args.config)
+    configured_methods = config.get("evaluation", {}).get("methods")
+    if configured_methods is not None:
+        supported = {"BPT", "sam", "coverage", "compact", "filled", "refined",
+                     "refined_filled", "boosted", "boosted_filled", "sam_kernelshap",
+                     "greedy_selection", "compact_selection"}
+        if (not isinstance(configured_methods, list) or not configured_methods
+                or any(not isinstance(m, str) or m not in supported for m in configured_methods)):
+            raise ValueError("evaluation.methods must be a nonempty list of supported methods")
+        METHOD_ORDER = list(dict.fromkeys(configured_methods))
     if args.output_dir:
         config.setdefault("output", {})
         config["output"]["dir"] = str(Path(args.output_dir).expanduser())

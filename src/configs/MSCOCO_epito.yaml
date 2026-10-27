@@ -21,11 +21,11 @@ data:
 
   masks_path: "/beegfs/home/mrashid/datasets/"
   mask_dir: "SAM_BPT" 
-  # risultati_120
-  mask_dir_final: "300_boosted_filled" 
-  # 120_refined_filled
+  # New SAM2 batch outputs; older partition directories are preserved.
+  mask_dir_final: "sam2_62_refined" 
 
 evaluation:
+  methods: [BPT, refined]
   limit: 2
   bg-type: "noise"
   max-evals: 500

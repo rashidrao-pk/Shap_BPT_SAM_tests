@@ -66,7 +66,7 @@ def get_device(requested):
     return requested
 
 
-def infer_masks(image, args):
+def build_generator(args):
     import torch
     device = get_device(args.device)
     checkpoint = args.checkpoint
@@ -125,6 +125,12 @@ def infer_masks(image, args):
                 return np.asarray(transformed, dtype=np.float32)
 
             generator.predictor.transform.apply_coords = apply_coords_float32
+    return generator, device, str(checkpoint)
+
+
+def infer_masks(image, args, loaded_generator=None):
+    import torch
+    generator, device, checkpoint = loaded_generator or build_generator(args)
     t0 = time.perf_counter()
     with torch.inference_mode():
         annotations = generator.generate(image)

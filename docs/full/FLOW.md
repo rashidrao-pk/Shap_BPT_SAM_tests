@@ -1,3 +1,8 @@
+# Conceptual workflow
+
+For runnable commands, see [SAM_Exps.md](SAM_Exps.md).
+The diagram below describes the intended workflow; output names vary by script.
+
 ```md
 Image / Image + Text
 │

@@ -1,0 +1,84 @@
+# EPITO: generate MS-COCO partitions
+
+Requires the completed [one-time setup](../full/EPITO_SETUP.md).
+Update the code on EPITO before running these commands, including the new
+`generate_coco_partitions.py`, the updated `generate_sam_partitions.py`,
+`run_yolo_full.py`, and `src/configs/MSCOCO_epito.yaml`.
+
+## 1. Start a GPU session
+
+```bash
+ssh epito-mercurio
+srun -p epito --gres=gpu:a100:1 -J "ShapBPT" --time=06:00:00 --pty bash
+source /beegfs/home/mrashid/pt_312_sam/bin/activate
+export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages
+export PROJECT_DIR=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
+export SAM2_DIR=/beegfs/home/mrashid/repos/XAI/third_party/sam2
+cd "$PROJECT_DIR"
+```
+
+## 2. Check inputs
+
+The config supplies image, annotation, and partition output paths. This command
+checks input paths and lists the first two images without loading SAM:
+
+```bash
+python src/scripts/generate_coco_partitions.py \
+  --config MSCOCO_epito --limit 2 --dry-run
+```
+
+The configured output folder is:
+
+```text
+/beegfs/home/mrashid/datasets/SAM_BPT/sam2_62_refined/
+```
+
+Your previous `300_boosted_filled` folder is preserved.
+
+## 3. Generate two images first
+
+```bash
+python src/scripts/generate_coco_partitions.py \
+  --config MSCOCO_epito \
+  --model sam2 \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
+  --device cuda \
+  --max-regions 62 \
+  --limit 2
+```
+
+Images are selected by ascending COCO image ID. SAM loads once for the batch.
+Each completed image produces:
+
+- `<image_id>_sam.npy`: overlapping masks converted to labels, capped to the region budget.
+- `<image_id>_refined.npy`: filled and refined partition map, capped to 62 regions.
+- `<image_id>_results.json`: model, settings, counts, and generation timings.
+
+The filenames match the XAI loader. Empty SAM output produces a single-region
+map. Raw mask stacks and previews are omitted to reduce dataset storage.
+
+## 4. Generate the full dataset
+
+Run the same command without `--limit 2`:
+
+```bash
+python src/scripts/generate_coco_partitions.py \
+  --config MSCOCO_epito \
+  --model sam2 \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
+  --device cuda \
+  --max-regions 62
+```
+
+Completed images with matching settings are skipped. If the Slurm allocation
+ends, start a new GPU session and repeat this command. Use `--overwrite` to
+regenerate outputs. For another model or region budget, change `mask_dir_final`
+in the config to a separate folder first. Lower `--points-per-batch` if memory
+runs out; keep generation settings consistent when resuming a dataset.
+
+## 5. Run XAI separately
+
+After the first two images complete, follow [XAI/EPITO.md](../XAI/EPITO.md).
+You can run the two-image XAI smoke test before generating all COCO images.
+
+When finished, use `exit` to release the GPU allocation.

@@ -10,7 +10,7 @@ device: auto
 #   mps   : force Apple Silicon GPU
 
 data:
-  name: Cobots_Synthetic
+  name: MS_COCO
   # Options:
   #   MVTec
   #   Cobots_Synthetic
@@ -22,7 +22,6 @@ data:
   annotation_file: "D:\\DS\\MS_COCO\\annotations\\annotations_trainval2017\\annotations\\instances_val2017.json"
   # Example:
   #   "/home/user/data/raw/mvtec_anomaly_detection"
-
 
   # For MVTec examples:
   #   bottle, cable, capsule, carpet, grid, hazelnut, leather,

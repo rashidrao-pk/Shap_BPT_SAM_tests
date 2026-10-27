@@ -1,4 +1,8 @@
-## INSTALL SAM3
+# EPITO: one-time SAM3 setup
+
+Optional SAM3 installation notes, separate from the SAM1/SAM2 setup.
+These notes use a different package configuration (`unset PYTHONPATH`).
+After installation, see [SAM_Exps.md](SAM_Exps.md#optional-sam3-example).
 
 ```bash
 source /beegfs/home/mrashid/pt_312_sam/bin/activate
@@ -46,56 +50,5 @@ for name in files:
 PY
 ```
 
-Step 2 — Test SAM3 inference on the truck image
 
-```bash
-cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
-mkdir -p results/partitions/sam3
-
-```
-
-```bash
-python - <<'PY'
-import torch
-import numpy as np
-from PIL import Image
-from pathlib import Path
-
-from sam3.model_builder import build_sam3_image_model
-from sam3.model.sam3_image_processor import Sam3Processor
-
-out_dir = Path("results/partitions/sam3")
-out_dir.mkdir(parents=True, exist_ok=True)
-
-image = Image.open("data/sample_images/truck.jpg").convert("RGB")
-
-print("[1/4] Loading SAM3...")
-model = build_sam3_image_model()
-processor = Sam3Processor(model)
-
-print("[2/4] Processing image...")
-with torch.inference_mode():
-    state = processor.set_image(image)
-
-    print("[3/4] Running text-conditioned segmentation...")
-    output = processor.set_text_prompt(
-        state=state,
-        prompt="pickup truck"
-    )
-
-masks = output["masks"].detach().cpu().numpy()
-scores = output["scores"].detach().cpu().numpy()
-
-np.savez_compressed(
-    out_dir / "pickup_truck.npz",
-    masks=masks,
-    scores=scores,
-)
-
-print("[4/4] Results saved")
-print("Instances:", len(scores))
-print("Masks shape:", masks.shape)
-print("Scores:", scores)
-print("Output:", out_dir / "pickup_truck.npz")
-PY
-```
+Installation and authentication are one-time steps. Reauthenticate only if access expires.

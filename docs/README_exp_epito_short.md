@@ -39,7 +39,8 @@ python src/scripts/run_yolo_full.py \
   --verbose-level medium \
   --model yolo11s \
   --bg-type noise \
-  --class-aggregation sum
+  --class-aggregation sum \
+  --auc_num_samples 200
 ```
 
 Use `--no-budget-suffix` to restore the older two-part YOLO folder name such as
@@ -75,6 +76,7 @@ python src/scripts/run_resnet_full.py \
   --eval-batch-size 2048 \
   --auc-batch-size 1024 \
   --resnet-batch-size 2048
+  --auc_num_samples 200
 ```
 
 ## E3: ViT-B/16 Classification

@@ -1415,6 +1415,7 @@ def run(args):
             "max_evals": args.max_evals,
             "eval_batch_size": args.eval_batch_size,
             "auc_batch_size": args.auc_batch_size,
+            "auc_num_samples": args.auc_num_samples,
             "kernel_shap_samples": kernel_shap_samples,
             "kernel_shap_batch_size": kernel_shap_batch_size,
             "num_explained_classes": args.num_explained_classes,
@@ -1531,7 +1532,7 @@ def run(args):
             first_iteration_breakdown["load_partition_json"] += time.time() - timing_start
             methods_iter = tqdm(
                 METHOD_ORDER,
-                desc=f"{image_id} methods",
+                desc=f"{image_id} XAI",
                 leave=False,
                 position=1,
                 dynamic_ncols=True,
@@ -1627,6 +1628,7 @@ def run(args):
                     f_0,
                     predicted_cls,
                     batch_size=args.auc_batch_size,
+                    num_samples=args.auc_num_samples,
                     verbose=args.verbose_level == "high",
                 )
                 first_iteration_breakdown["auc_compute"] += time.time() - timing_start
@@ -1759,6 +1761,7 @@ def parse_args():
     parser.add_argument("--num-explained-classes", type=int, default=4)
     parser.add_argument("--eval-batch-size", type=int, default=16)
     parser.add_argument("--auc-batch-size", type=int, default=4)
+    parser.add_argument("--auc_num_samples", type=int, default=101)
     parser.add_argument("--kernel-shap-samples", type=int, default=None, help="Number of region coalitions for sam_kernelshap. Default: --max-evals.")
     parser.add_argument("--kernel-shap-batch-size", type=int, default=None, help="Prediction batch size for sam_kernelshap. Default: --eval-batch-size.")
     parser.add_argument("--verbose", action="store_true")

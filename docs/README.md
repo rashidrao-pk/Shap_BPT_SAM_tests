@@ -9,6 +9,7 @@ zip /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/src
 
 scp /Users/rashid/data/DS/MS_COCO.zip mrashid@slurm.hpc4ai.unito.it:/beegfs/home/mrashid/datasets
 
+scp /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/Shap_BPT_SAM_tests/data/1000_boosted.zip mrashid@slurm.hpc4ai.unito.it:/beegfs/home/mrashid/datasets/SAM_BPT
 # Upload SAM Results
 scp /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/src/data/risultati_120.zip mrashid@slurm.hpc4ai.unito.it:/beegfs/home/mrashid/datasets/SAM_BPT
 
@@ -17,15 +18,15 @@ scp /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/src
 ## Unzip Uploaded Data:
 
 ```bash
-unzip -o /beegfs/home/mrashid/datasets/SAM_BPT/risultati_120.zip \
+unzip -o /beegfs/home/mrashid/datasets/1000_boosted.zip \
   -d /beegfs/home/mrashid/datasets/SAM_BPT \
   -x "__MACOSX/*"
 
-ls -lah /beegfs/home/mrashid/datasets/SAM_BPT/risultati_120/
+ls -lah /beegfs/home/mrashid/datasets/SAM_BPT/1000_boosted/
 
-du -sh /beegfs/home/mrashid/datasets/SAM_BPT/risultati_120/
+du -sh /beegfs/home/mrashid/datasets/SAM_BPT/1000_boosted/
 
-find /beegfs/home/mrashid/datasets/SAM_BPT/risultati_120/120_refined_filled -type f | wc -l
+find /beegfs/home/mrashid/datasets/SAM_BPT/1000_boosted/ -type f | wc -l
 
 ```
 

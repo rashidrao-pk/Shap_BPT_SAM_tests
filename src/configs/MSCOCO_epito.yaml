@@ -31,6 +31,8 @@ evaluation:
   max-evals: 500
   eval-batch-size: 2048
   auc-batch-size: 1024
+  auc_num_samples: 101
+  
   # Options:
   #   black   : black background
   #   gray    : gray background

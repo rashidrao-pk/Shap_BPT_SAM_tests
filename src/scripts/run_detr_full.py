@@ -484,6 +484,7 @@ def run(args):
             "max_evals": args.max_evals,
             "eval_batch_size": args.eval_batch_size,
             "auc_batch_size": args.auc_batch_size,
+            "auc_num_samples": args.auc_num_samples,
             "detr_batch_size": args.detr_batch_size,
             "kernel_shap_samples": kernel_shap_samples,
             "kernel_shap_batch_size": kernel_shap_batch_size,
@@ -680,7 +681,10 @@ def run(args):
             if args.compute_auc:
                 timing_start = time.time()
                 auc_results = utx.compute_auc_results(
-                    auc_records, predict_masked, f_S, f_0, predicted_cls, batch_size=args.auc_batch_size, verbose=args.verbose_level == "high"
+                    auc_records, predict_masked, f_S, f_0, predicted_cls,
+                     batch_size=args.auc_batch_size,
+                     num_samples=args.auc_num_samples,
+                     verbose=args.verbose_level == "high"
                 )
                 first_iteration_breakdown["auc_compute"] += time.time() - timing_start
                 if args.save_plots:
@@ -769,6 +773,7 @@ def parse_args():
     parser.add_argument("--num-explained-classes", type=int, default=4)
     parser.add_argument("--eval-batch-size", type=int, default=128)
     parser.add_argument("--auc-batch-size", type=int, default=64)
+    parser.add_argument("--auc_num_samples", type=int, default=101)
     parser.add_argument("--detr-batch-size", type=int, default=8, help="Internal DETR forward batch size. Large values can OOM; the runner retries smaller on CUDA OOM.")
     parser.add_argument("--kernel-shap-samples", type=int, default=None, help="Number of region coalitions for sam_kernelshap. Default: --max-evals.")
     parser.add_argument("--kernel-shap-batch-size", type=int, default=None, help="Prediction batch size for sam_kernelshap. Default: --eval-batch-size.")

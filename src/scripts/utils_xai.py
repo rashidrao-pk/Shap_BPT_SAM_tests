@@ -1713,15 +1713,23 @@ def compute_extra_faithfulness_metrics(
 
 
 def compute_auc_results(shap_values, nu, f_S, f_0, predicted_cls, batch_size=4,
-                        auc_class_index=0, verbose=False):
+                        auc_class_index=0, num_samples=101, verbose=False):
     auc_results = []
 
     for exp_code, exp_data in _iter_shap_value_items(shap_values):
         heatmap = _auc_heatmap(exp_data, auc_class_index=auc_class_index)
         time_start = time.time()
 
-        auc_del = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='del')
-        auc_ins = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='ins')
+        auc_del_100 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='del',num_samples=num_samples)
+        auc_ins_100 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='ins',num_samples=num_samples)
+
+        auc_del_500 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='del',num_samples=500)
+        auc_ins_500 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='ins',num_samples=500)
+
+        auc_del_2000 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='del',num_samples=2000)
+        auc_ins_2000 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='ins',num_samples=2000)
+
+
         extra_metrics = compute_extra_faithfulness_metrics(
             nu,
             heatmap,
@@ -1737,6 +1745,10 @@ def compute_auc_results(shap_values, nu, f_S, f_0, predicted_cls, batch_size=4,
             'label': str(exp_code),
             'auc_del': auc_del,
             'auc_ins': auc_ins,
+            # 
+            auc_del_500
+            
+
             'time_eval': time_eval,
             **extra_metrics,
         }

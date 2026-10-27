@@ -13,7 +13,7 @@ srun -p epito --gres=gpu:a100:1 -J "ShapBPT" --time=06:00:00 --pty bash
 source /beegfs/home/mrashid/pt_312_sam/bin/activate
 export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages
 export PROJECT_DIR=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
-export SAM2_DIR=/beegfs/home/mrashid/repos/XAI/third_party/sam2
+export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
 cd "$PROJECT_DIR"
 ```
 
@@ -38,6 +38,8 @@ Your previous `300_boosted_filled` folder is preserved.
 ## 3. Generate two images first
 
 ```bash
+export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
+
 python src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito \
   --model sam2 \
@@ -69,6 +71,24 @@ python src/scripts/generate_coco_partitions.py \
   --device cuda \
   --max-regions 62
 ```
+
+The terminal shows only a text tqdm bar with progress, ETA, and the latest
+mask count, region count, and image time. Run details and per-image counts,
+SAM/refinement timings, total time, and failures are appended to:
+
+```text
+/beegfs/home/mrashid/datasets/SAM_BPT/SAM2_MSCOCO.log
+```
+
+To watch the log from another terminal:
+
+```bash
+tail -f /beegfs/home/mrashid/datasets/SAM_BPT/SAM2_MSCOCO.log
+```
+
+This log path is the default for SAM2 with this config. You can also pass
+`--log-file /beegfs/home/mrashid/datasets/SAM_BPT/SAM2_MSCOCO.log` explicitly.
+The log stores counts and timings; partition arrays remain in the output folder.
 
 Completed images with matching settings are skipped. If the Slurm allocation
 ends, start a new GPU session and repeat this command. Use `--overwrite` to

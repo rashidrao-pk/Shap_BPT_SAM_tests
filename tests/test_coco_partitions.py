@@ -50,6 +50,13 @@ class CocoExportTest(unittest.TestCase):
                         self.assertEqual(capped.shape, original.shape)
                     self.assertFalse((output / '000000000002_refined.npy').exists())
                     self.assertEqual(loader.load_json_partitions(str(output), '000000000001')['model'], 'sam2')
+                    log = (root / 'masks/SAM2_MSCOCO.log').read_text()
+                    self.assertIn('000000000001: 2 masks, 2 regions', log)
+                    self.assertIn('sam_s=0.100', log)
+                    self.assertIn('refinement_s=', log)
+                    self.assertIn('COMPLETE', log)
+                    self.assertNotIn('it/s', log)
+                    args.log_file = root / 'other.log'
                     batch.run(args)
                     self.assertEqual(build.call_count, 1)
                     args.limit = None

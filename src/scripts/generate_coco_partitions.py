@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Generate resumable MS-COCO partition files consumed by run_yolo_full.py."""
 import argparse
+from contextlib import redirect_stdout, redirect_stderr
+from datetime import datetime, timezone
+import sys
+import traceback
 import json
 from pathlib import Path
 import time
@@ -8,6 +12,7 @@ import time
 import numpy as np
 from PIL import Image
 import yaml
+from tqdm import tqdm
 
 import generate_sam_partitions as sam
 
@@ -28,11 +33,12 @@ def parse_args():
     parser.add_argument('--stability-score-thresh', type=float, default=0.85)
     parser.add_argument('--limit', type=int, help='Generate the first N images; omit for all images')
     parser.add_argument('--overwrite', action='store_true', help='Regenerate completed images')
+    parser.add_argument('--log-file', type=Path, help='Append log; default: <masks_path>/<mask_dir>/<MODEL>_MSCOCO.log')
     parser.add_argument('--dry-run', action='store_true', help='Check paths and list work without loading SAM')
     return parser.parse_args()
 
 
-def run(args):
+def _run(args, progress_stream):
     if args.max_regions < 1 or args.min_region_pixels < 1:
         raise ValueError('Region limits must be positive')
     if args.limit is not None and args.limit < 1:
@@ -66,7 +72,7 @@ def run(args):
             previous = json.loads(metadata_path.read_text())
             settings = {key: str(value) if isinstance(value, Path) else value
                         for key, value in vars(args).items()
-                        if key not in {'limit', 'overwrite', 'dry_run', 'config'}}
+                        if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file'}}
             if previous.get('generation_settings') != settings:
                 raise ValueError(f'{image_id}: settings differ; use a new output folder or --overwrite')
             continue
@@ -80,7 +86,10 @@ def run(args):
         return
     loaded = sam.build_generator(args)
     output.mkdir(parents=True, exist_ok=True)
-    for index, (image_id, path) in enumerate(pending, 1):
+    progress = tqdm(pending, total=len(images), initial=len(images) - len(pending),
+                    desc=f"{args.model.upper()} MSCOCO", ascii=True,
+                    dynamic_ncols=True, file=progress_stream)
+    for index, (image_id, path) in enumerate(progress, 1):
         start = time.perf_counter()
         image = np.asarray(Image.open(path).convert('RGB'))
         masks, seconds, device, checkpoint = sam.infer_masks(image, args, loaded)
@@ -102,15 +111,48 @@ def run(args):
             'total_time_sec': time.perf_counter() - start,
             'generation_settings': {key: str(value) if isinstance(value, Path) else value
                                     for key, value in vars(args).items()
-                                    if key not in {'limit', 'overwrite', 'dry_run', 'config'}},
+                                    if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file'}},
         }
         target = output / f'{image_id}_results.json'
         temporary = target.with_suffix('.json.tmp')
         temporary.write_text(json.dumps(metadata, indent=2) + '\n')
         temporary.replace(target)
-        print(f'[{index}/{len(pending)}] {image_id}: {len(masks)} masks, '
+        print(f'{datetime.now(timezone.utc).isoformat()} [{index}/{len(pending)}] {image_id}: {len(masks)} masks, '
               f'{metadata["n_refined_instances"]} regions, '
-              f'{metadata["total_time_sec"]:.1f}s', flush=True)
+              f'sam_s={seconds:.3f} refinement_s={refinement_seconds:.3f} '
+              f'total_s={metadata["total_time_sec"]:.3f}', flush=True)
+        progress.set_postfix(masks=len(masks), regions=metadata['n_refined_instances'],
+                             seconds=f"{metadata['total_time_sec']:.1f}")
+
+
+def run(args):
+    if args.dry_run:
+        return _run(args, sys.stderr)
+    root = Path(__file__).resolve().parents[2]
+    config_path = Path(args.config)
+    if not config_path.suffix:
+        config_path = root / 'src/configs' / f'{args.config}.yaml'
+    elif not config_path.is_absolute():
+        config_path = root / config_path
+    data = yaml.safe_load(config_path.read_text())['data']
+    log_path = getattr(args, 'log_file', None) or (
+        Path(data['masks_path']) / data['mask_dir'] / f'{args.model.upper()}_MSCOCO.log')
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    terminal = sys.stderr
+    with log_path.open('a', buffering=1) as log:
+        with redirect_stdout(log), redirect_stderr(log):
+            start = time.perf_counter()
+            print(f"\n{datetime.now(timezone.utc).isoformat()} START config={args.config} "
+                  f"model={args.model} checkpoint={args.checkpoint}", flush=True)
+            try:
+                _run(args, terminal)
+            except BaseException:
+                traceback.print_exc(file=log)
+                print(f"{datetime.now(timezone.utc).isoformat()} FAILED "
+                      f"elapsed_s={time.perf_counter() - start:.3f}", flush=True)
+                raise
+            print(f"{datetime.now(timezone.utc).isoformat()} COMPLETE "
+                  f"elapsed_s={time.perf_counter() - start:.3f}", flush=True)
 
 
 if __name__ == '__main__':

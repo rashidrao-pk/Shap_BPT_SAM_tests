@@ -1,5 +1,7 @@
 # SETUP on EPITO (Linux / NVIDIA CUDA)
 
+For later sessions after installation, use [EPITO.md](EPITO.md).
+
 This guide follows [MAC_OS.md](MAC_OS.md), using the EPITO paths and environment
 recorded in [../README.md](../README.md) and `src/scripts/prepare_setup.sh`.
 Run the steps in order in the same shell. Adjust the username/paths for another
@@ -291,27 +293,27 @@ assert torch.cuda.is_available(), "Request a Slurm GPU allocation first"
 device = "cuda"
 
 model = build_sam2(
-    "configs/sam2.1/sam2.1_hiera_t.yaml",
-    str(Path(os.environ["SAM2_DIR"]) / "checkpoints/sam2.1_hiera_tiny.pt"),
-    device=device,
-    apply_postprocessing=False,
+"configs/sam2.1/sam2.1_hiera_t.yaml",
+str(Path(os.environ["SAM2_DIR"]) / "checkpoints/sam2.1_hiera_tiny.pt"),
+device=device,
+apply_postprocessing=False,
 )
 
 generator = SAM2AutomaticMaskGenerator(
-    model=model,
-    points_per_side=16,
-    points_per_batch=16,
-    pred_iou_thresh=0.7,
-    stability_score_thresh=0.85,
-    crop_n_layers=0,
-    output_mode="binary_mask",
+model=model,
+points_per_side=16,
+points_per_batch=16,
+pred_iou_thresh=0.7,
+stability_score_thresh=0.85,
+crop_n_layers=0,
+output_mode="binary_mask",
 )
 
 print("Generating SAM2 masks...")
 start = time.perf_counter()
 
 with torch.inference_mode():
-    masks = generator.generate(image)
+masks = generator.generate(image)
 
 elapsed = time.perf_counter() - start
 
@@ -319,35 +321,40 @@ print("Generated masks:", len(masks))
 print("Inference time (seconds):", round(elapsed, 2))
 
 # Convert overlapping instance masks into one non-overlapping partition map.
+
 # Larger masks first; smaller masks may overwrite overlapping pixels.
+
 h, w = image.shape[:2]
 partitions = np.zeros((h, w), dtype=np.uint16)
 
 sorted_masks = sorted(
-    masks,
-    key=lambda m: m["area"],
-    reverse=True,
+masks,
+key=lambda m: m["area"],
+reverse=True,
 )
 
 for label, mask in enumerate(sorted_masks, start=1):
-    partitions[mask["segmentation"]] = label
+partitions[mask["segmentation"]] = label
 
 # Renumber visible labels consecutively.
-_, partitions = np.unique(partitions, return_inverse=True)
+
+\_, partitions = np.unique(partitions, return_inverse=True)
 partitions = partitions.reshape(h, w).astype(np.uint16)
 
 np.save(output_dir / "truck_sam2_partitions.npy", partitions)
 
 # Preserve the original SAM masks as well.
+
 np.savez_compressed(
-    output_dir / "truck_sam2_raw_masks.npz",
-    masks=np.stack(
-        [m["segmentation"] for m in masks],
-        axis=0
-    ) if masks else np.zeros((0, h, w), dtype=bool),
+output_dir / "truck_sam2_raw_masks.npz",
+masks=np.stack(
+[m["segmentation"] for m in masks],
+axis=0
+) if masks else np.zeros((0, h, w), dtype=bool),
 )
 
 # Visualize
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -361,7 +368,7 @@ axes[1].imshow(partitions, cmap="nipy_spectral", interpolation="nearest")
 axes[1].set_title(f"SAM2 partitions ({len(np.unique(partitions))} regions)")
 
 for ax in axes:
-    ax.axis("off")
+ax.axis("off")
 
 plt.tight_layout()
 plt.savefig(output_dir / "truck_sam2_partitions.png", dpi=200)
@@ -371,7 +378,8 @@ print("Partition labels:", len(np.unique(partitions)))
 print("Output directory:", output_dir)
 print("SAM2 partition generation completed.")
 PY
-```
+
+````
 
 ## 8. Resume EPITO experiments
 
@@ -384,7 +392,7 @@ export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages
 export PROJECT_DIR=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
 export SAM2_DIR=/beegfs/home/mrashid/repos/XAI/third_party/sam2
 cd "$PROJECT_DIR"
-```
+````
 
 The existing
 `prepare_setup.sh` helper activates the original `pt_312` environment, so use

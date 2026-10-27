@@ -1743,12 +1743,12 @@ def compute_auc_results(shap_values, nu, f_S, f_0, predicted_cls, batch_size=4,
 
         result = {
             'label': str(exp_code),
-            'auc_del': auc_del,
-            'auc_ins': auc_ins,
-            # 
-            auc_del_500
-            
-
+            'auc_del': auc_del_100,
+            'auc_ins': auc_ins_100,
+            'auc_del_500': auc_del_500,
+            'auc_ins_500': auc_ins_500,
+            'auc_del_2000': auc_del_2000,
+            'auc_ins_2000': auc_ins_2000,
             'time_eval': time_eval,
             **extra_metrics,
         }
@@ -1761,8 +1761,8 @@ def compute_auc_results(shap_values, nu, f_S, f_0, predicted_cls, batch_size=4,
         auc_results.append(result)
         if verbose:
             print(
-                f"{exp_code}: AUC-DEL={auc_del['auc_clipr']:.4f}, "
-                f"AUC-INS={auc_ins['auc_clipr']:.4f}, "
+                f"{exp_code}: AUC-DEL={auc_del_100['auc_clipr']:.4f}, "
+                f"AUC-INS={auc_ins_100['auc_clipr']:.4f}, "
                 f"Sens-n={result['sensitivity_n_corr']:.4f}"
             )
 

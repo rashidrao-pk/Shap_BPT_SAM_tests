@@ -27,20 +27,40 @@ Run model checks and mask generation inside this allocation. If compute nodes
 cannot reach the internet, clone repositories and download checkpoints on a
 network-enabled login node using these shared-storage paths.
 
-## 2. Activate Python 3.12 and check PyTorch
+## 2. Copy `pt_312` into a separate SAM environment
 
-The existing EPITO setup uses a virtual environment and shared PyTorch 2.7.1.
-If `/beegfs/home/mrashid/pt_312` does not exist, create it first:
+Keep the original `/beegfs/home/mrashid/pt_312` environment for existing
+experiments. Create `/beegfs/home/mrashid/pt_312_sam` as a copy before installing
+SAM dependencies. The source environment must already exist.
+
+Use `virtualenv-clone` so activation scripts and executable paths are updated
+for the destination. Install the cloning tool in a temporary environment to
+leave `pt_312` untouched. Run once; the destination must not already exist:
 
 ```bash
-python3.12 -m venv /beegfs/home/mrashid/pt_312
+export SAM_ENV=/beegfs/home/mrashid/pt_312_sam
+CLONE_TOOLS_DIR=$(mktemp -d /tmp/pt312-clone-tools.XXXXXX)
+python3.12 -m venv "$CLONE_TOOLS_DIR"
+"$CLONE_TOOLS_DIR/bin/python" -m pip install virtualenv-clone
+"$CLONE_TOOLS_DIR/bin/virtualenv-clone" \
+  /beegfs/home/mrashid/pt_312 "$SAM_ENV"
 ```
 
-Activate the existing or newly created environment:
+Activate the copy for every installation and experiment in this guide:
 
 ```bash
-source /beegfs/home/mrashid/pt_312/bin/activate
-export PYTHONPATH="/opt/pytorch-v2.7.1/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
+source /beegfs/home/mrashid/pt_312_sam/bin/activate
+# Remove the shared-PyTorch override used by the original setup.
+unset PYTHONPATH
+# Expose the site's PyTorch packages after this environment's own packages.
+python - <<'PY'
+from pathlib import Path
+import sysconfig
+site_packages = Path(sysconfig.get_path("purelib"))
+(site_packages / "epito-pytorch.pth").write_text(
+    "/opt/pytorch-v2.7.1/lib/python3.12/site-packages\n"
+)
+PY
 which python
 python --version
 python -m pip --version
@@ -58,12 +78,19 @@ print("CUDA calculation:", (torch.ones(4, device="cuda") + 1).cpu())
 PY
 ```
 
+The copy has its own installed packages and installation paths. The `.pth` file
+still exposes the shared site PyTorch installation; packages installed in
+`pt_312_sam` take precedence. Editable packages and external data/checkpoints
+may still refer to shared source directories. Reinstall editable packages from
+separate checkouts too if you need independent source changes.
+
 Check this before installing another torch build. If imports fail, verify that
 Python is 3.12 and the documented `/opt` path still exists. For a separate
 self-contained environment, install matched torch/torchvision CUDA wheels using
 [PyTorch's official instructions](https://pytorch.org/get-started/previous-versions/)
 and a CUDA build supported by EPITO's driver. In that separate environment,
-omit the `/opt` entry from `PYTHONPATH` to avoid mixing installations.
+remove `epito-pytorch.pth` from that environment and omit the `/opt` entry from
+`PYTHONPATH` to avoid mixing installations.
 
 ## 3. Install ShapBPT and dependencies
 
@@ -324,13 +351,20 @@ PY
 
 ## 8. Resume EPITO experiments
 
-In a new terminal, request a GPU, activate the environment, and restore
-`PYTHONPATH`, `PROJECT_DIR`, and `SAM2_DIR` as above. The existing helper performs
-the allocation and environment activation for experiment runs:
+In a new terminal, request a GPU and activate the SAM copy:
 
 ```bash
-bash /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/src/scripts/prepare_setup.sh
+srun -p epito --gres=gpu:a100:1 -J "ShapBPT SAM" --time=06:00:00 --pty bash
+source /beegfs/home/mrashid/pt_312_sam/bin/activate
+unset PYTHONPATH
+export PROJECT_DIR=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
+export SAM2_DIR=/beegfs/home/mrashid/repos/XAI/third_party/sam2
+cd "$PROJECT_DIR"
 ```
+
+The `.pth` file created in step 2 persists between sessions. The existing
+`prepare_setup.sh` helper activates the original `pt_312` environment, so use
+the commands above for the separate SAM environment.
 
 Check dataset, annotation, partition, and output paths in
 [MSCOCO_epito.yaml](../../src/configs/MSCOCO_epito.yaml) before full runs.

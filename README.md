@@ -13,12 +13,21 @@ Tests for SAM inspired ShapBPT - using Segment Anything Model for Improved ShapB
 <a href="https://arxiv.org/abs/2602.07047"><img src="https://img.shields.io/badge/arXiv-2602.07047-b31b1b.svg" alt="arXiv"></a>
 <a href="https://ojs.aaai.org/index.php/AAAI/article/view/39699"><img src="https://img.shields.io/badge/AAAI-2026-blue" alt="AAAI 2026"></a>
 <a href="https://pypi.org/project/shap-bpt/"><img src="https://img.shields.io/pypi/v/shap-bpt" alt="PyPI Version"></a>
+<a href="https://shapbpt.readthedocs.io/en/stable/index.html"><img alt="Documentation" src="https://img.shields.io/readthedocs/loguru.svg"></a>
+<a href="https://app.codacy.com/gh/rashidrao-pk/shap_bpt_tests/dashboard"><img alt="Code quality" src="https://app.codacy.com/project/badge/Grade/ae3c750abf744da6b0ca4ea75dc623fc"></a>
+<a href="https://github.com/amparore/shap-bpt/actions/workflows/tests.yml?query=branch:master"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/amparore/shap-bpt/tests.yml?branch=master"></a>
 <a href="https://pypi.org/project/shap-bpt/"><img src="https://img.shields.io/pypi/dm/shap-bpt" alt="PyPI Downloads"></a>
 <a href="https://github.com/amparore/shap_bpt/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
 <a href="https://github.com/amparore/shap_bpt/graphs/contributors"><img src="https://img.shields.io/github/contributors/amparore/shap_bpt" alt="GitHub contributors"></a>
 <a href="https://github.com/amparore/shap_bpt"><img src="https://img.shields.io/github/repo-size/amparore/shap_bpt" alt="GitHub repo size"></a>
 <a href="https://github.com/amparore/shap_bpt/commits/main"><img src="https://img.shields.io/github/commit-activity/t/amparore/shap_bpt" alt="GitHub commit activity"></a>
 <a href="https://github.com/amparore/shap_bpt/commits/main"><img src="https://img.shields.io/github/last-commit/amparore/shap_bpt" alt="GitHub last commit"></a>
+
+<!--  -->
+
+<!-- <a href="https://pypi.python.org/pypi/shap_bpt"><img alt="Python versions" src="https://img.shields.io/badge/python-3.6%2B%20%7C%20PyPy-blue.svg"></a> -->
+
+<a href="https://app.codecov.io/github/amparore"><img alt="Coverage" src="https://codecov.io/github/amparore/shap_bpt/graph/badge.svg?token=J7PL6Q1SNW)](https://codecov.io/github/amparore/shap_bpt"></a>
 
 </p>
 

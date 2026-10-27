@@ -361,6 +361,28 @@ python src/scripts/summarize_results.py \
   --boxplots \
   --html-report \
   --outlier-report
+
+
+```
+
+```bash
+python src/scripts/summarize_results.py \
+  --results-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/Shap_BPT_SAM_tests/outputs/results/xai_results_E1_1_4 \
+  --boxplots \
+  --html-report \
+  --outlier-report
+
+python src/scripts/summarize_results.py \
+  --results-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/Shap_BPT_SAM_tests/outputs/results/xai_results_E2_1 \
+  --boxplots \
+  --html-report \
+  --outlier-report
+
+python src/scripts/summarize_results.py \
+  --results-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/Shap_BPT_SAM_tests/outputs/results/xai_results_E3_1 \
+  --boxplots \
+  --html-report \
+  --outlier-report
 ```
 
 ## RUN EXPs
@@ -385,4 +407,10 @@ python src/scripts/check_experiment_progress.py \
   --config MSCOCO_mac \
   --html-report
 
+```
+
+```bash
+python src/scripts/compare_experiments.py \
+  --results-root /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/Shap_BPT_SAM_tests/outputs/results \
+  --output-dir /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/Shap_BPT_SAM_tests/outputs/results/overall_comparison
 ```

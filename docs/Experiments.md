@@ -26,12 +26,12 @@ The main questions are:
 
 ## Model Families
 
-| Exp prefix | Task | Model | Output classes | Script |
-| :--------- | :--- | :---- | -------------: | :----- |
-| `E1` | Object detection | YOLOv11 / custom YOLO checkpoint | Usually 80 for COCO, 26 for `yolo_26` | `examples/scripts/run_yolo_full.py` |
-| `E2` | Classification | ResNet-50 ImageNet | 1000 | `examples/scripts/run_resnet_full.py` |
-| `E3` | Classification | ViT-B/16 ImageNet | 1000 | `examples/scripts/run_vit_full.py` |
-| `E4` | Object detection | DETR ResNet-50 | COCO-style detector labels | `examples/scripts/run_detr_full.py` |
+| Exp prefix | Task             | Model                            |                        Output classes | Script                                |
+| :--------- | :--------------- | :------------------------------- | ------------------------------------: | :------------------------------------ |
+| `E1`       | Object detection | YOLOv11 / custom YOLO checkpoint | Usually 80 for COCO, 26 for `yolo_26` | `examples/scripts/run_yolo_full.py`   |
+| `E2`       | Classification   | ResNet-50 ImageNet               |                                  1000 | `examples/scripts/run_resnet_full.py` |
+| `E3`       | Classification   | ViT-B/16 ImageNet                |                                  1000 | `examples/scripts/run_vit_full.py`    |
+| `E4`       | Object detection | DETR ResNet-50                   |            COCO-style detector labels | `examples/scripts/run_detr_full.py`   |
 
 ## Experiment ID Convention
 
@@ -51,35 +51,35 @@ E1_<background>_<budget>
 
 Examples:
 
-| Exp ID | Meaning |
-| :----- | :------ |
-| `E1_1_1` | YOLOv11, `noise` background, `max_evals=50` |
+| Exp ID   | Meaning                                      |
+| :------- | :------------------------------------------- |
+| `E1_1_1` | YOLOv11, `noise` background, `max_evals=50`  |
 | `E1_1_4` | YOLOv11, `noise` background, `max_evals=500` |
-| `E1_5_4` | YOLOv11, `full` background, `max_evals=500` |
-| `E2_1` | ResNet-50, `noise` background |
-| `E3_1` | ViT-B/16, `noise` background |
-| `E4_1` | DETR, `noise` background |
+| `E1_5_4` | YOLOv11, `full` background, `max_evals=500`  |
+| `E2_1`   | ResNet-50, `noise` background                |
+| `E3_1`   | ViT-B/16, `noise` background                 |
+| `E4_1`   | DETR, `noise` background                     |
 
 ## Background Replacement IDs
 
-| ID | `--bg-type` | Meaning |
-| -: | :---------- | :------ |
-| `1` | `noise` | Gaussian random background, blurred with sigma=2 |
-| `2` | `blurred` | Input image blurred with Gaussian sigma=8 |
-| `3` | `black` | All pixels set to 0 |
-| `4` | `white` | All pixels set to 255 |
-| `5` | `full` | Average over black, gray, white, blurred, and noise backgrounds |
-| `6` | `gray` | All pixels set to 127 |
+|  ID | `--bg-type` | Meaning                                                         |
+| --: | :---------- | :-------------------------------------------------------------- |
+| `1` | `noise`     | Gaussian random background, blurred with sigma=2                |
+| `2` | `blurred`   | Input image blurred with Gaussian sigma=8                       |
+| `3` | `black`     | All pixels set to 0                                             |
+| `4` | `white`     | All pixels set to 255                                           |
+| `5` | `full`      | Average over black, gray, white, blurred, and noise backgrounds |
+| `6` | `gray`      | All pixels set to 127                                           |
 
 ## YOLO Budget IDs
 
-| ID | `--max-evals` | Meaning |
-| -: | ------------: | :------ |
-| `1` | `50` | Very low explanation budget |
-| `2` | `100` | Low explanation budget |
-| `3` | `250` | Medium-low explanation budget |
-| `4` | `500` | Default explanation budget |
-| `5` | `1000` | High explanation budget |
+|  ID | `--max-evals` | Meaning                       |
+| --: | ------------: | :---------------------------- |
+| `1` |          `50` | Very low explanation budget   |
+| `2` |         `100` | Low explanation budget        |
+| `3` |         `250` | Medium-low explanation budget |
+| `4` |         `500` | Default explanation budget    |
+| `5` |        `1000` | High explanation budget       |
 
 Nonstandard budgets use an explicit suffix. For example:
 
@@ -92,14 +92,14 @@ Nonstandard budgets use an explicit suffix. For example:
 Each model is evaluated with the same explanation method list when the required
 partition files exist.
 
-| Method | Meaning |
-| :----- | :------ |
-| `BPT` | Stock BPT built from the image |
-| `sam` | SAM partition labels |
-| `coverage` | Coverage-adjusted SAM partitions |
-| `compact` | Compact/refined partition variant |
-| `filled` | Filled partition variant |
-| `refined` | Refined SAM partition labels |
+| Method           | Meaning                             |
+| :--------------- | :---------------------------------- |
+| `BPT`            | Stock BPT built from the image      |
+| `sam`            | SAM partition labels                |
+| `coverage`       | Coverage-adjusted SAM partitions    |
+| `compact`        | Compact/refined partition variant   |
+| `filled`         | Filled partition variant            |
+| `refined`        | Refined SAM partition labels        |
 | `refined_filled` | Refined and filled partition labels |
 
 For timing plots, partition time is counted as:
@@ -127,42 +127,42 @@ examples/results/xai_results_E1_1_4
 
 Common saved files:
 
-| File | Meaning |
-| :--- | :------ |
-| `run_info.json` | Model, background, budget, batches, methods, paths |
-| `experiment_mapping.csv` | Experiment ID mapping |
-| `experiment_mapping.json` | Same mapping in JSON |
-| `partition_summary.csv` | Partition generation times and counts |
-| `auc_results_all_images_current_run.csv` | Incrementally updated after each completed image |
-| `auc_results_all_images_<budget>_<n>.csv` | Final per-image metric table |
-| `auc_results_summary_<budget>_<n>.csv` | Aggregate metric summary by method |
-| `auc_results_boxplots_<budget>_<n>.png` | AUC+, AUC-, and partition+explanation time |
-| `faithfulness_metric_boxplots_<budget>_<n>.png` | Aggregate no-ground-truth metric boxplots |
-| `time_comparison_partition_explanation_<budget>_<n>.png` | Partition, explanation, and evaluation time |
-| `total_time_by_method_<budget>_<n>.csv` | Total time table |
-| `total_time_by_method_<budget>_<n>.png` | Total time plot |
-| `xai_results_report.html` | Full HTML report |
+| File                                                     | Meaning                                            |
+| :------------------------------------------------------- | :------------------------------------------------- |
+| `run_info.json`                                          | Model, background, budget, batches, methods, paths |
+| `experiment_mapping.csv`                                 | Experiment ID mapping                              |
+| `experiment_mapping.json`                                | Same mapping in JSON                               |
+| `partition_summary.csv`                                  | Partition generation times and counts              |
+| `auc_results_all_images_current_run.csv`                 | Incrementally updated after each completed image   |
+| `auc_results_all_images_<budget>_<n>.csv`                | Final per-image metric table                       |
+| `auc_results_summary_<budget>_<n>.csv`                   | Aggregate metric summary by method                 |
+| `auc_results_boxplots_<budget>_<n>.png`                  | AUC+, AUC-, and partition+explanation time         |
+| `faithfulness_metric_boxplots_<budget>_<n>.png`          | Aggregate no-ground-truth metric boxplots          |
+| `time_comparison_partition_explanation_<budget>_<n>.png` | Partition, explanation, and evaluation time        |
+| `total_time_by_method_<budget>_<n>.csv`                  | Total time table                                   |
+| `total_time_by_method_<budget>_<n>.png`                  | Total time plot                                    |
+| `xai_results_report.html`                                | Full HTML report                                   |
 
 Each image subdirectory contains:
 
-| File pattern | Meaning |
-| :----------- | :------ |
-| `*_predictions.json` | Prediction metadata and explained class |
-| `*_xai_results.png` | Input, prediction, partitions, and attribution maps |
-| `auc_results_*.png` | AUC insertion/deletion curves |
+| File pattern                | Meaning                                                               |
+| :-------------------------- | :-------------------------------------------------------------------- |
+| `*_predictions.json`        | Prediction metadata and explained class                               |
+| `*_xai_results.png`         | Input, prediction, partitions, and attribution maps                   |
+| `auc_results_*.png`         | AUC insertion/deletion curves                                         |
 | `faithfulness_curves_*.png` | Drop, insert, sufficiency, comprehensiveness, and Sensitivity-n plots |
-| `<method>_<image>.png` | Single attribution map for each method |
+| `<method>_<image>.png`      | Single attribution map for each method                                |
 
 ## Core Experiment Matrix
 
 The recommended first-pass matrix is:
 
-| Exp ID | Model | Task | Background | Budget |
-| :----- | :---- | :--- | :--------- | -----: |
-| `E1_1_4` | YOLOv11 | Detection | `noise` | `500` |
-| `E2_1` | ResNet-50 | Classification | `noise` | `500` |
-| `E3_1` | ViT-B/16 | Classification | `noise` | `500` |
-| `E4_1` | DETR | Detection | `noise` | `500` |
+| Exp ID   | Model     | Task           | Background | Budget |
+| :------- | :-------- | :------------- | :--------- | -----: |
+| `E1_1_4` | YOLOv11   | Detection      | `noise`    |  `500` |
+| `E2_1`   | ResNet-50 | Classification | `noise`    |  `500` |
+| `E3_1`   | ViT-B/16  | Classification | `noise`    |  `500` |
+| `E4_1`   | DETR      | Detection      | `noise`    |  `500` |
 
 ## YOLO Background Ablation
 
@@ -305,4 +305,3 @@ For a paper-style report, use:
 - Cross-model table: `E1_1_4`, `E2_1`, `E3_1`, `E4_1`.
 
 For formulas and metric interpretation, cite `docs/Evaluation.md`.
-

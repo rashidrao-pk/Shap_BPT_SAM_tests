@@ -68,6 +68,7 @@ src/partitions_new_120
 src/notebooks/checkpoints/*
 src/notebooks/checkpoints/yolo11s.pt
 checkpoints/*
+checkpoints
     
 # Results
 results.zip

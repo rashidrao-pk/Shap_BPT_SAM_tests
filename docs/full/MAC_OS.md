@@ -309,3 +309,31 @@ print("Output directory:", output_dir)
 print("SAM2 partition generation completed.")
 PY
 ```
+
+## TEST SAM on MAC
+
+### SAM 1
+
+```bash
+export PYTORCH_ENABLE_MPS_FALLBACK=1
+
+python src/scripts/generate_sam_partitions.py \
+  --model sam1 \
+  --image data/sample_images/truck.jpg \
+  --device mps \
+  --max-regions 62 \
+  --strategy refined \
+  --output-dir results/partitions/sam1
+```
+
+### SAM2
+
+```bash
+python src/scripts/generate_sam_partitions.py \
+  --model sam2 \
+  --image data/sample_images/truck.jpg \
+  --device mps \
+  --max-regions 62 \
+  --strategy refined \
+  --output-dir results/partitions/sam2
+```

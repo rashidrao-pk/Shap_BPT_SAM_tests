@@ -76,7 +76,19 @@ src/results/*
 src/results/splits
 outputs/*
 
+#  Documentation
 /docs/.DS_Store/
 /docs/source/.DS_Store/
 
+# Any zip files
 *.zip
+
+## Downloaded data
+!data
+data/
+data/**
+
+# Computed results
+results
+results/
+results/**

@@ -61,7 +61,21 @@ map. Raw mask stacks and previews are omitted to reduce dataset storage.
 
 ## 4. Generate the full dataset
 
-Run the same command without `--limit 2`:
+### SAM-1
+
+```bash
+
+python src/scripts/generate_coco_partitions.py \
+  --config MSCOCO_epito-sam1 \
+  --model sam1 \
+  --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" \
+  --sam1-variant vit_b \
+  --device cuda \
+  --max-regions 62 \
+  --limit 2
+```
+
+### SAM-2
 
 ```bash
 python src/scripts/generate_coco_partitions.py \
@@ -71,6 +85,8 @@ python src/scripts/generate_coco_partitions.py \
   --device cuda \
   --max-regions 62
 ```
+
+
 
 The terminal shows only a text tqdm bar with progress, ETA, and the latest
 mask count, region count, and image time. Run details and per-image counts,

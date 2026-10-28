@@ -20,9 +20,9 @@ data:
   annotation_file: "/beegfs/home/mrashid/datasets/MS_COCO/annotations/annotations_trainval2017/annotations/instances_val2017.json"
 
   masks_path: "/beegfs/home/mrashid/datasets/"
-  mask_dir: "SAM_BPT" 
+  mask_dir: "SAM_BPT"
   # XAI input folder: match the folder printed by partition generation.
-  mask_dir_final: "MSCOCO_sam2_tiny_62_refined_200" 
+  mask_dir_final: "MSCOCO_sam2_large_62_refined_200"
 
 evaluation:
   methods: [BPT, refined]
@@ -32,13 +32,13 @@ evaluation:
   eval-batch-size: 2048
   auc-batch-size: 1024
   auc_num_samples: 101
-  
+
   # Options:
   #   black   : black background
   #   gray    : gray background
   #   white   : white background
   #   blurred : blurred background
-  #  noise  
+  #  noise
 
   # Options:
   #   batch_size : number of images to process in a single batch during evaluation

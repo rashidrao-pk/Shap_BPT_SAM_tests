@@ -1,5 +1,7 @@
 # Partition generation
 
+- [Notebook pipeline, viewing, and image tests](NOTEBOOK_PIPELINE.md)
+
 - [EPITO: MS-COCO batches](EPITO.md)
 - [EPITO: ImageNet batches](ImageNet_EPITO.md)
 - [Single-image SAM1/SAM2 examples and optional SAM3](../full/SAM_Exps.md)

@@ -131,7 +131,6 @@ def build_generator(args):
             pred_iou_thresh=args.pred_iou_thresh,
             stability_score_thresh=args.stability_score_thresh,
             stability_score_offset=args.stability_score_offset,
-            mask_threshold=args.mask_threshold,
             box_nms_thresh=args.box_nms_thresh,
             crop_n_layers=args.crop_n_layers,
             crop_nms_thresh=args.crop_nms_thresh,

@@ -31,7 +31,7 @@ python src/scripts/generate_camo_partitions.py \
   --device cuda \
   --max-regions 62 \
   --generate_at_least_n_masks 50 \
-  --save-partitions sam compact boosted filled boosted_filled refined \
+  --save-partitions sam compact refined \
   --limit 2
 ```
 
@@ -60,8 +60,8 @@ counts, timings, and tuning history. See [stage details](EPITO.md#choose-which-p
 ```bash
 python src/scripts/view_partitions.py \
   --config CAMO_epito \
-  --image-id camourflage_00001 \
-  --methods sam compact boosted filled boosted_filled refined
+  --limit 5 \
+  --methods sam compact refined
 ```
 
 Use only stages you saved. Replace `--image-id camourflage_00001` with `--limit 5`

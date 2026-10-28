@@ -1,5 +1,6 @@
 # Partition generation
 
+- [Check progress for all datasets](PROGRESS.md)
 - [Notebook pipeline, viewing, and image tests](NOTEBOOK_PIPELINE.md)
 
 - [EPITO: MS-COCO batches](EPITO.md)

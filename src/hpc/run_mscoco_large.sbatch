@@ -2,7 +2,6 @@
 
 #SBATCH --job-name=XAI-ShapBPT
 #SBATCH --partition=epito
-#SBATCH --reservation=XAI-ShapBPT
 #SBATCH --nodelist=epito01
 #SBATCH --gres=gpu:a100:1
 #SBATCH --nodes=1

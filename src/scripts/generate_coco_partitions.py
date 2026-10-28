@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument('--device', choices=['auto', 'cuda', 'cpu', 'mps'], default='cuda')
     parser.add_argument('--max-regions', type=int, default=62)
     # SAM parameters
-    # parser.add_argument('--min-region-pixels', type=int, default=64)
+    parser.add_argument('--min-region-pixels', type=int, default=64)
     # parser.add_argument('--points-per-side', type=int, default=16)
     # parser.add_argument('--points-per-batch', type=int, default=16)
     # parser.add_argument('--pred-iou-thresh', type=float, default=0.7)

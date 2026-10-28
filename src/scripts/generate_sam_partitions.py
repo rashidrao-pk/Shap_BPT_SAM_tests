@@ -32,10 +32,25 @@ def parse_args():
     p.add_argument("--sam2-config", default=None,
                    help="Hydra config name, e.g. configs/sam2.1/sam2.1_hiera_t.yaml")
     p.add_argument("--sam1-variant", choices=["vit_b", "vit_l", "vit_h"], default="vit_b")
-    p.add_argument("--points-per-side", type=int, default=16)
-    p.add_argument("--points-per-batch", type=int, default=16)
-    p.add_argument("--pred-iou-thresh", type=float, default=0.7)
-    p.add_argument("--stability-score-thresh", type=float, default=0.85)
+    # SAM automatic mask generator parameters; see SAM docs for details.
+    p.add_argument("--points-per-side", type=int, default=32)
+    p.add_argument("--points-per-batch", type=int, default=64)
+    p.add_argument("--pred-iou-thresh", type=float, default=0.6)
+    # 
+    p.add_argument("--stability-score-thresh", type=float, default=0.6)
+    p.add_argument("--stability-score-offset", type=float, default=1.0)
+    p.add_argument("--mask-threshold", type=float, default=0.0)
+    
+    p.add_argument("--box-nms-thresh", type=float, default=0.7)
+    p.add_argument("--crop-n-layers", type=float, default=0)
+    p.add_argument("--crop-nms-thresh", type=float, default=0.7)
+    p.add_argument("--crop-overlap-ratio", type=float, default=512/1500)
+    p.add_argument("--crop-n-points-downscale-factor", type=float, default=1)
+    p.add_argument("--point-grids", type=float, default=None)
+    p.add_argument("--min-mask-region-area", type=float, default=0)
+    p.add_argument("--use-m2m", type=bool, default=True)
+
+
     p.add_argument("--min-region-pixels", type=int, default=64)
     p.add_argument("--raw-masks", type=Path, default=None,
                    help="Optional .npz containing 'masks' [N,H,W]; skip inference")

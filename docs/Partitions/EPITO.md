@@ -123,6 +123,64 @@ Generation prints that value in the log (and directly during `--dry-run`);
 it does not modify your config. The checked-in config selects
 `MSCOCO_sam2_tiny_62_refined_200`.
 
+## Choose which partition stages to save
+
+Without extra options, both batch scripts save **sam + refined**, plus the
+per-image results JSON. Choose other stages with `--save-partitions`:
+
+```bash
+python src/scripts/generate_coco_partitions.py \
+  --config MSCOCO_epito \
+  --model sam2 \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
+  --device cuda \
+  --max-regions 62 \
+  --generate_at_least_n_masks 200 \
+  --save-partitions sam compact boosted filled boosted_filled refined \
+  --limit 500
+```
+
+| Stage / filename suffix | Meaning |
+| --- | --- |
+| `sam` | All final SAM masks converted to labels, capped to the region budget |
+| `compact` | Greedy selection by new area × predicted IoU, then small-mask overwrite |
+| `boosted` | Notebook SegmentBooster majority-label refinement of compact labels |
+| `filled` | Distance-limited filling of compact labels |
+| `boosted_filled` | Distance-limited filling of boosted labels |
+| `refined` | Existing batch connected-component refinement, filling, and region cap |
+
+`--select-count 400` controls the greedy selection limit.
+`--fill-max-distance 3` controls notebook-stage filling in pixels.
+Only `sam` and `refined` are capped by `--max-regions`; the notebook stages
+preserve their original behavior and can have more labels or unassigned pixels.
+Thus `refined` and `boosted` are different algorithms.
+
+The JSON's `saved_partitions` lists exact paths; `partition_label_counts` lists
+counts. The log records the selected stages at startup and per-image counts.
+Use `--dry-run` to check the requested stages and paths before GPU work.
+
+Existing completed outputs are not upgraded by an already-running job.
+To regenerate the same images with a different stage selection, stop any run
+writing to that folder and add `--overwrite`. No old stage files are deleted;
+the new JSON identifies the files written by that run. Generating extra stages
+requires rerunning SAM because batch outputs do not preserve scored raw masks.
+The notebook stages require `imageio` as well as the existing plotting dependencies.
+
+To view all saved stages:
+
+```bash
+python src/scripts/view_partitions.py \
+  --config MSCOCO_epito \
+  --image-id 139 \
+  --methods sam compact boosted filled boosted_filled refined
+```
+
+Set `data.mask_dir_final` to the generated folder first. For XAI, include only
+saved stages in `evaluation.methods`. Both the COCO and ImageNet generators
+support these stage-selection options. The folder/log naming convention stays
+the same; the exact stage selection is recorded in JSON.
+
 ## Optional: tune thresholds toward a minimum mask count
 
 Use the notebook's `generate_at_least_n_masks` approach:

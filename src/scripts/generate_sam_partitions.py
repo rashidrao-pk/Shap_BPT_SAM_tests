@@ -200,7 +200,7 @@ def generate_at_least_n_masks(image, generator, min_masks=400, max_steps=3,
         generator.pred_iou_thresh, generator.stability_score_thresh = original
 
 
-def infer_masks(image, args, loaded_generator=None, return_history=False):
+def infer_masks(image, args, loaded_generator=None, return_history=False, return_annotations=False):
     import torch
     generator, device, checkpoint = loaded_generator or build_generator(args)
     t0 = time.perf_counter()
@@ -217,6 +217,8 @@ def infer_masks(image, args, loaded_generator=None, return_history=False):
     dt = time.perf_counter() - t0
     masks = np.stack([m["segmentation"] for m in annotations]).astype(bool) if annotations else np.empty((0, *image.shape[:2]), dtype=bool)
     result = masks, dt, device, str(checkpoint)
+    if return_annotations:
+        return (*result, history, annotations)
     return (*result, history) if return_history else result
 
 

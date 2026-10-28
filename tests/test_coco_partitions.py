@@ -19,6 +19,44 @@ import utils_sam_2 as loader
 
 
 class CocoExportTest(unittest.TestCase):
+    def test_selected_notebook_stages_and_resume(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            rgb = np.zeros((8, 10, 3), dtype=np.uint8)
+            Image.fromarray(rgb).save(root / '000000000001.jpg')
+            (root / 'annotations.json').write_text(json.dumps({'images': [
+                {'id': 1, 'file_name': '000000000001.jpg'}]}))
+            config = root / 'config.yaml'
+            config.write_text(yaml.safe_dump({'data': {
+                'image_dir': str(root), 'annotation_file': str(root / 'annotations.json'),
+                'masks_path': str(root), 'mask_dir': 'masks'}}))
+            args = batch.create_parser().parse_args([
+                '--config', str(config), '--save-partitions', 'compact', 'boosted',
+                'filled', 'boosted_filled'])
+            masks = np.zeros((2, 8, 10), dtype=bool)
+            masks[0, :5, :5] = True
+            masks[1, 4:, 4:] = True
+            annotations = [{'segmentation': mask, 'area': int(mask.sum()), 'predicted_iou': 0.9}
+                           for mask in masks]
+            with patch.object(batch.sam, 'build_generator', return_value=('fake', 'cpu', 'fake.pt')) as build:
+                with patch.object(batch.sam, 'infer_masks', return_value=(masks, .1, 'cpu', 'fake.pt', [], annotations)):
+                    batch.run(args)
+                    batch.run(args)
+                    self.assertEqual(build.call_count, 1)
+            output = root / 'masks/MSCOCO_sam2_tiny_62_refined_singlepass'
+            self.assertFalse((output / '000000000001_sam.npy').exists())
+            self.assertFalse((output / '000000000001_refined.npy').exists())
+            metadata = json.loads((output / '000000000001_results.json').read_text())
+            self.assertEqual(set(metadata['saved_partitions']), set(args.save_partitions))
+            for name in args.save_partitions:
+                labels = np.load(metadata['saved_partitions'][name])
+                self.assertEqual(labels.shape, rgb.shape[:2])
+                self.assertEqual(len(np.unique(labels)), metadata['partition_label_counts'][name])
+            self.assertEqual(metadata['n_coverage_masks'], 2)
+            zero_maps, _ = batch.notebook_stage_maps([], rgb.shape[:2], args.save_partitions)
+            for labels in zero_maps.values():
+                self.assertFalse(labels.any())
+
     def test_mask_tuning_stops_and_resets_between_images(self):
         thresholds = []
         generator = SimpleNamespace(pred_iou_thresh=0.6, stability_score_thresh=0.6)

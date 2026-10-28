@@ -99,10 +99,11 @@ view them directly, or rerun one image to obtain scored raw masks.
 
 ## Notebook workflow versus current batch generation
 
-The existing COCO/ImageNet batch scripts use connected-component refinement and
-a region budget. The notebook pipeline uses greedy selection and SegmentBooster,
+By default, the COCO/ImageNet batch scripts save `sam` and connected-component
+`refined` maps with a region budget. Optional notebook stages can now be selected
+using `--save-partitions`; see [EPITO.md](EPITO.md#choose-which-partition-stages-to-save). The notebook pipeline uses greedy selection and SegmentBooster,
 leaves zero as unassigned, and does not cap the final number of labels. They are
-different experiments. These scripts do not silently change ongoing batch runs.
+different experiments. Ongoing batch runs keep their existing stage selection.
 Generation/viewing remains separate from [XAI](../XAI/README.md).
 
 The notebook loads all images twice before slicing to 300. The scripts instead

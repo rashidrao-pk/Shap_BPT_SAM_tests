@@ -27,6 +27,13 @@ def create_parser(description=__doc__, default_config='MSCOCO_epito'):
     parser.add_argument('--sam1-variant', choices=['vit_b', 'vit_l', 'vit_h'], default='vit_b')
     parser.add_argument('--device', choices=['auto', 'cuda', 'cpu', 'mps'], default='cuda')
     parser.add_argument('--max-regions', type=int, default=62)
+    parser.add_argument('--save-partitions', nargs='+',
+                        choices=['sam', 'refined', 'compact', 'boosted', 'filled', 'boosted_filled'],
+                        default=['sam', 'refined'], help='Stage label maps to save (default: sam refined)')
+    parser.add_argument('--select-count', type=int, default=400,
+                        help='Maximum greedy-selected masks for notebook stages')
+    parser.add_argument('--fill-max-distance', type=float, default=3,
+                        help='Maximum gap-fill distance for notebook stages, in pixels')
     parser.add_argument('--generate_at_least_n_masks', '--generate-at-least-n-masks',
                         type=int, nargs='?', const=400, default=None,
                         help='Retry threshold tuning toward N raw masks (bare flag: 400)')
@@ -110,7 +117,45 @@ def partition_folder_name(data, args):
     return f'{dataset}_{args.model}_{variant}_{args.max_regions}_refined_{target if target is not None else "singlepass"}'
 
 
+def generation_settings(args):
+    settings = {key: str(value) if isinstance(value, Path) else value
+                for key, value in vars(args).items()
+                if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file'}}
+    # Preserve compatibility with metadata written before stage selection existed.
+    for key, default in [('save_partitions', ['sam', 'refined']),
+                         ('select_count', 400), ('fill_max_distance', 3)]:
+        if settings.get(key) == default:
+            settings.pop(key)
+    return settings
+
+
+def notebook_stage_maps(annotations, shape, stages, select_count=400, max_distance=3):
+    """Compute the notebook's greedy compact/booster/fill stages without plots."""
+    import sam_notebook_pipeline as pipeline
+    start = time.perf_counter()
+    selected, _, history, _ = pipeline.select_masks_by_unpicked_area(annotations, select_count)
+    compact = pipeline.create_compact_mask(selected) if selected else np.zeros(shape, dtype=np.int32)
+    maps = {}
+    if 'compact' in stages:
+        maps['compact'] = compact
+    if 'boosted' in stages or 'boosted_filled' in stages:
+        boosted = pipeline.refiner(compact, selected) if selected else np.zeros(shape, dtype=np.int32)
+        if 'boosted' in stages:
+            maps['boosted'] = boosted
+        if 'boosted_filled' in stages:
+            maps['boosted_filled'] = pipeline.partition_unassigned_by_nearest_cluster(
+                boosted, max_distance=max_distance)
+    if 'filled' in stages:
+        maps['filled'] = pipeline.partition_unassigned_by_nearest_cluster(compact, max_distance=max_distance)
+    return maps, {'n_coverage_masks': len(selected), 'selection_history': history,
+                  'time_notebook_stages': time.perf_counter() - start}
+
+
 def _run(args, progress_stream):
+    stages = list(dict.fromkeys(getattr(args, 'save_partitions', ['sam', 'refined'])))
+    extra_stages = set(stages) - {'sam', 'refined'}
+    if getattr(args, 'select_count', 400) < 1 or getattr(args, 'fill_max_distance', 3) < 0:
+        raise ValueError('select-count must be positive and fill-max-distance nonnegative')
     mask_target = getattr(args, 'generate_at_least_n_masks', None)
     if mask_target is not None and (mask_target < 1 or args.mask_tuning_max_steps < 1):
         raise ValueError('Mask target and tuning attempt count must be positive')
@@ -137,6 +182,7 @@ def _run(args, progress_stream):
         raise ValueError('No images selected')
     print(f'Images: {len(images)}; model: {args.model}; output: {output}', flush=True)
     print(f'For XAI set data.mask_dir_final: "{folder_name}"', flush=True)
+    print(f'Saving partition stages: {", ".join(stages)}', flush=True)
     pending = []
     for image in images:
         path = Path(data['image_dir']) / image['file_name']
@@ -146,12 +192,10 @@ def _run(args, progress_stream):
                     else f"{int(image['id']):012d}")
         metadata_path = output / f'{image_id}_results.json'
         completed = all((output / f'{image_id}_{name}.npy').is_file()
-                        for name in ('sam', 'refined')) and metadata_path.is_file()
+                        for name in stages) and metadata_path.is_file()
         if completed and not args.overwrite:
             previous = json.loads(metadata_path.read_text())
-            settings = {key: str(value) if isinstance(value, Path) else value
-                        for key, value in vars(args).items()
-                        if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file'}}
+            settings = generation_settings(args)
             if previous.get('generation_settings') != settings:
                 raise ValueError(f'{image_id}: settings differ; use a new output folder or --overwrite')
             continue
@@ -172,7 +216,11 @@ def _run(args, progress_stream):
         start = time.perf_counter()
         image = np.asarray(Image.open(path).convert('RGB'))
         tuning_history = []
-        if mask_target is not None:
+        annotations = None
+        if extra_stages:
+            masks, seconds, device, checkpoint, tuning_history, annotations = sam.infer_masks(
+                image, args, loaded, return_annotations=True)
+        elif mask_target is not None:
             masks, seconds, device, checkpoint, tuning_history = sam.infer_masks(
                 image, args, loaded, return_history=True)
         else:
@@ -181,12 +229,22 @@ def _run(args, progress_stream):
         raw = sam.enforce_region_budget(sam.raw_overwrite(masks), args.max_regions)
         refined = sam.refined_partitions(masks, args.min_region_pixels, args.max_regions)
         refinement_seconds = time.perf_counter() - refinement_start
-        for name, labels in [('sam', raw), ('refined', refined)]:
+        maps = {'sam': raw, 'refined': refined}
+        notebook_metadata = {}
+        if extra_stages:
+            extra_maps, notebook_metadata = notebook_stage_maps(
+                annotations, image.shape[:2], extra_stages,
+                getattr(args, 'select_count', 400), getattr(args, 'fill_max_distance', 3))
+            maps.update(extra_maps)
+        saved_paths = {}
+        for name in stages:
+            labels = maps[name]
             target = output / f'{image_id}_{name}.npy'
             temporary = target.with_suffix('.npy.tmp')
             with temporary.open('wb') as stream:
                 np.save(stream, labels)
             temporary.replace(target)
+            saved_paths[name] = str(target)
         metadata = {
             'name': path.name, 'source_image': str(path),
             'model': args.model, 'checkpoint': checkpoint,
@@ -196,9 +254,10 @@ def _run(args, progress_stream):
             'mask_target_met': len(masks) >= mask_target if mask_target is not None else None,
             'time_sam': seconds, 'time_refined': refinement_seconds,
             'total_time_sec': time.perf_counter() - start,
-            'generation_settings': {key: str(value) if isinstance(value, Path) else value
-                                    for key, value in vars(args).items()
-                                    if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file'}},
+            'generation_settings': generation_settings(args),
+            'saved_partitions': saved_paths,
+            'partition_label_counts': {name: int(len(np.unique(maps[name]))) for name in stages},
+            **notebook_metadata,
         }
         target = output / f'{image_id}_results.json'
         temporary = target.with_suffix('.json.tmp')
@@ -208,6 +267,8 @@ def _run(args, progress_stream):
               f'{metadata["n_refined_instances"]} regions, '
               f'sam_s={seconds:.3f} refinement_s={refinement_seconds:.3f} '
               f'total_s={metadata["total_time_sec"]:.3f}', flush=True)
+        print(f'{image_id} saved_stages={",".join(stages)} '
+              f'label_counts={metadata["partition_label_counts"]}', flush=True)
         progress.set_postfix(masks=len(masks), regions=metadata['n_refined_instances'],
                              seconds=f"{metadata['total_time_sec']:.1f}")
 

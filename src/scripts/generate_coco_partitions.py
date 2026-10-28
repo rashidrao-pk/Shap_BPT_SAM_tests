@@ -18,9 +18,9 @@ from tqdm import tqdm
 import generate_sam_partitions as sam
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', default='MSCOCO_epito')
+def create_parser(description=__doc__, default_config='MSCOCO_epito'):
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('--config', default=default_config)
     parser.add_argument('--model', choices=['sam1', 'sam2'], default='sam2')
     parser.add_argument('--checkpoint', type=Path)
     parser.add_argument('--sam2-config', default='configs/sam2.1/sam2.1_hiera_t.yaml')
@@ -61,7 +61,31 @@ def parse_args():
     parser.add_argument('--overwrite', action='store_true', help='Regenerate completed images')
     parser.add_argument('--log-file', type=Path, help='Append log; default: <masks_path>/<mask_dir>/<partition-folder-name>.log')
     parser.add_argument('--dry-run', action='store_true', help='Check paths and list work without loading SAM')
-    return parser.parse_args()
+    return parser
+
+
+def parse_args():
+    return create_parser().parse_args()
+
+
+def collect_images(data):
+    """Read COCO records or scan an image directory without decoding images."""
+    if data.get('input_format', 'coco') == 'directory':
+        image_dir = Path(data['image_dir'])
+        if not image_dir.is_dir():
+            raise FileNotFoundError(image_dir)
+        extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp'}
+        images, seen = [], set()
+        for path in sorted(image_dir.rglob('*')):
+            if not path.is_file() or path.suffix.lower() not in extensions:
+                continue
+            if path.stem in seen:
+                raise ValueError(f'Duplicate image stem would overwrite partitions: {path.stem}')
+            seen.add(path.stem)
+            images.append({'id': path.stem, 'file_name': str(path.relative_to(image_dir))})
+        return images
+    with Path(data['annotation_file']).open() as stream:
+        return sorted(json.load(stream)['images'], key=lambda item: int(item['id']))
 
 
 def partition_folder_name(data, args):
@@ -106,8 +130,7 @@ def _run(args, progress_stream):
     data = config['data']
     folder_name = partition_folder_name(data, args)
     output = Path(data['masks_path']) / data['mask_dir'] / folder_name
-    with Path(data['annotation_file']).open() as stream:
-        images = sorted(json.load(stream)['images'], key=lambda item: int(item['id']))
+    images = collect_images(data)
     if args.limit is not None:
         images = images[:args.limit]
     if not images:
@@ -119,7 +142,8 @@ def _run(args, progress_stream):
         path = Path(data['image_dir']) / image['file_name']
         if not path.is_file():
             raise FileNotFoundError(path)
-        image_id = f"{int(image['id']):012d}"
+        image_id = (str(image['id']) if data.get('input_format') == 'directory'
+                    else f"{int(image['id']):012d}")
         metadata_path = output / f'{image_id}_results.json'
         completed = all((output / f'{image_id}_{name}.npy').is_file()
                         for name in ('sam', 'refined')) and metadata_path.is_file()
@@ -142,7 +166,7 @@ def _run(args, progress_stream):
     loaded = sam.build_generator(args)
     output.mkdir(parents=True, exist_ok=True)
     progress = tqdm(pending, total=len(images), initial=len(images) - len(pending),
-                    desc=f"{args.model.upper()} MSCOCO", ascii=True,
+                    desc=f"{args.model.upper()} {data.get('name', 'MSCOCO')}", ascii=True,
                     dynamic_ncols=True, file=progress_stream)
     for index, (image_id, path) in enumerate(progress, 1):
         start = time.perf_counter()
@@ -164,7 +188,8 @@ def _run(args, progress_stream):
                 np.save(stream, labels)
             temporary.replace(target)
         metadata = {
-            'name': path.name, 'model': args.model, 'checkpoint': checkpoint,
+            'name': path.name, 'source_image': str(path),
+            'model': args.model, 'checkpoint': checkpoint,
             'device': device, 'n_sam_masks': len(masks),
             'n_refined_instances': len(np.unique(refined)),
             'mask_tuning_history': tuning_history,

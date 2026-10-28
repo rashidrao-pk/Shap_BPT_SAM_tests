@@ -1,0 +1,10 @@
+# Partition-generation configuration; no annotation file is required.
+device: cuda
+data:
+  name: ImageNet
+  input_format: directory
+  image_dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/ImageNet/ImageNet/ILSVRC2012_img_val
+  masks_path: /beegfs/home/mrashid/datasets/
+  mask_dir: SAM_BPT
+  # Reference for downstream use; generation names its folder from CLI settings.
+  mask_dir_final: ImageNet_sam2_tiny_62_refined_200

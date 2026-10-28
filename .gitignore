@@ -92,3 +92,8 @@ data/**
 results
 results/
 results/**
+
+
+logs
+logs/
+logs/**

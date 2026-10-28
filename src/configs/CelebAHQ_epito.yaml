@@ -7,7 +7,7 @@ data:
   masks_path: /beegfs/home/mrashid/datasets/
   mask_dir: SAM_BPT
   # Preview input: match this to the folder produced by your generation command.
-  mask_dir_final: CelebAHQ_sam2_large_62_refined_200
+  mask_dir_final: CelebAHQ_sam2_tiny_62_refined_50
 
 output:
   dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results

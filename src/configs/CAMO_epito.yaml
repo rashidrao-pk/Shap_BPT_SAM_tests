@@ -1,0 +1,12 @@
+# CAMO Train image partitions; ground-truth annotations are not required.
+device: cuda
+data:
+  name: CAMO
+  input_format: directory
+  image_dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/CAMO-V.1.0/Images/Train
+  masks_path: /beegfs/home/mrashid/datasets/
+  mask_dir: SAM_BPT
+  mask_dir_final: CAMO_sam2_tiny_62_refined_50
+
+output:
+  dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results

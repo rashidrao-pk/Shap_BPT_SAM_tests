@@ -42,10 +42,10 @@ def parse_args():
     p.add_argument("--mask-threshold", type=float, default=0.0)
     
     p.add_argument("--box-nms-thresh", type=float, default=0.7)
-    p.add_argument("--crop-n-layers", type=float, default=0)
+    p.add_argument("--crop-n-layers", type=int, default=0)
     p.add_argument("--crop-nms-thresh", type=float, default=0.7)
     p.add_argument("--crop-overlap-ratio", type=float, default=512/1500)
-    p.add_argument("--crop-n-points-downscale-factor", type=float, default=1)
+    p.add_argument("--crop-n-points-downscale-factor", type=int, default=1)
     p.add_argument("--point-grids", type=float, default=None)
     p.add_argument("--min-mask-region-area", type=float, default=0)
     p.add_argument("--output-mode", type=str, default="binary_mask")
@@ -161,15 +161,63 @@ def build_generator(args):
     return generator, device, str(checkpoint)
 
 
-def infer_masks(image, args, loaded_generator=None):
+def generate_at_least_n_masks(image, generator, min_masks=400, max_steps=3,
+                             step=0.2, min_pred_iou_thresh=0.1,
+                             min_stability_score_thresh=0.1):
+    """Notebook threshold search; reuse the model and reset settings per image."""
+    if min_masks < 1 or max_steps < 1 or step <= 0:
+        raise ValueError('Mask target, attempt count, and tuning step must be positive')
+    original = generator.pred_iou_thresh, generator.stability_score_thresh
+    history = []
+    try:
+        for attempt in range(1, max_steps + 1):
+            start = time.perf_counter()
+            annotations = generator.generate(image)
+            elapsed = time.perf_counter() - start
+            history.append({
+                'step': attempt, 'pred_iou_thresh': generator.pred_iou_thresh,
+                'stability_score_thresh': generator.stability_score_thresh,
+                'n_masks': len(annotations), 'time_sam': elapsed,
+            })
+            print(f'[mask tuning] step={attempt}/{max_steps} '
+                  f'iou={generator.pred_iou_thresh:.2f} '
+                  f'stability={generator.stability_score_thresh:.2f} '
+                  f'masks={len(annotations)}/{min_masks} seconds={elapsed:.3f}', flush=True)
+            if len(annotations) >= min_masks:
+                break
+            iou = max(min_pred_iou_thresh, generator.pred_iou_thresh - step)
+            stability = max(min_stability_score_thresh, generator.stability_score_thresh - step)
+            # Never increase an already lower user-specified threshold.
+            iou = min(generator.pred_iou_thresh, iou)
+            stability = min(generator.stability_score_thresh, stability)
+            if (iou, stability) == (generator.pred_iou_thresh, generator.stability_score_thresh):
+                break
+            generator.pred_iou_thresh, generator.stability_score_thresh = iou, stability
+        print(f'[mask tuning] target_met={len(annotations) >= min_masks} '
+              f'attempts={len(history)} masks={len(annotations)}', flush=True)
+        return annotations, history
+    finally:
+        generator.pred_iou_thresh, generator.stability_score_thresh = original
+
+
+def infer_masks(image, args, loaded_generator=None, return_history=False):
     import torch
     generator, device, checkpoint = loaded_generator or build_generator(args)
     t0 = time.perf_counter()
+    history = []
     with torch.inference_mode():
-        annotations = generator.generate(image)
+        target = getattr(args, 'generate_at_least_n_masks', None)
+        if target:
+            annotations, history = generate_at_least_n_masks(
+                image, generator, min_masks=target,
+                max_steps=args.mask_tuning_max_steps,
+            )
+        else:
+            annotations = generator.generate(image)
     dt = time.perf_counter() - t0
     masks = np.stack([m["segmentation"] for m in annotations]).astype(bool) if annotations else np.empty((0, *image.shape[:2]), dtype=bool)
-    return masks, dt, device, str(checkpoint)
+    result = masks, dt, device, str(checkpoint)
+    return (*result, history) if return_history else result
 
 
 def consecutive_labels(arr):

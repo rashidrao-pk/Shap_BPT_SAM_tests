@@ -96,6 +96,36 @@ regenerate outputs. For another model or region budget, change `mask_dir_final`
 in the config to a separate folder first. Lower `--points-per-batch` if memory
 runs out; keep generation settings consistent when resuming a dataset.
 
+## Optional: tune thresholds toward a minimum mask count
+
+Use the notebook's `generate_at_least_n_masks` approach:
+
+```bash
+python src/scripts/generate_coco_partitions.py \
+  --config MSCOCO_epito \
+  --model sam2 \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
+  --device cuda \
+  --max-regions 62 \
+  --generate_at_least_n_masks 400
+```
+
+The flag alone also targets 400 raw masks. For each image, lower IoU and
+stability thresholds by `0.2` per retry, stopping at the target, three attempts,
+or minimum thresholds of `0.1`. Use `--mask-tuning-max-steps 5` to allow more
+attempts. Each image starts from your original thresholds and reuses the loaded
+model. Retries replace the previous masks; they do not accumulate them.
+
+This is a bounded search, so 400 masks are not guaranteed. Final partition maps
+still have at most `--max-regions 62` labels. The log records each attempt;
+`*_results.json` includes `mask_tuning_history` and `mask_target_met`.
+
+For an existing dataset, choose a new `mask_dir_final` in the config to keep the
+previous outputs, or use `--overwrite` to regenerate them with tuning. The
+resume check rejects different generation settings. Without the flag, generation
+still uses a single pass. The notebook's separate greedy-selection pipeline is
+not added here; the existing partition refinement stays in use.
+
 ## 5. Run XAI separately
 
 After the first two images complete, follow [XAI/EPITO.md](../XAI/EPITO.md).

@@ -26,6 +26,11 @@ def parse_args():
     parser.add_argument('--sam1-variant', choices=['vit_b', 'vit_l', 'vit_h'], default='vit_b')
     parser.add_argument('--device', choices=['auto', 'cuda', 'cpu', 'mps'], default='cuda')
     parser.add_argument('--max-regions', type=int, default=62)
+    parser.add_argument('--generate_at_least_n_masks', '--generate-at-least-n-masks',
+                        type=int, nargs='?', const=400, default=None,
+                        help='Retry threshold tuning toward N raw masks (bare flag: 400)')
+    parser.add_argument('--mask-tuning-max-steps', type=int, default=3,
+                        help='Maximum mask-generation attempts per image (default: 3)')
     # SAM parameters
     parser.add_argument('--min-region-pixels', type=int, default=64)
     # parser.add_argument('--points-per-side', type=int, default=16)
@@ -42,10 +47,10 @@ def parse_args():
     parser.add_argument("--mask-threshold", type=float, default=0.0)
     
     parser.add_argument("--box-nms-thresh", type=float, default=0.7)
-    parser.add_argument("--crop-n-layers", type=float, default=0)
+    parser.add_argument("--crop-n-layers", type=int, default=0)
     parser.add_argument("--crop-nms-thresh", type=float, default=0.7)
     parser.add_argument("--crop-overlap-ratio", type=float, default=512/1500)
-    parser.add_argument("--crop-n-points-downscale-factor", type=float, default=1)
+    parser.add_argument("--crop-n-points-downscale-factor", type=int, default=1)
     parser.add_argument("--point-grids", type=float, default=None)
     parser.add_argument("--min-mask-region-area", type=float, default=0)
     parser.add_argument("--output-mode", type=str, default="binary_mask")
@@ -59,6 +64,11 @@ def parse_args():
 
 
 def _run(args, progress_stream):
+    mask_target = getattr(args, 'generate_at_least_n_masks', None)
+    if mask_target is not None and (mask_target < 1 or args.mask_tuning_max_steps < 1):
+        raise ValueError('Mask target and tuning attempt count must be positive')
+    if getattr(args, 'output_mode', 'binary_mask') != 'binary_mask':
+        raise ValueError('Partition generation requires --output-mode binary_mask')
     if args.max_regions < 1 or args.min_region_pixels < 1:
         raise ValueError('Region limits must be positive')
     if args.limit is not None and args.limit < 1:
@@ -112,7 +122,12 @@ def _run(args, progress_stream):
     for index, (image_id, path) in enumerate(progress, 1):
         start = time.perf_counter()
         image = np.asarray(Image.open(path).convert('RGB'))
-        masks, seconds, device, checkpoint = sam.infer_masks(image, args, loaded)
+        tuning_history = []
+        if mask_target is not None:
+            masks, seconds, device, checkpoint, tuning_history = sam.infer_masks(
+                image, args, loaded, return_history=True)
+        else:
+            masks, seconds, device, checkpoint = sam.infer_masks(image, args, loaded)
         refinement_start = time.perf_counter()
         raw = sam.enforce_region_budget(sam.raw_overwrite(masks), args.max_regions)
         refined = sam.refined_partitions(masks, args.min_region_pixels, args.max_regions)
@@ -127,6 +142,8 @@ def _run(args, progress_stream):
             'name': path.name, 'model': args.model, 'checkpoint': checkpoint,
             'device': device, 'n_sam_masks': len(masks),
             'n_refined_instances': len(np.unique(refined)),
+            'mask_tuning_history': tuning_history,
+            'mask_target_met': len(masks) >= mask_target if mask_target is not None else None,
             'time_sam': seconds, 'time_refined': refinement_seconds,
             'total_time_sec': time.perf_counter() - start,
             'generation_settings': {key: str(value) if isinstance(value, Path) else value

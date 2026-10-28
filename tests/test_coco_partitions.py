@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image
@@ -18,6 +19,36 @@ import utils_sam_2 as loader
 
 
 class CocoExportTest(unittest.TestCase):
+    def test_mask_tuning_stops_and_resets_between_images(self):
+        thresholds = []
+        generator = SimpleNamespace(pred_iou_thresh=0.6, stability_score_thresh=0.6)
+        def generate(image):
+            thresholds.append((generator.pred_iou_thresh, generator.stability_score_thresh))
+            return [None] * (5 if generator.pred_iou_thresh < 0.5 else 1)
+        generator.generate = generate
+        for _ in range(2):
+            masks, history = batch.sam.generate_at_least_n_masks(None, generator, min_masks=5)
+            self.assertEqual(len(masks), 5)
+            self.assertEqual(len(history), 2)
+            self.assertEqual(generator.pred_iou_thresh, 0.6)
+        self.assertEqual(len(thresholds), 4)
+        self.assertEqual(thresholds[0], thresholds[2])
+
+    def test_mask_tuning_bounds_and_exception_reset(self):
+        generator = SimpleNamespace(pred_iou_thresh=0.6, stability_score_thresh=0.6,
+                                    generate=lambda image: [])
+        masks, history = batch.sam.generate_at_least_n_masks(None, generator, max_steps=10)
+        self.assertEqual(masks, [])
+        self.assertEqual(len(history), 4)
+        self.assertEqual(history[-1]['pred_iou_thresh'], 0.1)
+        _, history = batch.sam.generate_at_least_n_masks(None, generator, max_steps=3)
+        self.assertEqual(len(history), 3)
+        with patch.object(generator, 'generate', side_effect=RuntimeError('inference failed')):
+            with self.assertRaises(RuntimeError):
+                batch.sam.generate_at_least_n_masks(None, generator)
+        self.assertEqual(generator.pred_iou_thresh, 0.6)
+        self.assertEqual(generator.stability_score_thresh, 0.6)
+
     def test_export_resume_and_loader(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -66,6 +97,18 @@ class CocoExportTest(unittest.TestCase):
                     args.max_regions = 4
                     with self.assertRaisesRegex(ValueError, 'settings differ'):
                         batch.run(args)
+                    args.max_regions = 3
+                    args.overwrite = True
+                    args.generate_at_least_n_masks = 5
+                    args.mask_tuning_max_steps = 3
+                    history = [{'step': 1, 'n_masks': 2}]
+                    with patch.object(batch.sam, 'infer_masks',
+                                      return_value=(masks, 0.1, 'cpu', 'fake.pt', history)):
+                        batch.run(args)
+                    for image_id in ['000000000001', '000000000002']:
+                        metadata = loader.load_json_partitions(str(output), image_id)
+                        self.assertFalse(metadata['mask_target_met'])
+                        self.assertEqual(metadata['mask_tuning_history'], history)
 
     def test_empty_masks(self):
         masks = np.zeros((0, 5, 6), dtype=bool)

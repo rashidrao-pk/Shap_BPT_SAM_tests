@@ -33,9 +33,18 @@ python src/scripts/generate_coco_partitions.py \
   --limit 500
 ```
 
+#### On EPITO, submit from the login node:
+
 ```bash
-bash -n src/hpc/run.sbatch
+cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
+mkdir -p logs
+sbatch src/hpc/run_mscoco_large.sbatch
+```
 
-sed -n 'l' src/hpc/run.sbatch | tail -22
+#### Check progress:
 
+```bash
+squeue -u mrashid
+
+tail -f /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_large_62_refined_200.log
 ```

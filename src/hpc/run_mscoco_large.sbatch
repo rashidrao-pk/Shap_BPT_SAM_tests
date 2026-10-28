@@ -10,11 +10,14 @@
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=64G
 #SBATCH --time=06:00:00
-#SBATCH --output=logs/XAI-ShapBPT_%j.out
-#SBATCH --error=logs/XAI-ShapBPT_%j.err
+#SBATCH --chdir=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
+#SBATCH --output=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/logs/XAI-ShapBPT_%j.out
+#SBATCH --error=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/logs/XAI-ShapBPT_%j.err
 
 
 set -euo pipefail
+
+# Before submission: mkdir -p /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/logs
 
 echo "=========================================="
 echo "XAI-ShapBPT job"
@@ -33,6 +36,7 @@ export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages
 export PROJECT_DIR=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
 export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
 export PYTHONUNBUFFERED=1
+cd "$PROJECT_DIR"
 
 echo
 echo "Python:"
@@ -44,7 +48,7 @@ echo "GPU:"
 nvidia-smi
 
 echo
-echo "Starting training..."
+echo "Starting MS-COCO SAM2 Large partition generation..."
 echo
 
 python src/scripts/generate_coco_partitions.py \

@@ -86,10 +86,9 @@ python src/scripts/generate_coco_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --device cuda \
   --max-regions 62 \
+  --save-partitions sam compact \
   --generate_at_least_n_masks 200
 ```
-
-
 
 The terminal shows only a text tqdm bar with progress, ETA, and the latest
 mask count, region count, and image time. Run details and per-image counts,
@@ -141,14 +140,14 @@ python src/scripts/generate_coco_partitions.py \
   --limit 500
 ```
 
-| Stage / filename suffix | Meaning |
-| --- | --- |
-| `sam` | All final SAM masks converted to labels, capped to the region budget |
-| `compact` | Greedy selection by new area × predicted IoU, then small-mask overwrite |
-| `boosted` | Notebook SegmentBooster majority-label refinement of compact labels |
-| `filled` | Distance-limited filling of compact labels |
-| `boosted_filled` | Distance-limited filling of boosted labels |
-| `refined` | Existing batch connected-component refinement, filling, and region cap |
+| Stage / filename suffix | Meaning                                                                 |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `sam`                   | All final SAM masks converted to labels, capped to the region budget    |
+| `compact`               | Greedy selection by new area × predicted IoU, then small-mask overwrite |
+| `boosted`               | Notebook SegmentBooster majority-label refinement of compact labels     |
+| `filled`                | Distance-limited filling of compact labels                              |
+| `boosted_filled`        | Distance-limited filling of boosted labels                              |
+| `refined`               | Existing batch connected-component refinement, filling, and region cap  |
 
 `--select-count 400` controls the greedy selection limit.
 `--fill-max-distance 3` controls notebook-stage filling in pixels.

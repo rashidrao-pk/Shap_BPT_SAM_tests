@@ -21,8 +21,8 @@ data:
 
   masks_path: "/beegfs/home/mrashid/datasets/"
   mask_dir: "SAM_BPT" 
-  # New SAM2 batch outputs; older partition directories are preserved.
-  mask_dir_final: "sam2_62_refined" 
+  # XAI input folder: match the folder printed by partition generation.
+  mask_dir_final: "MSCOCO_sam2_tiny_62_refined_200" 
 
 evaluation:
   methods: [BPT, refined]

@@ -26,7 +26,7 @@ cd "$PROJECT_DIR"
 data:
   masks_path: /beegfs/home/mrashid/datasets/
   mask_dir: SAM_BPT
-  mask_dir_final: sam2_62_refined
+  mask_dir_final: MSCOCO_sam2_tiny_62_refined_200
 evaluation:
   methods: [BPT, refined]
 ```
@@ -62,5 +62,5 @@ folder. Generate those partitions first. For other models and experiment
 settings, see [the experiment matrix](../README_exp_epito.md).
 
 Use a distinct output directory when comparing partition datasets, for example
-add `--output-dir outputs/sam2_62_refined`. This avoids mixing results with older
+add `--output-dir outputs/MSCOCO_sam2_tiny_62_refined_200`. This avoids mixing results with older
 runs. Use `exit` when finished to release the GPU allocation.

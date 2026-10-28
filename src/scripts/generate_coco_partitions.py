@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import sys
 import traceback
 import json
+import re
 from pathlib import Path
 import time
 
@@ -58,9 +59,31 @@ def parse_args():
     # 
     parser.add_argument('--limit', type=int, help='Generate the first N images; omit for all images')
     parser.add_argument('--overwrite', action='store_true', help='Regenerate completed images')
-    parser.add_argument('--log-file', type=Path, help='Append log; default: <masks_path>/<mask_dir>/<MODEL>_MSCOCO.log')
+    parser.add_argument('--log-file', type=Path, help='Append log; default: <masks_path>/<mask_dir>/<partition-folder-name>.log')
     parser.add_argument('--dry-run', action='store_true', help='Check paths and list work without loading SAM')
     return parser.parse_args()
+
+
+def partition_folder_name(data, args):
+    """Describe the dataset/model/region budget/raw-mask target in the path."""
+    dataset = re.sub(r'[^A-Za-z0-9-]', '', data.get('name', 'MSCOCO'))
+    if not dataset:
+        raise ValueError('Dataset name must contain letters or digits')
+    if args.model == 'sam1':
+        variant = args.sam1_variant
+    else:
+        checkpoint = getattr(args, 'checkpoint', None)
+        stem = Path(checkpoint).stem if checkpoint else ''
+        variants = {'tiny': 'tiny', 'small': 'small', 'base_plus': 'base_plus', 'large': 'large'}
+        variant = next((value for suffix, value in variants.items()
+                        if stem.endswith('hiera_' + suffix)), None)
+        if variant is None:
+            config = Path(getattr(args, 'sam2_config', 'sam2.1_hiera_t.yaml')).stem
+            variant = {'t': 'tiny', 's': 'small', 'b+': 'base_plus', 'l': 'large'}.get(config.rsplit('_', 1)[-1])
+        if variant is None:
+            raise ValueError('Cannot determine SAM2 model size from checkpoint/config')
+    target = getattr(args, 'generate_at_least_n_masks', None)
+    return f'{dataset}_{args.model}_{variant}_{args.max_regions}_refined_{target if target is not None else "singlepass"}'
 
 
 def _run(args, progress_stream):
@@ -81,7 +104,8 @@ def _run(args, progress_stream):
         config_path = root / config_path
     config = yaml.safe_load(config_path.read_text())
     data = config['data']
-    output = Path(data['masks_path']) / data['mask_dir'] / data['mask_dir_final']
+    folder_name = partition_folder_name(data, args)
+    output = Path(data['masks_path']) / data['mask_dir'] / folder_name
     with Path(data['annotation_file']).open() as stream:
         images = sorted(json.load(stream)['images'], key=lambda item: int(item['id']))
     if args.limit is not None:
@@ -89,6 +113,7 @@ def _run(args, progress_stream):
     if not images:
         raise ValueError('No images selected')
     print(f'Images: {len(images)}; model: {args.model}; output: {output}', flush=True)
+    print(f'For XAI set data.mask_dir_final: "{folder_name}"', flush=True)
     pending = []
     for image in images:
         path = Path(data['image_dir']) / image['file_name']
@@ -173,7 +198,7 @@ def run(args):
         config_path = root / config_path
     data = yaml.safe_load(config_path.read_text())['data']
     log_path = getattr(args, 'log_file', None) or (
-        Path(data['masks_path']) / data['mask_dir'] / f'{args.model.upper()}_MSCOCO.log')
+        Path(data['masks_path']) / data['mask_dir'] / f'{partition_folder_name(data, args)}.log')
     log_path.parent.mkdir(parents=True, exist_ok=True)
     terminal = sys.stderr
     with log_path.open('a', buffering=1) as log:

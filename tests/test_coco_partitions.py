@@ -73,7 +73,7 @@ class CocoExportTest(unittest.TestCase):
             with patch.object(batch.sam, 'build_generator', return_value=('fake', 'cpu', 'fake.pt')) as build:
                 with patch.object(batch.sam, 'infer_masks', return_value=(masks, 0.1, 'cpu', 'fake.pt')):
                     batch.run(args)
-                    output = root / 'masks/sam2'
+                    output = root / 'masks/MSCOCO_sam2_tiny_3_refined_singlepass'
                     for method in ['sam', 'refined']:
                         original, capped = loader.load_refine_partitions(image, str(output), '000000000001', method)
                         self.assertEqual(original.shape, image.shape[:2])
@@ -81,7 +81,7 @@ class CocoExportTest(unittest.TestCase):
                         self.assertEqual(capped.shape, original.shape)
                     self.assertFalse((output / '000000000002_refined.npy').exists())
                     self.assertEqual(loader.load_json_partitions(str(output), '000000000001')['model'], 'sam2')
-                    log = (root / 'masks/SAM2_MSCOCO.log').read_text()
+                    log = (root / 'masks/MSCOCO_sam2_tiny_3_refined_singlepass.log').read_text()
                     self.assertIn('000000000001: 2 masks, 2 regions', log)
                     self.assertIn('sam_s=0.100', log)
                     self.assertIn('refinement_s=', log)
@@ -90,13 +90,15 @@ class CocoExportTest(unittest.TestCase):
                     args.log_file = root / 'other.log'
                     batch.run(args)
                     self.assertEqual(build.call_count, 1)
+                    self.assertIn('COMPLETE', args.log_file.read_text())
                     args.limit = None
                     batch.run(args)
                     self.assertTrue((output / '000000000002_refined.npy').exists())
                     self.assertEqual(build.call_count, 2)
-                    args.max_regions = 4
+                    args.min_region_pixels = 2
                     with self.assertRaisesRegex(ValueError, 'settings differ'):
                         batch.run(args)
+                    args.min_region_pixels = 1
                     args.max_regions = 3
                     args.overwrite = True
                     args.generate_at_least_n_masks = 5
@@ -105,10 +107,24 @@ class CocoExportTest(unittest.TestCase):
                     with patch.object(batch.sam, 'infer_masks',
                                       return_value=(masks, 0.1, 'cpu', 'fake.pt', history)):
                         batch.run(args)
+                    output = root / 'masks/MSCOCO_sam2_tiny_3_refined_5'
                     for image_id in ['000000000001', '000000000002']:
                         metadata = loader.load_json_partitions(str(output), image_id)
                         self.assertFalse(metadata['mask_target_met'])
                         self.assertEqual(metadata['mask_tuning_history'], history)
+
+    def test_folder_names(self):
+        args = argparse.Namespace(model='sam2', checkpoint=Path('sam2.1_hiera_tiny.pt'),
+                                  max_regions=62, generate_at_least_n_masks=200)
+        self.assertEqual(batch.partition_folder_name({'name': 'MS_COCO'}, args),
+                         'MSCOCO_sam2_tiny_62_refined_200')
+        args.checkpoint = Path('sam2.1_hiera_large.pt')
+        self.assertEqual(batch.partition_folder_name({'name': 'MS_COCO'}, args),
+                         'MSCOCO_sam2_large_62_refined_200')
+        args.model = 'sam1'
+        args.sam1_variant = 'vit_b'
+        self.assertEqual(batch.partition_folder_name({'name': 'MS_COCO'}, args),
+                         'MSCOCO_sam1_vit_b_62_refined_200')
 
     def test_empty_masks(self):
         masks = np.zeros((0, 5, 6), dtype=bool)

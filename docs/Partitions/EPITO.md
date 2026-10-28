@@ -27,10 +27,10 @@ python src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito --limit 2 --dry-run
 ```
 
-The configured output folder is:
+For the Tiny/62-region/200-mask commands below, the automatically named output folder is:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/sam2_62_refined/
+/beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_62_refined_200/
 ```
 
 Your previous `300_boosted_filled` folder is preserved.
@@ -46,6 +46,7 @@ python src/scripts/generate_coco_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --device cuda \
   --max-regions 62 \
+  --generate_at_least_n_masks 200 \
   --limit 2
 ```
 
@@ -72,6 +73,7 @@ python src/scripts/generate_coco_partitions.py \
   --sam1-variant vit_b \
   --device cuda \
   --max-regions 62 \
+  --generate_at_least_n_masks 200 \
   --limit 2
 ```
 
@@ -83,7 +85,8 @@ python src/scripts/generate_coco_partitions.py \
   --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --device cuda \
-  --max-regions 62
+  --max-regions 62 \
+  --generate_at_least_n_masks 200
 ```
 
 
@@ -93,24 +96,32 @@ mask count, region count, and image time. Run details and per-image counts,
 SAM/refinement timings, total time, and failures are appended to:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/SAM2_MSCOCO.log
+/beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_62_refined_200.log
 ```
 
 To watch the log from another terminal:
 
 ```bash
-tail -f /beegfs/home/mrashid/datasets/SAM_BPT/SAM2_MSCOCO.log
+tail -f /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_62_refined_200.log
 ```
 
-This log path is the default for SAM2 with this config. You can also pass
-`--log-file /beegfs/home/mrashid/datasets/SAM_BPT/SAM2_MSCOCO.log` explicitly.
+The default log filename matches the generated partition folder name. You can also pass
+`--log-file /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_62_refined_200.log` explicitly.
 The log stores counts and timings; partition arrays remain in the output folder.
 
-Completed images with matching settings are skipped. If the Slurm allocation
-ends, start a new GPU session and repeat this command. Use `--overwrite` to
-regenerate outputs. For another model or region budget, change `mask_dir_final`
-in the config to a separate folder first. Lower `--points-per-batch` if memory
-runs out; keep generation settings consistent when resuming a dataset.
+Completed images with matching settings are skipped. Restart the same command
+to resume. Use `--overwrite` to regenerate outputs.
+
+Folders are named automatically as
+`<dataset>_<sam>_<model-size>_<max-regions>_refined_<mask-target>`.
+For example, Large with 400 masks uses `MSCOCO_sam2_large_62_refined_400`.
+Without threshold tuning, the suffix is `singlepass`. Existing folders are not
+renamed or moved. Other settings are still checked when resuming.
+
+For XAI, set `data.mask_dir_final` in the config to the generated folder name.
+Generation prints that value in the log (and directly during `--dry-run`);
+it does not modify your config. The checked-in config selects
+`MSCOCO_sam2_tiny_62_refined_200`.
 
 ## Optional: tune thresholds toward a minimum mask count
 
@@ -136,11 +147,9 @@ This is a bounded search, so 400 masks are not guaranteed. Final partition maps
 still have at most `--max-regions 62` labels. The log records each attempt;
 `*_results.json` includes `mask_tuning_history` and `mask_target_met`.
 
-For an existing dataset, choose a new `mask_dir_final` in the config to keep the
-previous outputs, or use `--overwrite` to regenerate them with tuning. The
-resume check rejects different generation settings. Without the flag, generation
-still uses a single pass. The notebook's separate greedy-selection pipeline is
-not added here; the existing partition refinement stays in use.
+Changing the model size, region budget, or target automatically selects a
+separate folder. Without the flag, generation uses a single pass. Existing
+partition refinement remains in use.
 
 ## 5. Run XAI separately
 

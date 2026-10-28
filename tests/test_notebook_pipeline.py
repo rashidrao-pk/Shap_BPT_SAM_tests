@@ -5,6 +5,8 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
+import yaml
 
 import numpy as np
 from PIL import Image
@@ -12,10 +14,46 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src/scripts'))
 import sam_notebook_pipeline as pipeline
 from run_notebook_pipeline import process
-from view_partitions import render
+from view_partitions import render, resolve_paths
 
 
 class NotebookPipelineTest(unittest.TestCase):
+    def test_viewer_config_paths_and_overrides(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            image = root / '000000000139.jpg'
+            Image.fromarray(np.zeros((8, 10, 3), dtype=np.uint8)).save(image)
+            config = root / 'config.yaml'
+            config.write_text(yaml.safe_dump({
+                'data': {'image_dir': str(root), 'masks_path': str(root),
+                         'mask_dir': 'SAM_BPT', 'mask_dir_final': 'large_200'},
+                'output': {'dir': str(root), 'folder': 'results'},
+            }))
+            args = SimpleNamespace(config=str(config), image_id='139', methods=['sam', 'refined'],
+                                   image=None, partitions=None, output=None)
+            resolved_image, partitions, output = resolve_paths(args)
+            self.assertEqual(resolved_image, image)
+            self.assertEqual(partitions[0], root / 'SAM_BPT/large_200/000000000139_sam.npy')
+            self.assertEqual(output, root / 'results/previews/large_200/000000000139.png')
+            for partition in partitions:
+                partition.parent.mkdir(parents=True, exist_ok=True)
+                np.save(partition, np.zeros((8, 10), dtype=np.int32))
+            render(resolved_image, partitions, output)
+            self.assertTrue(output.is_file())
+            args.image, args.partitions, args.output = image, partitions[:1], root / 'custom.png'
+            self.assertEqual(resolve_paths(args), (image, partitions[:1], args.output))
+            config.write_text(yaml.safe_dump({
+                'data': {'input_format': 'directory', 'image_dir': str(root),
+                         'masks_path': str(root), 'mask_dir': 'SAM_BPT', 'mask_dir_final': 'imagenet'},
+                'output': {'folder': str(root / 'results')},
+            }))
+            nested = root / 'nested'
+            nested.mkdir()
+            image.rename(nested / 'ILSVRC2012_val_00000001.JPEG')
+            args.image_id = 'ILSVRC2012_val_00000001'
+            args.image = args.partitions = args.output = None
+            self.assertEqual(resolve_paths(args)[0], nested / 'ILSVRC2012_val_00000001.JPEG')
+
     def test_greedy_scores_new_pixels_and_drops_duplicates(self):
         a = np.zeros((6, 6), dtype=bool)
         a[:3] = True

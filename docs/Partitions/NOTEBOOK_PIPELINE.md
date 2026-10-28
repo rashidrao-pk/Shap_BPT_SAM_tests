@@ -7,14 +7,33 @@ Importing it does not execute notebook installation cells or load images/models.
 
 ## View existing COCO or ImageNet partitions
 
-From the repository root, with your Python environment active:
+From the repository root, use the dataset config:
+
+```bash
+python src/scripts/view_partitions.py \
+  --config MSCOCO_epito \
+  --image-id 139
+```
+
+This reads the image from `data.image_dir` and partitions from
+`data.masks_path / data.mask_dir / data.mask_dir_final`. Set `mask_dir_final`
+to the dataset you want to inspect (for example,
+`MSCOCO_sam2_large_62_refined_200`). COCO IDs are padded to 12 digits.
+The preview is saved under the config's `output.dir / output.folder`, in
+`previews/<mask_dir_final>/<image_id>.png`, with a matching statistics JSON.
+An absolute `output.folder` takes precedence over `output.dir`, as in the XAI runner.
+
+By default the viewer compares `sam` and `refined`. Select other stage suffixes
+with `--methods sam boosted boosted_filled` when those files exist.
+ImageNet configs need an `output.dir` or `output.folder` too, or an explicit
+`--output` argument. Use the full filename stem as `--image-id` for ImageNet.
+
+You can still override individual paths or run without a config:
 
 ```bash
 python src/scripts/view_partitions.py \
   --image /path/to/000000000139.jpg \
-  --partitions \
-    /path/to/partitions/000000000139_sam.npy \
-    /path/to/partitions/000000000139_refined.npy \
+  --partitions /path/to/000000000139_sam.npy /path/to/000000000139_refined.npy \
   --output results/previews/000000000139.png
 ```
 
@@ -96,21 +115,21 @@ GIF frames use fixed dimensions to avoid the original variable-size frame error.
 
 Cell numbers below are zero-based notebook cell indices.
 
-| Function | Cell | Role |
-| --- | --- | --- |
-| `show_all_masks` | 9 | Original image, label map, and raw-mask overlay. |
-| `show_compact_overlay` | 11 | Label-map and image overlay. |
-| `black_rainbow_colormap` | 13 | Discrete label colors; notebook treats zero as background. |
-| `show_saved_masks` | 14 | Notebook-stage viewer; use the new viewer CLI for headless export. |
-| `create_compact_mask` | 21 | Large masks first, small masks overwrite overlapping pixels. |
-| `compact_mask_to_masks` | 23 | Convert nonzero labels back into binary-mask dictionaries. |
-| `refiner` | 25 | SegmentBooster: assign each mask its most frequent compact label. |
-| `expand_matrix` | 27 | Legacy local expansion; retained for reference, not used by the main pipeline. |
-| `partition_unassigned_by_nearest_cluster` | 28 | Fill zero pixels by nearest label, optionally limited by distance/ties. |
-| `select_masks_by_unpicked_area` | 31 | Greedy new-area × predicted-IoU selection, optional GIF and step images. |
-| `compute_coverage` | 33 | Count nonzero pixels and their percentage. |
-| `save_results` | 35 | Save notebook stage arrays and JSON; portable paths and corrected filename typo. |
-| `generate_at_least_n_masks` | 37 | Combined notebook threshold search and downstream stages; the new CLI separates these. |
+| Function                                  | Cell | Role                                                                                   |
+| ----------------------------------------- | ---- | -------------------------------------------------------------------------------------- |
+| `show_all_masks`                          | 9    | Original image, label map, and raw-mask overlay.                                       |
+| `show_compact_overlay`                    | 11   | Label-map and image overlay.                                                           |
+| `black_rainbow_colormap`                  | 13   | Discrete label colors; notebook treats zero as background.                             |
+| `show_saved_masks`                        | 14   | Notebook-stage viewer; use the new viewer CLI for headless export.                     |
+| `create_compact_mask`                     | 21   | Large masks first, small masks overwrite overlapping pixels.                           |
+| `compact_mask_to_masks`                   | 23   | Convert nonzero labels back into binary-mask dictionaries.                             |
+| `refiner`                                 | 25   | SegmentBooster: assign each mask its most frequent compact label.                      |
+| `expand_matrix`                           | 27   | Legacy local expansion; retained for reference, not used by the main pipeline.         |
+| `partition_unassigned_by_nearest_cluster` | 28   | Fill zero pixels by nearest label, optionally limited by distance/ties.                |
+| `select_masks_by_unpicked_area`           | 31   | Greedy new-area × predicted-IoU selection, optional GIF and step images.               |
+| `compute_coverage`                        | 33   | Count nonzero pixels and their percentage.                                             |
+| `save_results`                            | 35   | Save notebook stage arrays and JSON; portable paths and corrected filename typo.       |
+| `generate_at_least_n_masks`               | 37   | Combined notebook threshold search and downstream stages; the new CLI separates these. |
 
 `expand_matrix` is preserved as written: its neighborhood condition excludes
 same-row/same-column neighbors. It is a legacy alternative, not the distance-fill
@@ -131,11 +150,11 @@ to 128 × 96. Masks are deterministic image-threshold fixtures, **not SAM predic
 The run checks postprocessing and produces artifacts under
 `results/notebook_pipeline_demo/`. It does not validate SAM quality or GPU inference.
 
-| Photo | Selected fixture masks | Raw nonzero coverage | Boosted + filled nonzero coverage |
-| --- | --- | --- | --- |
-| astronaut | 2 | 80.54% | 91.78% |
-| coffee | 2 | 95.36% | 97.66% |
-| chelsea | 2 | 98.93% | 100.00% |
+| Photo     | Selected fixture masks | Raw nonzero coverage | Boosted + filled nonzero coverage |
+| --------- | ---------------------- | -------------------- | --------------------------------- |
+| astronaut | 2                      | 80.54%               | 91.78%                            |
+| coffee    | 2                      | 95.36%               | 97.66%                            |
+| chelsea   | 2                      | 98.93%               | 100.00%                           |
 
 The tests also cover greedy ordering, duplicate masks, overlap precedence,
 mask/label conversion, bounded filling, ties, empty masks, GIF/frame export,

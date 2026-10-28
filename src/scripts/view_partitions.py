@@ -3,6 +3,7 @@
 import argparse
 import json
 from pathlib import Path
+import yaml
 
 import numpy as np
 from PIL import Image
@@ -54,16 +55,73 @@ def render(image_path, partition_paths, output, alpha=0.45):
     return statistics
 
 
+def resolve_paths(args):
+    """Resolve config paths; explicit CLI paths take precedence."""
+    image, partitions, output = args.image, args.partitions, args.output
+    if args.config:
+        root = Path(__file__).resolve().parents[2]
+        config_path = Path(args.config).expanduser()
+        if not config_path.suffix:
+            config_path = root / 'src/configs' / f'{args.config}.yaml'
+        elif not config_path.is_absolute():
+            config_path = root / config_path
+        config = yaml.safe_load(config_path.read_text())
+        data = config['data']
+        image_id = args.image_id or (image.stem if image else None)
+        if image_id is None:
+            raise ValueError('--config requires --image-id or --image')
+        if data.get('input_format') != 'directory' and image_id.isdigit():
+            image_id = f'{int(image_id):012d}'
+
+        def rooted(value):
+            path = Path(value).expanduser()
+            return path if path.is_absolute() else root / path
+
+        partition_dir = rooted(data['masks_path']) / data['mask_dir'] / data['mask_dir_final']
+        if partitions is None:
+            partitions = [partition_dir / f'{image_id}_{method}.npy' for method in args.methods]
+        if image is None:
+            image_dir = rooted(data['image_dir'])
+            extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp'}
+            candidates = [p for p in image_dir.glob(f'{image_id}.*')
+                          if p.suffix.lower() in extensions and p.is_file()]
+            if not candidates and data.get('input_format') == 'directory':
+                candidates = [p for p in image_dir.rglob(f'{image_id}.*')
+                              if p.suffix.lower() in extensions and p.is_file()]
+            if len(candidates) != 1:
+                raise ValueError(f'Expected one image for {image_id} under {image_dir}; '
+                                 f'found {len(candidates)}. Pass --image explicitly.')
+            image = candidates[0]
+        if output is None:
+            settings = config.get('output', {})
+            if not settings.get('dir') and not settings.get('folder'):
+                raise ValueError('Config needs output.dir/output.folder, or pass --output')
+            output_root = rooted(settings.get('dir', '.')) / settings.get('folder', '')
+            output = output_root / 'previews' / data['mask_dir_final'] / f'{image_id}.png'
+    if image is None or partitions is None or output is None:
+        raise ValueError('Use --config with --image-id, or provide --image, --partitions, and --output')
+    return image, partitions, output
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--image', type=Path, required=True)
-    parser.add_argument('--partitions', type=Path, nargs='+', required=True)
-    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--config', help='Config name or YAML path')
+    parser.add_argument('--image-id', help='COCO numeric ID or ImageNet filename stem')
+    parser.add_argument('--methods', nargs='+', default=['sam', 'refined'],
+                        help='Partition suffixes to view (default: sam refined)')
+    parser.add_argument('--image', type=Path)
+    parser.add_argument('--partitions', type=Path, nargs='+')
+    parser.add_argument('--output', type=Path)
     parser.add_argument('--alpha', type=float, default=0.45)
     args = parser.parse_args()
     if not 0 <= args.alpha <= 1:
         parser.error('--alpha must be between 0 and 1')
-    print(json.dumps(render(args.image, args.partitions, args.output, args.alpha), indent=2))
+    try:
+        image, partitions, output = resolve_paths(args)
+    except ValueError as exc:
+        parser.error(str(exc))
+    print(json.dumps(render(image, partitions, output, args.alpha), indent=2))
+    print(f'Preview: {output}')
 
 
 if __name__ == '__main__':

@@ -48,8 +48,8 @@ def parse_args():
     p.add_argument("--crop-n-points-downscale-factor", type=float, default=1)
     p.add_argument("--point-grids", type=float, default=None)
     p.add_argument("--min-mask-region-area", type=float, default=0)
+    p.add_argument("--output-mode", type=str, default="binary_mask")
     p.add_argument("--use-m2m", type=bool, default=True)
-
 
     p.add_argument("--min-region-pixels", type=int, default=64)
     p.add_argument("--raw-masks", type=Path, default=None,
@@ -107,8 +107,19 @@ def build_generator(args):
             points_per_batch=args.points_per_batch,
             pred_iou_thresh=args.pred_iou_thresh,
             stability_score_thresh=args.stability_score_thresh,
-            crop_n_layers=0,
-            output_mode="binary_mask",
+            # new parameters for SAM
+            stability_score_offset=args.stability_score_offset,
+            mask_threshold=args.mask_threshold,
+            box_nms_thresh=args.box_nms_thresh,
+            crop_n_layers=args.crop_n_layers,
+            crop_nms_thresh=args.crop_nms_thresh,
+            crop_overlap_ratio=args.crop_overlap_ratio,
+            crop_n_points_downscale_factor=args.crop_n_points_downscale_factor,
+            point_grids=args.point_grids,
+            min_mask_region_area=args.min_mask_region_area,
+            output_mode=args.output_mode,
+            use_m2m=args.use_m2m,
+
         )
     else:
         from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
@@ -119,8 +130,16 @@ def build_generator(args):
             points_per_batch=args.points_per_batch,
             pred_iou_thresh=args.pred_iou_thresh,
             stability_score_thresh=args.stability_score_thresh,
-            crop_n_layers=0,
-            output_mode="binary_mask",
+            stability_score_offset=args.stability_score_offset,
+            mask_threshold=args.mask_threshold,
+            box_nms_thresh=args.box_nms_thresh,
+            crop_n_layers=args.crop_n_layers,
+            crop_nms_thresh=args.crop_nms_thresh,
+            crop_overlap_ratio=args.crop_overlap_ratio,
+            crop_n_points_downscale_factor=args.crop_n_points_downscale_factor,
+            point_grids=args.point_grids,
+            min_mask_region_area=args.min_mask_region_area,
+            output_mode=args.output_mode,
         )
         # SAM1's automatic point grids default to float64 on some versions.
         # Apple MPS cannot create float64 tensors; use float32 coordinates.

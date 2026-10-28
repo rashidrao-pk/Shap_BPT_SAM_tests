@@ -48,6 +48,7 @@ def parse_args():
     parser.add_argument("--crop-n-points-downscale-factor", type=float, default=1)
     parser.add_argument("--point-grids", type=float, default=None)
     parser.add_argument("--min-mask-region-area", type=float, default=0)
+    parser.add_argument("--output-mode", type=str, default="binary_mask")
     parser.add_argument("--use-m2m", type=bool, default=True)
     # 
     parser.add_argument('--limit', type=int, help='Generate the first N images; omit for all images')

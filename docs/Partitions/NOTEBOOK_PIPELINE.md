@@ -28,6 +28,15 @@ with `--methods sam boosted boosted_filled` when those files exist.
 ImageNet configs need an `output.dir` or `output.folder` too, or an explicit
 `--output` argument. Use the full filename stem as `--image-id` for ImageNet.
 
+Preview a few completed ImageNet images using the same viewer:
+
+```bash
+python src/scripts/view_partitions.py --config ImageNet_epito --limit 5
+```
+
+For one ImageNet validation image, `--image-id 1` expands to
+`ILSVRC2012_val_00000001`. See [the ImageNet preview guide](ImageNet_EPITO.md#preview-generated-imagenet-partitions).
+
 You can still override individual paths or run without a config:
 
 ```bash

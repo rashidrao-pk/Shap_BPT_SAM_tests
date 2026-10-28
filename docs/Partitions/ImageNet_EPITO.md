@@ -64,3 +64,40 @@ and `--sam2-config configs/sam2.1/sam2.1_hiera_l.yaml`. Its folder and log use
 
 These outputs prepare partitions only. The COCO XAI runner expects COCO image IDs
 and annotations; ImageNet XAI integration is a separate step.
+
+## Preview generated ImageNet partitions
+
+Set `data.mask_dir_final` in `src/configs/ImageNet_epito.yaml` to the folder you
+generated, for example `ImageNet_sam2_large_62_refined_200`.
+The viewer reads image, partition, and output paths from that config.
+
+Preview the first five completed images:
+
+```bash
+python src/scripts/view_partitions.py \
+  --config ImageNet_epito \
+  --limit 5 \
+  --methods sam refined
+```
+
+Or preview one image by its validation number or full filename stem:
+
+```bash
+python src/scripts/view_partitions.py \
+  --config ImageNet_epito \
+  --image-id 1 \
+  --methods sam compact boosted filled boosted_filled refined
+```
+
+Use only the stages you saved. `--image-id 1` expands to
+`ILSVRC2012_val_00000001`. Batch previews skip images that do not yet have every
+requested stage and a results JSON, so they can inspect completed work during
+generation.
+
+PNG previews and matching statistics JSON files go to:
+
+```text
+<configured output>/previews/<mask_dir_final>/ILSVRC2012_val_00000001.png
+```
+
+No GPU or SAM model is needed to view saved partitions.

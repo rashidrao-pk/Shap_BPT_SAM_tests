@@ -14,10 +14,38 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src/scripts'))
 import sam_notebook_pipeline as pipeline
 from run_notebook_pipeline import process
-from view_partitions import render, resolve_paths
+from view_partitions import render, resolve_paths, discover_image_ids, main as view_main
+from unittest.mock import patch
 
 
 class NotebookPipelineTest(unittest.TestCase):
+    def test_imagenet_preview_batch_and_numeric_id(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            folder = root / 'masks/ImageNet_large'
+            folder.mkdir(parents=True)
+            for number in [1, 2]:
+                stem = f'ILSVRC2012_val_{number:08d}'
+                Image.fromarray(np.zeros((8, 10, 3), dtype=np.uint8)).save(root / f'{stem}.JPEG')
+                (folder / f'{stem}_results.json').write_text('{}')
+                np.save(folder / f'{stem}_sam.npy', np.zeros((8, 10), dtype=np.int32))
+            # Image 2 is incomplete for the requested stage list and must be skipped.
+            np.save(folder / 'ILSVRC2012_val_00000001_refined.npy', np.ones((8, 10), dtype=np.int32))
+            config = root / 'config.yaml'
+            config.write_text(yaml.safe_dump({
+                'data': {'name': 'ImageNet', 'input_format': 'directory', 'image_dir': str(root),
+                         'masks_path': str(root), 'mask_dir': 'masks', 'mask_dir_final': 'ImageNet_large'},
+                'output': {'dir': str(root / 'output')},
+            }))
+            self.assertEqual(discover_image_ids(str(config), ['sam', 'refined'], 5),
+                             ['ILSVRC2012_val_00000001'])
+            args = SimpleNamespace(config=str(config), image_id='1', methods=['sam', 'refined'],
+                                   image=None, partitions=None, output=None)
+            self.assertEqual(resolve_paths(args)[0].name, 'ILSVRC2012_val_00000001.JPEG')
+            with patch.object(sys, 'argv', ['view_partitions.py', '--config', str(config), '--limit', '5']):
+                view_main()
+            self.assertTrue((root / 'output/previews/ImageNet_large/ILSVRC2012_val_00000001.png').is_file())
+
     def test_viewer_config_paths_and_overrides(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

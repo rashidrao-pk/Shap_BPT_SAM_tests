@@ -28,12 +28,11 @@ export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
 python src/scripts/generate_celebahq_partitions.py \
   --config CelebAHQ_epito \
   --model sam2 \
-  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
-  --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --device cuda \
   --max-regions 62 \
-  --generate_at_least_n_masks 200 \
-  --save-partitions sam compact boosted filled boosted_filled refined \
+  --generate_at_least_n_masks 50 \
+  --save-partitions sam compact refined \
   --limit 2
 ```
 

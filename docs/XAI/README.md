@@ -91,7 +91,8 @@ and `xai_results_report.html`. Existing complete images are skipped by default.
 - `--model-batch-size 4`: lower model-forward memory for the four new runners.
 - `--auc-num-samples 101`: insertion/deletion sampling for the new runners.
 - `--no-auc`: skip metric evaluation for a quick explanation smoke run.
-- `--no-plots`: save numeric outputs without PNGs.
+- `--no-heatmaps`: skip individual method heatmap PNGs; keep the combined XAI figure, evaluation plots, and numeric attribution NPZ. Supported by all five runners.
+- `--no-plots`: save numeric outputs without explanation/evaluation plots.
 - `--no-resume`: recompute selected images when changing settings; alternatively use a separate `--output-dir`.
 
 Run settings and source-image/partition stamps are checked before reusing results.

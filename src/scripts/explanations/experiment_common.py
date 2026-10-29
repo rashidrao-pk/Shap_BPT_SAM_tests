@@ -59,6 +59,8 @@ def create_parser(kind):
     parser.add_argument('--no-resume', dest='resume', action='store_false')
     parser.add_argument('--no-auc', dest='compute_auc', action='store_false')
     parser.add_argument('--no-plots', dest='save_plots', action='store_false')
+    parser.add_argument('--no-heatmaps', dest='save_heatmaps', action='store_false',
+                        help='Skip individual heatmap PNGs; keep combined XAI plots and numeric attributions')
     parser.add_argument('--no-html', dest='build_html', action='store_false')
     parser.add_argument('--verbose-level', choices=['low', 'medium', 'high'], default='medium')
     parser.add_argument('--fail-fast', action='store_true')
@@ -241,6 +243,8 @@ def write_json(path, value):
 def run_signature(kind, args):
     ignored = {'limit', 'image_ids', 'dry_run', 'resume', 'verbose_level', 'fail_fast', 'torch_threads', 'output_dir'}
     settings = {key: jsonable(value) for key, value in vars(args).items() if key not in ignored}
+    if settings.get('save_heatmaps', True):
+        settings.pop('save_heatmaps', None)  # Preserve signatures from before this option existed.
     for name in ['checkpoint', 'class_names']:
         path = getattr(args, name)
         if path and path.is_file():
@@ -476,7 +480,7 @@ def run(kind, args, adapter=None):
                     row.update({key: value for key, value in result.items()
                                 if isinstance(value, (int, float, np.number))})
                 image_rows.append(row)
-                if args.save_plots:
+                if args.save_plots and args.save_heatmaps:
                     runtime.utx.plot_single_attributions(values, str(folder), f'{method}_{image_id}.png',
                                                         save_plot=True, destroy_fig=True)
             np.savez_compressed(folder / f'{image_id}_attributions.npz', **attributions)
@@ -491,7 +495,9 @@ def run(kind, args, adapter=None):
                                                        image_no=image_id, destroy_figs=True)
             artifacts = [f'{image_id}_predictions.json', f'{image_id}_attributions.npz', f'{image_id}_metrics.json']
             if args.save_plots:
-                artifacts += [f'{method}_{image_id}.png' for method in METHODS] + [f'{image_id}_xai_results.png']
+                artifacts += [f'{image_id}_xai_results.png']
+                if args.save_heatmaps:
+                    artifacts += [f'{method}_{image_id}.png' for method in METHODS]
                 if args.compute_auc:
                     artifacts += [f'auc_results_{image_id}.png', f'faithfulness_curves_{image_id}.png']
             if args.show_gt:

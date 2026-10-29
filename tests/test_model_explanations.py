@@ -68,6 +68,29 @@ class ModelExplanationTest(unittest.TestCase):
         for kind, config in common.DEFAULT_CONFIGS.items():
             with patch.object(sys, 'argv', [kind + '.py']):
                 self.assertEqual(importlib.import_module(kind).parse_args().config, config)
+                self.assertTrue(importlib.import_module(kind).parse_args().save_heatmaps)
+            with patch.object(sys, 'argv', [kind + '.py', '--no-heatmaps']):
+                self.assertFalse(importlib.import_module(kind).parse_args().save_heatmaps)
+
+    def test_no_heatmaps_keeps_grid_numeric_outputs_and_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config, image_id = self.fixture(root, 'CAMO')
+            args = common.create_parser('COD_ViT').parse_args([
+                '--config', str(config), '--max-evals', '8', '--kernel-shap-samples', '10',
+                '--target-class', '0', '--no-auc', '--no-heatmaps', '--torch-threads', '2'])
+            result = common.run('COD_ViT', args, adapter=SmallAdapter())
+            folder = result['run_dir'] / image_id
+            self.assertTrue((folder / f'{image_id}_xai_results.png').is_file())
+            self.assertTrue((folder / f'{image_id}_attributions.npz').is_file())
+            manifest = json.loads((folder / f'{image_id}_complete.json').read_text())
+            for method in common.METHODS:
+                name = f'{method}_{image_id}.png'
+                self.assertFalse((folder / name).exists())
+                self.assertNotIn(name, manifest['artifacts'])
+            with patch.object(common, 'load_adapter', side_effect=AssertionError('Model loaded during resume')):
+                resumed = common.run('COD_ViT', args)
+            self.assertEqual(resumed['completed'], 1)
 
     def test_preflight_routes_datasets_without_loading_models(self):
         for kind, dataset in [('OD_DETR', 'MS_COCO'), ('OC_ResNet', 'ImageNet'),

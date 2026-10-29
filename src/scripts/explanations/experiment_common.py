@@ -40,7 +40,8 @@ def create_parser(kind):
     parser.add_argument('--weights', default='DEFAULT', help='Torchvision weights enum name, or none')
     parser.add_argument('--class-names', type=Path, help='JSON class names for a custom classifier')
     parser.add_argument('--local-files-only', action='store_true', help='Load HF DETR from cache only')
-    parser.add_argument('--max-evals', type=int, default=500)
+    parser.add_argument('--max-evals', type=int, default=1000,
+                         help='Maximum number of SAM_c region evaluations per image')
     parser.add_argument('--kernel-shap-samples', type=int)
     parser.add_argument('--eval-batch-size', type=int, default=16)
     parser.add_argument('--kernel-shap-batch-size', type=int)

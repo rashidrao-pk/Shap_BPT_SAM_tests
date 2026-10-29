@@ -60,3 +60,27 @@ Rerun the command to refresh progress. It is read-only and can run while GPU job
 continue. A currently written image can appear partial until its final metadata
 has been saved. Errors for inaccessible datasets are printed without hiding
 results for the others; the command exits nonzero if any dataset could not be read.
+
+## Storage and generation time
+
+The same command now includes storage and time automatically:
+
+```bash
+python src/scripts/check_partition_progress.py --limit 1000
+```
+
+- `Size(subset)`: saved partition arrays, raw-mask NPZs, and results JSONs for the selected input IDs, including partial outputs.
+- `Size(folder)`: all files recursively in that partition folder, including images beyond the limit and any extra files.
+- `Time(subset)`: sum of `total_time_sec` for completed images in the selected subset.
+- `Time(folder)`: sum of `total_time_sec` for all completed images in that folder.
+
+Times use `HH:MM:SS`. Missing timing records are reported, and no timing data is
+shown as `n/a`. Timings count recorded successful per-image generation work;
+they do not include Slurm queue time, model startup, failed runs, or previous
+outputs overwritten by another run. They are not elapsed job wall time.
+
+Storage is logical file size (not filesystem allocated blocks). The matching
+sibling `.log` and original dataset images are excluded. `--methods` also
+controls which images qualify as complete for the timing sums; storage still
+includes every saved stage. Different folders can contain the same input images.
+The JSON report includes exact byte sizes, timing sums, and timing sample counts.

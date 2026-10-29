@@ -249,6 +249,7 @@ def _run(args, progress_stream):
             'name': path.name, 'source_image': str(path),
             'model': args.model, 'checkpoint': checkpoint,
             'device': device, 'n_sam_masks': len(masks),
+            'effective_points_per_batch': getattr(loaded[0], 'points_per_batch', None),
             'n_refined_instances': len(np.unique(refined)),
             'mask_tuning_history': tuning_history,
             'mask_target_met': len(masks) >= mask_target if mask_target is not None else None,

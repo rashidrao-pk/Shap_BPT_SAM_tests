@@ -85,7 +85,4 @@ do not add `--overwrite`. Requested settings remain unchanged for resume, while
 JSON records the actual `effective_points_per_batch` used for each new image.
 If batch size 1 still fails, the error is logged and propagated.
 
-The raw-mask target and final region cap do not cap GPU memory during candidate
-mask generation and resizing. Explicitly changing `--points-per-batch` changes
-saved generation settings and can trigger the resume mismatch check, so use the
-automatic retry when continuing an existing dataset.
+The raw-mask target and final region cap do not cap GPU memory during candidate mask generation and resizing. Explicitly changing `--points-per-batch` changes saved generation settings and can trigger the resume mismatch check, so use the automatic retry when continuing an existing dataset.

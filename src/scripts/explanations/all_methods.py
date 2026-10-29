@@ -403,7 +403,7 @@ def comparison_plot(runtime, image, attributions, prediction, output, ground_tru
     """Scrollable heatmaps and oracle-threshold GT overlap, like the notebook."""
     plt = runtime.plt
     names = list(statuses)
-    columns = 1 + int(ground_truth is not None) + len(names)
+    columns = 1 + len(names)
     has_gt = ground_truth is not None and np.any(ground_truth['mask'])
     rows = 2 if has_gt else 1
     fig, axes = plt.subplots(rows, columns, figsize=(2.1*columns, 2.5*rows), squeeze=False)
@@ -412,10 +412,7 @@ def comparison_plot(runtime, image, attributions, prediction, output, ground_tru
         for row in axes:
             row[0].imshow(image)
             row[0].set_title('Input')
-            if ground_truth is not None:
-                row[1].imshow(ground_truth['mask'], cmap='binary', vmin=0, vmax=1)
-                row[1].set_title('GT' if has_gt else f"GT: {ground_truth['status']}", fontsize=8)
-        offset = 1 + int(ground_truth is not None)
+        offset = 1
         for column, name in enumerate(names, offset):
             heatmap = attributions.get(name)
             ax = axes[0, column]

@@ -127,7 +127,9 @@ class AllMethodsTest(unittest.TestCase):
         mask[:2, 1:4] = True
         images = []
         def capture(fig, *args, **kwargs):
-            images.extend(fig.axes[2].images)
+            self.assertEqual(len(fig.axes), 4)  # Two rows: Input and one method, no GT column.
+            self.assertNotIn('GT', [ax.get_title() for ax in fig.axes])
+            images.extend(fig.axes[1].images)
         with patch.object(Figure, 'savefig', capture):
             result = allx.comparison_plot(
                 SimpleNamespace(plt=plt), image, {'BPT-8': mask[None].astype(float)},

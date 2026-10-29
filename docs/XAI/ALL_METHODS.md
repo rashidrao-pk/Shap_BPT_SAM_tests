@@ -42,6 +42,7 @@ python -c "import numpy, cv2, torch, torchvision, captum, shap; print(numpy.__ve
 
 The 2×3 figure shows the three partition-based methods at the highest budget. `<image-id>_all_methods.png` adds a wide
 heatmap strip and, when GT has foreground, a second row of GT overlap panels.
+There is no standalone GT column; GT appears as boundaries on the attribution maps.
 The shared HTML report lets you scroll the wide comparison horizontally.
 `--no-heatmaps` skips individual PNGs but keeps the comparison. `--no-plots`
 keeps numeric maps, metrics, and method status without figures.

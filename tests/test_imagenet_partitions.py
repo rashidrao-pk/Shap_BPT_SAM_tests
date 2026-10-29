@@ -57,6 +57,22 @@ class ImageNetExportTest(unittest.TestCase):
                     imagenet.run(args)
                     self.assertEqual(build.call_count, 2)
 
+    def test_gt_selection_and_resume_settings(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            masks = root / 'ImageNetS50/validation-segmentation/n00000001'
+            masks.mkdir(parents=True)
+            Image.fromarray(np.ones((2, 2), dtype=np.uint8)).save(masks / 'annotated.png')
+            Image.fromarray(np.ones((2, 2), dtype=np.uint8)).save(masks / 'missing_source.png')
+            data = {'name': 'ImageNet', 'ground_truth': {
+                'format': 'imagenets', 'root': str(root), 'variant': 50}}
+            images = [{'file_name': 'first.JPEG'}, {'file_name': 'nested/annotated.JPEG'}]
+            self.assertEqual(batch.select_gt_images(data, images), [images[1]])
+            args = batch.create_parser().parse_args([])
+            before = batch.generation_settings(args)
+            args.gt_only = True
+            self.assertEqual(batch.generation_settings(args), before)
+
     def test_duplicate_stems_fail_before_export(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

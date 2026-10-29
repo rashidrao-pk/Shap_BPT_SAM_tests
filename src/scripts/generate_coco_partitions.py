@@ -65,6 +65,8 @@ def create_parser(description=__doc__, default_config='MSCOCO_epito'):
     parser.add_argument("--output-mode", type=str, default="binary_mask")
     parser.add_argument("--use-m2m", type=bool, default=True)
     # 
+    parser.add_argument('--gt-only', action='store_true',
+                        help='ImageNet: generate only images with configured ImageNetS annotations')
     parser.add_argument('--limit', type=int, help='Generate the first N images; omit for all images')
     parser.add_argument('--overwrite', action='store_true', help='Regenerate completed images')
     parser.add_argument('--log-file', type=Path, help='Append log; default: <output.partitions>/<partition-folder-name>.log')
@@ -96,6 +98,24 @@ def collect_images(data):
         return sorted(json.load(stream)['images'], key=lambda item: int(item['id']))
 
 
+def select_gt_images(data, images):
+    """Select annotated ImageNet IDs without using GT to generate SAM masks."""
+    from ground_truth import validate_config, _mask_index
+    if data.get('name', '').lower() != 'imagenet':
+        raise ValueError('--gt-only partition generation requires the ImageNet config')
+    settings, root = validate_config({'data': data})
+    if settings['format'].lower() != 'imagenets':
+        raise ValueError('--gt-only requires ground_truth.format: imagenets')
+    variant = str(settings.get('variant', 919))
+    masks = _mask_index(str(root), 'imagenets', variant)
+    selected = [image for image in images if Path(image['file_name']).stem in masks]
+    print(f'ImageNetS{variant}: {len(masks)} annotated IDs; {len(selected)} matching source images; '
+          f'{len(set(masks) - {Path(image["file_name"]).stem for image in images})} annotations lack source images', flush=True)
+    if not selected:
+        raise ValueError(f'No source images match ImageNetS{variant} annotations below {root}')
+    return selected
+
+
 def partition_folder_name(data, args):
     """Describe the dataset/model/region budget/raw-mask target in the path."""
     dataset = re.sub(r'[^A-Za-z0-9-]', '', data.get('name', 'MSCOCO'))
@@ -121,7 +141,7 @@ def partition_folder_name(data, args):
 def generation_settings(args):
     settings = {key: str(value) if isinstance(value, Path) else value
                 for key, value in vars(args).items()
-                if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file'}}
+                if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file', 'gt_only'}}
     # Preserve compatibility with metadata written before stage selection existed.
     for key, default in [('save_partitions', ['sam', 'refined']),
                          ('select_count', 400), ('fill_max_distance', 3)]:
@@ -177,6 +197,8 @@ def _run(args, progress_stream):
     folder_name = partition_folder_name(data, args)
     output = output_path(config, 'partitions') / folder_name
     images = collect_images(data)
+    if getattr(args, 'gt_only', False):
+        images = select_gt_images(data, images)
     if args.limit is not None:
         images = images[:args.limit]
     if not images:

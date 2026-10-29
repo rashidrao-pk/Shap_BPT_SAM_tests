@@ -120,3 +120,29 @@ GT root, indexed mask count, and overlap with completed partitions at startup.
 Use `--show-gt --gt-only --limit 2` to select two annotated images from completed
 partitions. If there is no overlap, check the variant/root or generate partitions
 for annotated images. Changing the variant cannot create missing annotations.
+
+### Generate the missing partitions for annotated images
+
+Keep existing partitions. Use the same SAM checkpoint and generation settings
+as the original run, add `--gt-only`, and omit `--limit`:
+
+```bash
+python src/scripts/generate_imagenet_partitions.py \
+  --config ImageNet_epito --gt-only \
+  --model sam2 \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
+  --device cuda --max-regions 62 \
+  --generate_at_least_n_masks 100 \
+  --save-partitions sam compact refined
+```
+
+Add `--dry-run` first to inspect the selected and pending counts. Matching
+completed partitions with the same generation settings are skipped. If settings
+differ, the generator reports that rather than overwriting them. GT selects
+image IDs only; SAM still generates partitions from the image.
+
+Then run `OC_ResNet.py` or `OC_ViT.py` with `--config ImageNet_epito --show-gt
+--gt-only --no-heatmaps`. Existing partitions cannot supply annotations that
+ImageNetS50 does not contain. Use another variant only if its annotation files
+are actually available.

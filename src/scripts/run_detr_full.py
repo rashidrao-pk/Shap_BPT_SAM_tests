@@ -252,7 +252,8 @@ def save_detr_predictions(input_data, path_results: Path, has_segmentation: bool
 
 def plot_detr_predictions(ax, image, detections, id2label, max_detections: int = 20):
     ax.imshow(image)
-    ax.axis("off")
+    ax.set_xticks([])
+    ax.set_yticks([])
     scores = detections.get("scores", [])
     labels = detections.get("labels", [])
     boxes = detections.get("boxes", [])
@@ -300,7 +301,8 @@ def plot_detr_xai(input_data, partitions, shap_values, id2label, image_id, save_
 
     axes[0].imshow(input_data["image_to_explain"])
     axes[0].set_title(f"Original Image - {image_id}")
-    axes[0].axis("off")
+    axes[0].set_xticks([])
+    axes[0].set_yticks([])
 
     plot_detr_predictions(
         axes[1],
@@ -320,7 +322,8 @@ def plot_detr_xai(input_data, partitions, shap_values, id2label, image_id, save_
         axes[2].set_xticks([])
         axes[2].set_yticks([])
     else:
-        axes[2].axis("off")
+        axes[2].set_xticks([])
+        axes[2].set_yticks([])
         axes[2].set_title("No partitions")
 
     shapley_values_colormap = utx.get_shapley_values_colormap()
@@ -333,7 +336,7 @@ def plot_detr_xai(input_data, partitions, shap_values, id2label, image_id, save_
         axes[panel_index].set_yticks([])
 
     for ax in axes[n_panels:]:
-        ax.axis("off")
+        ax.set_visible(False)
 
     plt.tight_layout()
     if save_fig:

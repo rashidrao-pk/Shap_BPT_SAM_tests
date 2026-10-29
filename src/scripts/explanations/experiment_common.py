@@ -410,7 +410,8 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
             colorbar_ax = divider.append_axes('right', size='4%', pad=.08)
             fig.colorbar(handle, cax=colorbar_ax)
         for ax in axes[:2].ravel():
-            ax.axis('off')
+            ax.set_xticks([])
+            ax.set_yticks([])
         top_classes = prediction.get('top_k_classes') or []
         top = max(top_classes, key=lambda item: float(item['confidence'])) if top_classes else None
         predicted_title = (f"Top predicted: {top['class_name']} ({float(top['confidence']):.4f})"

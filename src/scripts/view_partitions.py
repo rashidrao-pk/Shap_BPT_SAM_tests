@@ -55,7 +55,8 @@ def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None):
             axes[1, -1].imshow(overlay)
             axes[1, -1].set_title('GT overlay')
         for ax in axes.ravel():
-            ax.axis('off')
+            ax.set_xticks([])
+            ax.set_yticks([])
         fig.tight_layout()
         output = Path(output)
         output.parent.mkdir(parents=True, exist_ok=True)

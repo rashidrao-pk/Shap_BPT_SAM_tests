@@ -163,3 +163,7 @@ Use `--explain_all` for BPT, BPT+SAM_c and SAM_c+KernelSHAP at budgets 500 and
 1000, LIME-1000 (250 requested SLIC segments for MS-COCO; 100 otherwise),
 Shap-AA-1000, LRP, GradCAM, IDG, GradExp and GradShap. See [commands, dependencies, budgets, and architecture
 support](ALL_METHODS.md). The comparison includes GT-IoU panels when GT is available.
+
+Saved image panels retain their borders while hiding x/y ticks. Empty grid slots
+are hidden. This applies to compact XAI, all-method comparisons, GT and partition
+previews, and legacy experiment plots.

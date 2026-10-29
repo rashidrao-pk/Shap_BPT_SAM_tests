@@ -307,7 +307,8 @@ def save_ground_truth(gt, image, folder, image_id):
         axes[1].imshow(overlay)
         axes[1].set_title(title(gt), fontsize=9)
         for ax in axes:
-            ax.axis('off')
+            ax.set_xticks([])
+            ax.set_yticks([])
         fig.tight_layout()
         fig.savefig(preview_path, dpi=140)
     finally:

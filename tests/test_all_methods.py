@@ -129,6 +129,11 @@ class AllMethodsTest(unittest.TestCase):
         def capture(fig, *args, **kwargs):
             self.assertEqual(len(fig.axes), 4)  # Two rows: Input and one method, no GT column.
             self.assertNotIn('GT', [ax.get_title() for ax in fig.axes])
+            for ax in fig.axes:
+                self.assertTrue(ax.axison)
+                self.assertEqual(len(ax.get_xticks()), 0)
+                self.assertEqual(len(ax.get_yticks()), 0)
+                self.assertTrue(all(spine.get_visible() for spine in ax.spines.values()))
             images.extend(fig.axes[1].images)
         with patch.object(Figure, 'savefig', capture):
             result = allx.comparison_plot(

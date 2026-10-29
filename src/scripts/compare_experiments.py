@@ -515,7 +515,7 @@ def plot_metric_bars(ranked: pd.DataFrame, metrics: list[str], output_dir: Path)
         ax.grid(axis="x", alpha=0.25)
 
     for ax in axes.flat[len(available):]:
-        ax.axis("off")
+        ax.set_visible(False)
     plt.tight_layout()
     out_path = output_dir / "overall_metric_bars.png"
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
@@ -582,7 +582,7 @@ def plot_all_methods_boxplots(combined: pd.DataFrame, metrics: list[str], output
         ]
         nonempty = [(method, vals) for method, vals in zip(methods, values) if len(vals)]
         if not nonempty:
-            ax.axis("off")
+            ax.set_visible(False)
             continue
         ascending = METRIC_DIRECTIONS[metric] == "lower"
         nonempty = sorted(nonempty, key=lambda item: np.mean(item[1]), reverse=not ascending)
@@ -622,7 +622,7 @@ def plot_all_methods_boxplots(combined: pd.DataFrame, metrics: list[str], output
         )
 
     for ax in axes.flat[len(available):]:
-        ax.axis("off")
+        ax.set_visible(False)
     plt.tight_layout()
     out_path = output_dir / "all_methods_metric_boxplots.png"
     plt.savefig(out_path, dpi=300, bbox_inches="tight")

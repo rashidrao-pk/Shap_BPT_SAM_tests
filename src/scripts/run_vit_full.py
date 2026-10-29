@@ -204,12 +204,14 @@ def plot_vit_xai(input_data, partitions, shap_values, categories, image_id, save
 
     axes[0].imshow(input_data["image_to_explain"])
     axes[0].set_title(f"Original Image - {image_id}")
-    axes[0].axis("off")
+    axes[0].set_xticks([])
+    axes[0].set_yticks([])
 
     top_lines = []
     for rank, cls in enumerate(input_data["sorted_classes"][:5], start=1):
         top_lines.append(f"{rank}. {categories[int(cls)]}: {input_data['predicted_fS'][int(cls)]:.4f}")
-    axes[1].axis("off")
+    axes[1].set_xticks([])
+    axes[1].set_yticks([])
     axes[1].set_title("ViT-B/16 Top Classes")
     axes[1].text(0.0, 0.95, "\n".join(top_lines), va="top", ha="left", fontsize=11, transform=axes[1].transAxes)
 
@@ -224,7 +226,8 @@ def plot_vit_xai(input_data, partitions, shap_values, categories, image_id, save
         axes[2].set_xticks([])
         axes[2].set_yticks([])
     else:
-        axes[2].axis("off")
+        axes[2].set_xticks([])
+        axes[2].set_yticks([])
         axes[2].set_title("No partitions")
 
     shapley_values_colormap = utx.get_shapley_values_colormap()
@@ -237,7 +240,7 @@ def plot_vit_xai(input_data, partitions, shap_values, categories, image_id, save
         axes[panel_index].set_yticks([])
 
     for ax in axes[n_panels:]:
-        ax.axis("off")
+        ax.set_visible(False)
 
     plt.tight_layout()
     if save_fig:

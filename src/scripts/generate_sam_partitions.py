@@ -340,7 +340,8 @@ def save_plot(image, partitions, target, title):
     axs[2].imshow(overlay.astype(np.uint8))
     axs[2].set_title("Partition boundaries")
     for ax in axs:
-        ax.set_axis_off()
+        ax.set_xticks([])
+        ax.set_yticks([])
     fig.tight_layout()
     fig.savefig(target, dpi=180, bbox_inches="tight")
     plt.close(fig)

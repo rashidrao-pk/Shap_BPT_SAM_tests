@@ -63,7 +63,8 @@ def show_all_masks(
     # ----------------------------------------------------------
     ax_img.imshow(image)
     ax_img.set_title("Original Image")
-    ax_img.axis("off")
+    ax_img.set_xticks([])
+    ax_img.set_yticks([])
 
     # ----------------------------------------------------------
     # 2. Compact mask
@@ -79,7 +80,8 @@ def show_all_masks(
         f"Compact Mask\n"
         f"{len(np.unique(compact_mask)) - int(0 in compact_mask)} instances"
     )
-    ax_seg.axis("off")
+    ax_seg.set_xticks([])
+    ax_seg.set_yticks([])
 
     # ----------------------------------------------------------
     # 3. Overlay
@@ -121,7 +123,8 @@ def show_all_masks(
             )
 
     ax_overlay.set_title(f"Overlay ({n_masks} masks)")
-    ax_overlay.axis("off")
+    ax_overlay.set_xticks([])
+    ax_overlay.set_yticks([])
 
     # ----------------------------------------------------------
     # Colorbar
@@ -203,7 +206,8 @@ def show_compact_overlay(
     # ----------------------------------------------------------
     ax_img.imshow(image)
     ax_img.set_title("Original Image")
-    ax_img.axis("off")
+    ax_img.set_xticks([])
+    ax_img.set_yticks([])
 
     # ----------------------------------------------------------
     # 2. Compact mask
@@ -219,7 +223,8 @@ def show_compact_overlay(
         f"{title_prefix} Segmentation\n"
         f"{n_instances} instances"
     )
-    ax_seg.axis("off")
+    ax_seg.set_xticks([])
+    ax_seg.set_yticks([])
 
     # ----------------------------------------------------------
     # 3. Overlay
@@ -259,7 +264,8 @@ def show_compact_overlay(
     ax_overlay.set_title(
         f"Overlay ({n_instances} instances)"
     )
-    ax_overlay.axis("off")
+    ax_overlay.set_xticks([])
+    ax_overlay.set_yticks([])
 
     # ----------------------------------------------------------
     # Colorbar
@@ -413,7 +419,8 @@ def show_saved_masks(
     for ax, (title, path, mask) in zip(axes, loaded_masks):
         if mask is None:
             ax.set_title(f"{title}\nNot found")
-            ax.axis("off")
+            ax.set_xticks([])
+            ax.set_yticks([])
             continue
 
         ax.imshow(
@@ -429,7 +436,8 @@ def show_saved_masks(
             f"{title}\n"
             f"{n_instances} instances"
         )
-        ax.axis("off")
+        ax.set_xticks([])
+        ax.set_yticks([])
 
     plt.show()
 
@@ -1042,7 +1050,8 @@ def select_masks_by_unpicked_area(
                 f"Step {current_step}"
             )
 
-            axes[0].axis("off")
+            axes[0].set_xticks([])
+            axes[0].set_yticks([])
 
             # --------------------------------------------------
             # 2. Maschera completa selezionata
@@ -1059,7 +1068,8 @@ def select_masks_by_unpicked_area(
                 f"ID originale {original_id}"
             )
 
-            axes[1].axis("off")
+            axes[1].set_xticks([])
+            axes[1].set_yticks([])
 
             # --------------------------------------------------
             # 3. Andamento della unpicked area

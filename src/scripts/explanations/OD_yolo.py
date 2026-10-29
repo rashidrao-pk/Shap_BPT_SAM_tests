@@ -618,7 +618,8 @@ def save_ground_truth(ground_truth, image, folder, image_no):
         axes[1].imshow(overlay)
         axes[1].set_title(f"{ground_truth['instance_count']} instances; {ground_truth['status']}")
         for ax in axes:
-            ax.axis('off')
+            ax.set_xticks([])
+            ax.set_yticks([])
         fig.tight_layout()
         fig.savefig(preview_path, dpi=140)
     finally:
@@ -870,7 +871,7 @@ def save_faithfulness_metric_boxplots(auc_all: pd.DataFrame, path_results: Path,
         for col_idx in range(n_cols):
             ax = axes[row_idx, col_idx]
             if col_idx >= len(metrics):
-                ax.axis("off")
+                ax.set_visible(False)
                 continue
             metric, higher_is_better = metrics[col_idx]
 

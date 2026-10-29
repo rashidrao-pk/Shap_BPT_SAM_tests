@@ -1068,7 +1068,7 @@ def plot_owen_values(explainer, shap_values, class_names,
             axes[r,0].set_ylabel(names[r])
     # Use the last row for the colorbar
     for ax in axes[-1,:]:
-        ax.set_axis_off()
+        ax.set_visible(False)
         # ax.set_box_aspect(0.1)
     cb = fig.colorbar(im, ax=axes[-1,:], label="Shapley/Owen value", 
                       orientation="horizontal", aspect=80, fraction=0.9)#, location='bottom') #,  fraction=0.5, 
@@ -1309,7 +1309,8 @@ def plot_predictions(image,model, results, category_name=None, filter_preds=True
     else:
         fig = ax.figure
     ax.imshow(image_)
-    ax.axis('off')
+    ax.set_xticks([])
+    ax.set_yticks([])
     if title is not None:
         ax.set_title(title)
     for result in results:
@@ -1412,7 +1413,8 @@ def plot_xai(input_data,partitions,shap_values, model, results, image_id,
     axes = np.atleast_1d(axes).flatten()
     axes[0].imshow(input_data['image_to_explain'])
     axes[0].set_title(f"Original Image - {image_id}")
-    axes[0].axis('off')
+    axes[0].set_xticks([])
+    axes[0].set_yticks([])
     ## Plot yolo predictions
     utx.plot_predictions(input_data['image_to_explain'], model, results,
                          category_name=input_data['fixed_category'],
@@ -1425,7 +1427,8 @@ def plot_xai(input_data,partitions,shap_values, model, results, image_id,
         if mask_type not in partitions:
             ax.text(0.5, 0.5, f"{mask_type}\nnot loaded", ha="center", va="center", fontsize=12)
             ax.set_title(f"{mask_type} partition")
-            ax.axis("off")
+            ax.set_xticks([])
+            ax.set_yticks([])
             return
 
         masks = partitions[mask_type]
@@ -1448,7 +1451,8 @@ def plot_xai(input_data,partitions,shap_values, model, results, image_id,
         axes[4].imshow(overlay)
         axes[4].set_title(f"GT: {ground_truth['class_name']}\n"
                           f"{ground_truth['instance_count']} instances; {ground_truth['status']}")
-        axes[4].axis('off')
+        axes[4].set_xticks([])
+        axes[4].set_yticks([])
     
     # axes[2].set_title(f"partition")
     # axes[2].axis('off')
@@ -1466,7 +1470,7 @@ def plot_xai(input_data,partitions,shap_values, model, results, image_id,
         # axes[i + 1].axis('off')
         axes[panel_index].set_xticks([]); axes[panel_index].set_yticks([])
     for ax in axes[n_panels:]:
-        ax.axis('off')
+        ax.set_visible(False)
     plt.tight_layout()
     if save_fig:
         # os.makedirs(save_path, exist_ok=True)
@@ -1910,7 +1914,8 @@ def plot_faithfulness_curves(auc_results, path_results_img, figsize=(15, 8), sav
             loc='best',
         )
 
-    axes[5].axis('off')
+    axes[5].set_xticks([])
+    axes[5].set_yticks([])
     axes[5].text(
         0.02,
         0.98,

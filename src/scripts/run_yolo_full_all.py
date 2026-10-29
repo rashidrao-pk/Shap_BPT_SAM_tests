@@ -782,7 +782,7 @@ def save_faithfulness_metric_boxplots(auc_all: pd.DataFrame, path_results: Path,
         for col_idx in range(n_cols):
             ax = axes[row_idx, col_idx]
             if col_idx >= len(metrics):
-                ax.axis("off")
+                ax.set_visible(False)
                 continue
             metric, higher_is_better = metrics[col_idx]
 

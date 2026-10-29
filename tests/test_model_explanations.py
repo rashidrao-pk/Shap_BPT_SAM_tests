@@ -287,7 +287,10 @@ class ModelExplanationTest(unittest.TestCase):
         self.assertEqual(len(captured), 9)  # Six image panels plus three colorbars.
         for ax in captured[3:6]:
             self.assertEqual(len(ax.images), 2)  # Notebook GT boundary overlay on every attribution.
-            self.assertFalse(ax.axison)
+            self.assertTrue(ax.axison)
+            self.assertEqual(len(ax.get_xticks()), 0)
+            self.assertEqual(len(ax.get_yticks()), 0)
+            self.assertTrue(all(spine.get_visible() for spine in ax.spines.values()))
 
     def test_camo_gt_in_explanation_grid_and_manifest(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -464,7 +464,8 @@ def comparison_plot(runtime, image, attributions, prediction, output, ground_tru
                 axes[1, column].imshow(overlap)
                 axes[1, column].set_title(f"Best IoU: {result['best_iou']:.3f}", fontsize=9)
         for ax in axes.ravel():
-            ax.axis('off')
+            ax.set_xticks([])
+            ax.set_yticks([])
         top = (prediction.get('top_k_classes') or [{}])[0]
         top_text = top.get('class_name', 'unavailable')
         if 'confidence' in top:

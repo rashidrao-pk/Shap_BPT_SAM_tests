@@ -43,5 +43,5 @@ evaluation:
   # --eval-batch-size", type=int, default=16
 output:
   partitions: /beegfs/home/mrashid/datasets/SAM_BPT
-  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results
-  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/evaluations
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/evaluations

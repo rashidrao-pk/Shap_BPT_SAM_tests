@@ -50,7 +50,8 @@ def create_parser(kind):
     parser.add_argument('--auc_num_samples', '--auc-num-samples', type=int, default=101)
     parser.add_argument('--bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'], default='noise')
     parser.add_argument('--class-aggregation', choices=['sum', 'max'], default='sum')
-    parser.add_argument('--threshold', type=float, default=.3, help='DETR detection score threshold')
+    parser.add_argument('--threshold', type=float, default=0.0,
+                        help='DETR scoring threshold (default: 0 for continuous masked scores)')
     parser.add_argument('--detr-shortest-edge', type=int, help='Override the DETR processor resize')
     parser.add_argument('--target-class', type=int, help='Explain this output index instead of the top prediction')
     parser.add_argument('--show_gt', '--show-gt', action='store_true', help='COCO class segmentation overlay for DETR')
@@ -480,7 +481,13 @@ def run(kind, args, adapter=None):
                                                  image_no=image_id, destroy_figs=True)
                     runtime.utx.plot_faithfulness_curves(auc_results, str(folder), save_plot=True,
                                                        image_no=image_id, destroy_figs=True)
-            artifacts = [path.name for path in folder.iterdir() if path.is_file() and not path.name.endswith('.tmp')]
+            artifacts = [f'{image_id}_predictions.json', f'{image_id}_attributions.npz', f'{image_id}_metrics.json']
+            if args.save_plots:
+                artifacts += [f'{method}_{image_id}.png' for method in METHODS] + [f'{image_id}_xai_results.png']
+                if args.compute_auc:
+                    artifacts += [f'auc_results_{image_id}.png', f'faithfulness_curves_{image_id}.png']
+            if args.show_gt:
+                artifacts += [f'{image_id}_gt{extension}' for extension in ['.npy', '.png', '.json']]
             manifest = {'signature': signature, 'input_stamp': input_stamp(record), 'artifacts': artifacts,
                         'rows': image_rows, 'prediction': prediction, 'total_time_sec': time.perf_counter() - started}
             write_json(marker, manifest)  # Completion marker is always written last.

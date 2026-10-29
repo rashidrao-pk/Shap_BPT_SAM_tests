@@ -118,7 +118,8 @@ class DetrAdapter:
         result = self._results([image])[0]
         return [{'class_id': int(label), 'class_name': self.class_names[int(label)],
                  'confidence': float(score), 'box': box.tolist()}
-                for label, score, box in zip(result['labels'].cpu(), result['scores'].cpu(), result['boxes'].cpu())]
+                for label, score, box in zip(result['labels'].cpu(), result['scores'].cpu(), result['boxes'].cpu())
+                if float(score) >= max(.3, self.threshold)]
 
 
 def load_adapter(kind, args, device):

@@ -122,6 +122,9 @@ def expected_image_ids_from_masks(masks_base_path: Path | None) -> set[str]:
 
 
 def expected_image_ids_for_experiment(results_dir: Path, global_expected: set[str]) -> set[str]:
+    selected = read_json(results_dir / 'run_info.json').get('image_ids')
+    if selected:
+        return {normalize_image_id(value) for value in selected}
     if global_expected:
         return set(global_expected)
     summary_path = results_dir / "partition_summary.csv"
@@ -248,10 +251,8 @@ def estimate_time_progress(results_dir: Path, auc_csv: Path | None, completed_im
 
 
 def image_dir_candidates(results_dir: Path, image_id: str) -> list[Path]:
-    return [
-        results_dir / str(int(image_id)),
-        results_dir / image_id,
-    ]
+    return ([results_dir / str(int(image_id)), results_dir / image_id] if image_id.isdigit()
+            else [results_dir / image_id])
 
 
 def existing_image_dir(results_dir: Path, image_id: str) -> Path | None:
@@ -266,7 +267,16 @@ def output_status_for_image(results_dir: Path, image_id: str, methods: list[str]
     if folder is None:
         return False, ["image folder"]
 
-    image_no = int(image_id)
+    manifest = read_json(folder / f'{image_id}_complete.json')
+    if manifest:
+        missing = [name for name in manifest.get('artifacts', []) if not (folder / name).is_file()]
+        if require_plots:
+            for pattern in ['*_xai_results.png', 'auc_results_*.png', 'faithfulness_curves_*.png']:
+                if not any(folder.glob(pattern)):
+                    missing.append(pattern)
+        return not missing, missing
+
+    image_no = int(image_id) if image_id.isdigit() else image_id
     missing = []
     if not (folder / f"{image_no}_predictions.json").exists() and not (folder / f"{image_id}_predictions.json").exists():
         missing.append("predictions.json")
@@ -307,7 +317,7 @@ def summarize_experiment(results_dir: Path, expected_ids: set[str], methods: lis
     experiment_name = run_info.get("exp_no", results_dir.name)
     auc_csv, csv_rows_by_image, csv_complete = load_auc_status(results_dir, methods)
     ids_seen = set(csv_rows_by_image)
-    ids_seen.update(normalize_image_id(path.name) for path in results_dir.iterdir() if path.is_dir() and path.name.isdigit())
+    ids_seen.update(normalize_image_id(path.name) for path in results_dir.iterdir() if path.is_dir())
     image_ids = set(expected_ids) if expected_ids else ids_seen
 
     complete_images = []

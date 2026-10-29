@@ -194,7 +194,7 @@ def prepare_inputs(kind, args):
     run_dir = base / f'bg_{args.bg_type}_B{args.max_evals}'
     return {'config': config, 'records': records, 'partition_dir': folder,
             'run_dir': run_dir, 'evaluation_dir': evaluation_path(config, run_dir),
-            'annotation_file': annotation_file, 'methods': list(METHODS) + (comparison_names(args) if args.explain_all else []),
+            'annotation_file': annotation_file, 'methods': comparison_names(args) if args.explain_all else list(METHODS),
             'ground_truth': data.get('ground_truth') if args.show_gt else None}
 
 
@@ -283,7 +283,7 @@ def run_signature(kind, args, config=None):
     settings = {key: jsonable(value) for key, value in vars(args).items() if key not in ignored}
     if not args.explain_all:
         for option in ['explain_all', 'bpt_budgets', 'lime_budgets', 'gradient_samples',
-                       'idg_steps', 'attribution_batch_size', 'explanation_seed']:
+                       'idg_steps', 'attribution_batch_size', 'explanation_seed', 'aa_budget', 'lime_segments']:
             settings.pop(option, None)
     if settings.get('save_heatmaps', True):
         settings.pop('save_heatmaps', None)  # Preserve signatures from before this option existed.
@@ -357,7 +357,7 @@ def bpt_partition_labels(tree, region_count, shape):
 
 
 def explanation_grid(runtime, image, partition, attributions, prediction, output,
-                     ground_truth=None, bpt_partition=None, auc_results=None):
+                     ground_truth=None, bpt_partition=None, auc_results=None, display_methods=None):
     plt = runtime.plt
     fig, axes = plt.subplots(2, 3, figsize=(15, 8))
     try:
@@ -373,7 +373,7 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
             if labels is not None:
                 ax.imshow(labels, cmap='turbo', interpolation='nearest')
                 ax.set_title(f'{name}: {len(np.unique(labels))} regions')
-        for ax, method in zip(axes[1], METHODS):
+        for ax, method in zip(axes[1], display_methods or METHODS):
             if method not in attributions:
                 continue
             heatmap = np.asarray(attributions[method][0])
@@ -536,7 +536,10 @@ def run(kind, args, adapter=None):
             bpt_labels = None
             bpt_tree = None
             statuses = {}
-            for method in METHODS:
+            if args.explain_all:
+                bpt_tree = runtime.shap_bpt.build_bpt_from_image(image)
+                bpt_labels = bpt_partition_labels(bpt_tree, len(np.unique(labels)), image.shape[:2])
+            for method in ([] if args.explain_all else METHODS):
                 start = time.perf_counter()
                 if method == 'SAM_c_kernelshap':
                     values = (np.full((1, *labels.shape), f_s - f_0) if len(np.unique(labels)) == 1 else
@@ -572,7 +575,8 @@ def run(kind, args, adapter=None):
             if args.explain_all:
                 from all_methods import compute_extra
                 for method, values, info, elapsed in compute_extra(
-                        runtime, args, adapter, image, replacements, explainer, bpt_tree, target):
+                        runtime, args, adapter, image, replacements, explainer, bpt_tree, target,
+                        labels=labels, predict=predict, dataset_name=inputs['config']['data']['name']):
                     statuses[method] = info
                     if values is None:
                         print(f'{image_id} {method}: {info["status"]}: {info.get("reason", "")}')
@@ -602,8 +606,10 @@ def run(kind, args, adapter=None):
             np.savez_compressed(folder / f'{image_id}_attributions.npz', **attributions)
             write_json(folder / f'{image_id}_metrics.json', auc_results if args.compute_auc else image_rows)
             if args.save_plots:
+                from all_methods import grid_methods
                 explanation_grid(runtime, image, labels, attributions, prediction,
-                                 folder / f'{image_id}_xai_results.png', ground_truth, bpt_labels, auc_results)
+                                 folder / f'{image_id}_xai_results.png', ground_truth, bpt_labels, auc_results,
+                                 display_methods=grid_methods(args) if args.explain_all else None)
                 if args.explain_all:
                     from all_methods import comparison_plot
                     comparison_plot(runtime, image, attributions, prediction,

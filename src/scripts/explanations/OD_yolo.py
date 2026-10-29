@@ -752,6 +752,10 @@ def should_skip_image(path_results: Path, auc_table_rows: list[dict], image_no: 
     if not args.resume:
         return False
     path_results_img = path_results / str(image_no)
+    if getattr(args, 'explain_all', False):
+        from all_methods import method_names
+        methods = [name for name in method_names(args)
+                   if name.startswith(('BPT-', 'BPT+SAM_c-', 'SAM_c+KernelSHAP-', 'LIME-', 'Shap-AA-'))]
     return image_rows_are_complete(auc_table_rows, image_no, methods) and image_outputs_are_complete(path_results_img, image_no, methods, args)
 
 
@@ -1526,6 +1530,10 @@ def run(args):
     project_root = find_project_root()
     config = load_config(project_root, args.config)
     inputs = prepare_inputs(project_root, config, args)
+    if args.explain_all:
+        from all_methods import method_names
+        inputs["methods"] = method_names(args)
+        inputs["method_labels"] = {method: method for method in inputs["methods"]}
     METHOD_ORDER = inputs["methods"]
     print(json.dumps({key: value for key, value in inputs.items()}, indent=2, default=str))
     if args.dry_run:
@@ -1603,7 +1611,7 @@ def run(args):
             "num_explained_classes": args.num_explained_classes,
             "methods": METHOD_ORDER,
             "show_gt": args.show_gt,
-            "method_labels": {method: METHOD_LABELS[method] for method in METHOD_ORDER},
+            "method_labels": {method: METHOD_LABELS.get(method, method) for method in METHOD_ORDER},
             "config": args.config,
             "masks_base_path": str(masks_base_path),
             "image_dir": str(image_dir),
@@ -1723,7 +1731,7 @@ def run(args):
             partition_results = uts2.load_json_partitions(str(masks_base_path), image_id, verbose=False)
             first_iteration_breakdown["load_partition_json"] += time.time() - timing_start
             methods_iter = tqdm(
-                METHOD_ORDER,
+                [] if args.explain_all else METHOD_ORDER,
                 desc=f"{image_id} methods",
                 leave=False,
                 position=1,
@@ -1806,19 +1814,26 @@ def run(args):
             if getattr(args, 'explain_all', False):
                 from types import SimpleNamespace
                 from all_methods import compute_extra, best_iou
+                from experiment_common import bpt_partition_labels
                 from experiment_common import write_json
                 comparison_args = SimpleNamespace(**vars(args))
                 comparison_args.model_batch_size = args.eval_batch_size
                 scoring_adapter = SimpleNamespace(predict_batch=lambda images: predict_yolo_batch(
                     model, images, num_classes=yolo_class_count(model), aggregate=args.class_aggregation))
+                _, sam_labels = uts2.load_refine_partitions(
+                    input_data['image_to_explain'], str(masks_base_path), image_id, partition_type='compact')
+                partition_capped['SAM_c'] = sam_labels
                 if comparison_tree is None:
                     comparison_tree = shap_bpt.build_bpt_from_image(input_data['image_to_explain'])
+                bpt_labels = bpt_partition_labels(comparison_tree, len(np.unique(sam_labels)),
+                                                 input_data['image_to_explain'].shape[:2])
                 comparison_explainer = shap_bpt.Explainer(
                     predict_masked, input_data['image_to_explain'], num_explained_classes=None,
                     explained_class_ids=[predicted_cls], verbose=False)
                 for method, values, info, elapsed in compute_extra(
-                        SimpleNamespace(), comparison_args, scoring_adapter, input_data['image_to_explain'],
-                        input_data['background_image_set'], comparison_explainer, comparison_tree, predicted_cls):
+                        SimpleNamespace(shap_bpt=shap_bpt, utx=utx), comparison_args, scoring_adapter, input_data['image_to_explain'],
+                        input_data['background_image_set'], comparison_explainer, comparison_tree, predicted_cls,
+                        labels=sam_labels, predict=predict_masked, dataset_name='MS_COCO'):
                     comparison_status[method] = info
                     if values is None:
                         print(f'{method}: {info["status"]}: {info.get("reason", "")}')
@@ -1885,6 +1900,7 @@ def run(args):
             if args.save_plots and not args.heatmaps_only:
                 from types import SimpleNamespace
                 from experiment_common import explanation_grid
+                from all_methods import grid_methods
                 prediction = {'explained_class': fixed_category,
                               'predicted_class_id': predicted_cls, 'detections': [],
                               'top_k_classes': [{'class_id': cid, 'class_name': name, 'confidence': score}
@@ -1892,7 +1908,8 @@ def run(args):
                 explanation_grid(SimpleNamespace(plt=plt), input_data['image_to_explain'],
                                  partition_capped['SAM_c'], shap_values, prediction,
                                  path_results_img / f'{image_id}_xai_results.png',
-                                 input_data.get('ground_truth'), bpt_labels, auc_results)
+                                 input_data.get('ground_truth'), bpt_labels, auc_results,
+                                 display_methods=grid_methods(args) if args.explain_all else None)
                 if getattr(args, 'explain_all', False):
                     from all_methods import comparison_plot
                     comparison_plot(SimpleNamespace(plt=plt), input_data['image_to_explain'],

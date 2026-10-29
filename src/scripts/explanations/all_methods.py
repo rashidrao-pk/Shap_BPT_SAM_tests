@@ -15,10 +15,13 @@ import numpy as np
 
 def add_arguments(parser):
     parser.add_argument('--explain_all', '--explain-all', action='store_true',
-                        help='Add budgeted BPT/AA/LIME and gradient baseline comparisons')
-    parser.add_argument('--bpt-budgets', nargs='+', type=int, default=[100, 500, 1000])
-    parser.add_argument('--lime-budgets', nargs='+', type=int, default=[50, 100, 200],
+                        help='Compare budgeted BPT, BPT+SAM_c, SAM_c+KernelSHAP, LIME, AA and gradient methods')
+    parser.add_argument('--bpt-budgets', '--partition-budgets', nargs='+', type=int, default=[500, 1000],
+                        help='Budgets for BPT, BPT+SAM_c and SAM_c+KernelSHAP')
+    parser.add_argument('--lime-budgets', nargs='+', type=int, default=[1000],
                         help='LIME perturbation samples, not superpixel counts')
+    parser.add_argument('--aa-budget', type=int, default=1000)
+    parser.add_argument('--lime-segments', type=int, help='Default: 250 for MS-COCO, 100 otherwise')
     parser.add_argument('--gradient-samples', type=int, default=20)
     parser.add_argument('--idg-steps', type=int, default=50)
     parser.add_argument('--attribution-batch-size', type=int, default=4)
@@ -32,6 +35,8 @@ def validate(args):
     for name in ['gradient_samples', 'attribution_batch_size']:
         if getattr(args, name) < 1:
             raise ValueError(f'{name} must be positive')
+    if args.aa_budget < 2 or (args.lime_segments is not None and args.lime_segments < 1):
+        raise ValueError('--aa-budget must be at least 2 and --lime-segments must be positive')
     if args.idg_steps < 2:
         raise ValueError('--idg-steps must be at least 2')
     missing = [module for module in ['captum', 'lime', 'shap'] if importlib.util.find_spec(module) is None]
@@ -41,10 +46,21 @@ def validate(args):
 
 
 def method_names(args):
-    return ([f'BPT-{budget}' for budget in dict.fromkeys(args.bpt_budgets)] +
-            [f'AA-{budget}' for budget in dict.fromkeys(args.bpt_budgets)] +
+    return ([f'{method}-{budget}' for method in ['BPT', 'BPT+SAM_c', 'SAM_c+KernelSHAP']
+             for budget in dict.fromkeys(args.bpt_budgets)] +
             [f'LIME-{budget}' for budget in dict.fromkeys(args.lime_budgets)] +
-            ['LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'])
+            [f'Shap-AA-{args.aa_budget}', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'])
+
+
+def grid_methods(args):
+    budget = max(args.bpt_budgets)
+    return [f'{method}-{budget}' for method in ['BPT', 'BPT+SAM_c', 'SAM_c+KernelSHAP']]
+
+
+def lime_segment_count(args, dataset_name):
+    if args.lime_segments is not None:
+        return args.lime_segments
+    return 250 if str(dataset_name).replace('_', '').replace('-', '').lower() == 'mscoco' else 100
 
 
 def comparison_signature(args):
@@ -100,11 +116,11 @@ def best_iou(heatmap, ground_truth):
             'mask': (np.asarray(heatmap) >= threshold) & valid}
 
 
-def lime_map(adapter, image, replacements, target, budget, args):
+def lime_map(adapter, image, replacements, target, budget, args, dataset_name=None):
     from lime.lime_image import LimeImageExplainer
     from skimage.segmentation import slic
-    # Use approximately budget/5 features, as in the original experiment.
-    segments = slic(image, n_segments=max(2, budget // 5), compactness=10,
+    requested_segments = lime_segment_count(args, dataset_name)
+    segments = slic(image, n_segments=requested_segments, compactness=10,
                     start_label=0, channel_axis=-1)
     result = []
     for background in replacements:
@@ -117,6 +133,7 @@ def lime_map(adapter, image, replacements, target, budget, args):
         result.append(np.vectorize(lambda label: weights.get(int(label), 0.0))(segments))
     return np.mean(result, axis=0)[None], {'samples_per_background': budget,
                                          'background_count': len(replacements),
+                                         'requested_regions': requested_segments,
                                          'regions': len(np.unique(segments)), 'segmentation': 'SLIC',
                                          'local_surrogate_r2': float(exp.score)}
 
@@ -316,21 +333,49 @@ class GradientMethods:
         return total / len(self.baselines)
 
 
-def compute_extra(runtime, args, adapter, image, replacements, explainer, tree, target):
+def compute_extra(runtime, args, adapter, image, replacements, explainer, tree, target,
+                  labels=None, predict=None, dataset_name=None):
     """Yield name, map, status, seconds for every requested baseline."""
     gradients = None
     gradient_error = None
+    sam_tree = None
     for name in method_names(args):
         started = time.perf_counter()
         info = {'status': 'complete'}
         try:
-            if name.startswith(('BPT-', 'AA-')):
-                method, budget = name.split('-')
-                values = explainer.explain_instance(int(budget), bpt=tree if method == 'BPT' else None,
-                                                    method=method, batch_size=args.eval_batch_size)
-                info['budget'] = int(budget)
+            if name.startswith(('BPT-', 'BPT+SAM_c-', 'SAM_c+KernelSHAP-', 'Shap-AA-')):
+                method, budget = name.rsplit('-', 1)
+                budget = int(budget)
+                if method == 'SAM_c+KernelSHAP':
+                    if labels is None or predict is None:
+                        raise ValueError('SAM KernelSHAP requires saved SAM_c labels and masked prediction')
+                    if len(np.unique(labels)) == 1:
+                        values = np.full((1, *labels.shape), float(explainer.base_nuN[0])-float(explainer.base_nu0[0]))
+                    else:
+                        values = runtime.utx.kernel_shap_partition_regions(
+                            predict, labels, target, n_samples=budget,
+                            batch_size=args.kernel_shap_batch_size or args.eval_batch_size,
+                            seed=args.explanation_seed)
+                else:
+                    if method == 'BPT+SAM_c':
+                        if labels is None:
+                            raise ValueError('BPT+SAM_c requires saved SAM_c labels')
+                        if sam_tree is None:
+                            sam_tree = runtime.shap_bpt.build_bpt_from_image(image, prebuilt_partitions=labels)
+                        selected_tree = sam_tree
+                    elif method == 'BPT':
+                        if tree is None:
+                            tree = runtime.shap_bpt.build_bpt_from_image(image)
+                        selected_tree = tree
+                    else:
+                        selected_tree = None
+                    values = explainer.explain_instance(budget, bpt=selected_tree,
+                                                        method='AA' if method == 'Shap-AA' else 'BPT',
+                                                        batch_size=args.eval_batch_size)
+                info['budget'] = budget
             elif name.startswith('LIME-'):
-                values, details = lime_map(adapter, image, replacements, target, int(name.split('-')[1]), args)
+                values, details = lime_map(adapter, image, replacements, target, int(name.split('-')[1]), args,
+                                           dataset_name=dataset_name)
                 info.update(details)
             else:
                 if gradient_error:

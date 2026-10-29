@@ -237,7 +237,7 @@ class ModelExplanationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config, image_id = self.fixture(Path(directory), 'ImageNet')
             args = common.create_parser('OC_ResNet').parse_args([
-                '--config', str(config), '--explain_all', '--bpt-budgets', '8', '--lime-budgets', '8',
+                '--config', str(config), '--explain_all', '--bpt-budgets', '8', '--lime-budgets', '8', '--aa-budget', '8',
                 '--gradient-samples', '2', '--idg-steps', '4', '--max-evals', '8',
                 '--no-auc', '--no-heatmaps', '--no-html', '--torch-threads', '2'])
             result = common.run('OC_ResNet', args, adapter=SmallAdapter())
@@ -247,7 +247,11 @@ class ModelExplanationTest(unittest.TestCase):
             self.assertEqual(status['LRP']['status'], 'unsupported')
             values = np.load(folder / f'{image_id}_attributions.npz')
             self.assertIn('BPT-8', values.files)
-            self.assertIn('AA-8', values.files)
+            self.assertIn('Shap-AA-8', values.files)
+            self.assertIn('BPT+SAM_c-8', values.files)
+            self.assertIn('SAM_c+KernelSHAP-8', values.files)
+            self.assertNotIn('BPT', values.files)
+            self.assertEqual(status['LIME-8']['requested_regions'], 100)
             self.assertNotIn('LRP', values.files)
             self.assertTrue((folder / f'{image_id}_all_methods.png').is_file())
             self.assertFalse((folder / f'LIME-8_{image_id}.png').exists())

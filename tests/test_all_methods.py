@@ -21,8 +21,42 @@ class AllMethodsTest(unittest.TestCase):
 
     def args(self):
         return common.create_parser('OC_ResNet').parse_args([
-            '--explain_all', '--bpt-budgets', '8', '--lime-budgets', '8',
+            '--explain_all', '--bpt-budgets', '8', '--lime-budgets', '8', '--aa-budget', '8',
             '--gradient-samples', '2', '--idg-steps', '4', '--attribution-batch-size', '2'])
+
+    def test_requested_default_matrix_and_budget_routing(self):
+        from unittest.mock import Mock, patch
+        args = common.create_parser('OC_ResNet').parse_args(['--explain_all'])
+        expected = ['BPT-500', 'BPT-1000', 'BPT+SAM_c-500', 'BPT+SAM_c-1000',
+                    'SAM_c+KernelSHAP-500', 'SAM_c+KernelSHAP-1000', 'LIME-1000',
+                    'Shap-AA-1000', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap']
+        self.assertEqual(allx.method_names(args), expected)
+        self.assertEqual(allx.lime_segment_count(args, 'MS_COCO'), 250)
+        self.assertEqual(allx.lime_segment_count(args, 'ImageNet'), 100)
+        self.assertEqual(allx.lime_segment_count(args, 'CAMO'), 100)
+        shape = (3, 4)
+        image = np.zeros((*shape, 3), dtype=np.uint8)
+        labels = np.indices(shape)[1] // 2
+        original_tree, sam_tree = object(), object()
+        explainer = SimpleNamespace(explain_instance=Mock(return_value=np.ones((1, *shape))))
+        kernel = Mock(return_value=np.ones((1, *shape)))
+        build = Mock(return_value=sam_tree)
+        runtime = SimpleNamespace(shap_bpt=SimpleNamespace(build_bpt_from_image=build),
+                                  utx=SimpleNamespace(kernel_shap_partition_regions=kernel))
+        with patch.object(allx, 'lime_map', return_value=(np.ones((1, *shape)), {'requested_regions': 250})):
+            results = list(allx.compute_extra(runtime, args, SimpleNamespace(), image, [image],
+                                              explainer, original_tree, 0, labels=labels,
+                                              predict=lambda _: None, dataset_name='MS_COCO'))
+        self.assertEqual([call.kwargs['n_samples'] for call in kernel.call_args_list], [500, 1000])
+        self.assertEqual([call.args[0] for call in explainer.explain_instance.call_args_list],
+                         [500, 1000, 500, 1000, 1000])
+        self.assertEqual([call.kwargs['bpt'] for call in explainer.explain_instance.call_args_list],
+                         [original_tree, original_tree, sam_tree, sam_tree, None])
+        build.assert_called_once()
+        self.assertEqual(results[7][0], 'Shap-AA-1000')
+        self.assertEqual(results[7][2]['budget'], 1000)
+        args.lime_segments = 37
+        self.assertEqual(allx.lime_segment_count(args, 'MS_COCO'), 37)
 
     def test_iou_thresholds_respect_ties_and_ignore(self):
         gt = {'mask': np.array([[1, 1], [0, 0]], dtype=bool),

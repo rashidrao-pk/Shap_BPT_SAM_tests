@@ -40,7 +40,7 @@ an experiment:
 python -c "import numpy, cv2, torch, torchvision, captum, shap; print(numpy.__version__, cv2.__version__, torch.__version__, torchvision.__version__, captum.__version__, shap.__version__)"
 ```
 
-The existing 2×3 figure is retained. `<image-id>_all_methods.png` adds a wide
+The 2×3 figure shows the three partition-based methods at the highest budget. `<image-id>_all_methods.png` adds a wide
 heatmap strip and, when GT has foreground, a second row of GT overlap panels.
 The shared HTML report lets you scroll the wide comparison horizontally.
 `--no-heatmaps` skips individual PNGs but keeps the comparison. `--no-plots`
@@ -48,25 +48,32 @@ keeps numeric maps, metrics, and method status without figures.
 
 ## Methods and budgets
 
-The comparison includes the existing BPT, SAM_c and SAM_c_kernelshap methods,
-plus:
+In `--explain_all` mode the complete method list is:
 
 | Method | Default setting | Meaning |
 | --- | --- | --- |
-| BPT-100/500/1000 | `--bpt-budgets 100 500 1000` | ShapBPT evaluation budgets |
-| AA-100/500/1000 | Same budgets | Axis-aligned hierarchical explanations, as in the example |
-| LIME-50/100/200 | `--lime-budgets 50 100 200` | Perturbation samples per background |
+| BPT-500/1000 | `--partition-budgets 500 1000` | BPT evaluation budgets |
+| BPT+SAM_c-500/1000 | Same budgets | BPT initialized with saved SAM_c regions |
+| SAM_c+KernelSHAP-500/1000 | Same budgets | Kernel SHAP coalition samples on saved SAM_c regions |
+| LIME-1000 | `--lime-budgets 1000` | 1000 perturbation samples per background |
+| Shap-AA-1000 | `--aa-budget 1000` | Axis-aligned hierarchical SHAP |
 | LRP | Captum epsilon propagation | ResNet-50 logit relevance |
 | GradCAM | Last CNN block / ViT pre-attention normalization | Positive class activation map |
 | IDG | `--idg-steps 50` | Integrated **Decision** Gradients |
 | GradExp | `--gradient-samples 20` | SHAP GradientExplainer expected gradients |
 | GradShap | `--gradient-samples 20` | Captum GradientShap, noise standard deviation 0.0001 |
 
-`--max-evals` still controls the original three methods; it does not replace the
-explicit comparison budgets. LIME uses SLIC with approximately budget/5 regions
-and averages across the configured background images. Its labels are sample
-budgets, not region counts. This uses SLIC rather than the old notebook's tuned
-quickshift segmentation, so its maps need not reproduce that notebook exactly.
+`--partition-budgets` (alias `--bpt-budgets`) controls all three partition-based
+methods. In all-method mode `--max-evals` and `--kernel-shap-samples` do not
+replace those explicit budgets. No extra unbudgeted copies are computed. The
+compact 2×3 plot uses the highest partition budget; the wide figure shows all
+methods. Without `--explain_all`, the original three-method behavior is unchanged.
+
+LIME requests **250 SLIC segments for MS-COCO** and **100 for every other dataset**.
+Use `--lime-segments N` to override. SLIC is approximate; the requested and actual
+region counts are saved in method status. LIME sample budgets are independent of
+segment counts. It averages across the configured background images. The original
+notebook used tuned quickshift, so its maps need not reproduce that notebook exactly.
 
 Gradient methods use the classifier's actual weights and preprocessing. Input
 attributions are summed across color channels without taking absolute values or

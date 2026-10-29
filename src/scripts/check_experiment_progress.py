@@ -484,7 +484,10 @@ def run(args):
     print(f"Results root: {results_root}")
     if masks_base_path:
         print(f"Masks base path: {masks_base_path}")
-    print(f"Expected methods ({len(methods)}): {','.join(methods)}")
+    if args.methods:
+        print(f"Expected methods ({len(methods)}): {','.join(methods)}")
+    else:
+        print('Expected methods: read from each run_info.json (legacy defaults when absent)')
     if global_expected:
         print(f"Expected images from masks: {len(global_expected)}")
 

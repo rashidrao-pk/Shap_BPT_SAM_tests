@@ -92,6 +92,7 @@ class DetrAdapter:
         self.model = DetrForObjectDetection.from_pretrained(source, config=config, **options).to(device).eval()
         labels = {int(key): str(value) for key, value in self.model.config.id2label.items()}
         self.class_names = [labels.get(index, f'class_{index}') for index in range(max(labels) + 1)]
+        self.padding_classes = [index for index, name in enumerate(self.class_names) if name.upper() == 'N/A']
         self.name = source
 
     def _results(self, images):
@@ -112,14 +113,16 @@ class DetrAdapter:
         for start in range(0, len(images), self.batch_size):
             rows.extend(detection_scores(result, len(self.class_names), self.aggregate)
                         for result in self._results(images[start:start + self.batch_size]))
-        return np.stack(rows) if rows else np.empty((0, len(self.class_names)))
+        scores = np.stack(rows) if rows else np.empty((0, len(self.class_names)))
+        scores[:, self.padding_classes] = 0
+        return scores
 
     def detections(self, image):
         result = self._results([image])[0]
         return [{'class_id': int(label), 'class_name': self.class_names[int(label)],
                  'confidence': float(score), 'box': box.tolist()}
                 for label, score, box in zip(result['labels'].cpu(), result['scores'].cpu(), result['boxes'].cpu())
-                if float(score) >= max(.3, self.threshold)]
+                if float(score) >= max(.3, self.threshold) and int(label) not in self.padding_classes]
 
 
 def load_adapter(kind, args, device):

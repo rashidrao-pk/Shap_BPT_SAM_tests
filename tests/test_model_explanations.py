@@ -15,7 +15,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src/scripts/explanations'))
 import experiment_common as common
-from model_adapters import detection_scores
+from model_adapters import detection_scores, read_class_names
 
 
 class SmallAdapter:
@@ -94,6 +94,31 @@ class ModelExplanationTest(unittest.TestCase):
         self.assertAlmostEqual(scores[1, 0], 127/510)
         self.assertEqual(predict(np.empty((0, 4, 5), dtype=bool)).shape, (0, 2))
 
+    def test_detr_sum_max_with_sparse_coco_labels(self):
+        import torch
+        result = {'labels': torch.tensor([62, 62, 1]), 'scores': torch.tensor([.3, .8, .5])}
+        summed = detection_scores(result, 91, 'sum')
+        maximum = detection_scores(result, 91, 'max')
+        self.assertAlmostEqual(summed[62], 1.1, places=6)
+        self.assertAlmostEqual(maximum[62], .8, places=6)
+        self.assertEqual(summed.shape, (91,))
+        self.assertEqual(read_class_names({'0': 'background', '1': 'camouflage'}),
+                         ['background', 'camouflage'])
+
+    def test_custom_classifier_checkpoint_labels(self):
+        import torch
+        from unittest.mock import Mock
+        from model_adapters import ClassifierAdapter
+        args = common.create_parser('COD_ViT').parse_args(['--checkpoint', '/fixture/model.pt', '--weights', 'none'])
+        checkpoint = {'state_dict': {'module.heads.head.weight': torch.zeros(2, 768)},
+                      'class_names': ['background', 'camouflage']}
+        model = Mock()
+        with patch('torch.load', return_value=checkpoint), patch('torchvision.models.vit_b_16', return_value=model) as build:
+            adapter = ClassifierAdapter(args, torch.device('cpu'), 'vit_b_16')
+        self.assertEqual(adapter.class_names, ['background', 'camouflage'])
+        build.assert_called_once_with(weights=None, num_classes=2)
+        model.load_state_dict.assert_called_once()
+
     def test_real_explanations_metrics_reports_and_resume(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -136,6 +161,33 @@ class ModelExplanationTest(unittest.TestCase):
             next((root / 'partitions').rglob('*_compact.npy')).unlink()
             with self.assertRaisesRegex(ValueError, 'No completed SAM_c'):
                 common.prepare_inputs('COD_ViT', args)
+
+    def test_single_region_kernel_shap_is_exact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config, image_id = self.fixture(root, 'CAMO')
+            np.save(next((root / 'partitions').rglob('*_compact.npy')), np.zeros((16, 20), dtype=np.uint16))
+            args = common.create_parser('COD_ViT').parse_args([
+                '--config', str(config), '--bg-type', 'black', '--max-evals', '8',
+                '--target-class', '0', '--no-auc', '--no-plots', '--no-html', '--torch-threads', '2'])
+            result = common.run('COD_ViT', args, adapter=SmallAdapter())
+            with np.load(result['run_dir'] / image_id / f'{image_id}_attributions.npz') as values:
+                delta = result['rows'][0]['f_S'] - result['rows'][0]['f_0']
+                np.testing.assert_allclose(values['SAM_c_kernelshap'], delta)
+
+    def test_progress_checker_recognizes_filename_stems_and_manifests(self):
+        import check_experiment_progress as progress
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image_id = 'camourflage_00001'
+            folder = root / image_id
+            folder.mkdir()
+            (folder / f'{image_id}_predictions.json').write_text('{}')
+            (folder / f'{image_id}_complete.json').write_text(json.dumps({
+                'artifacts': [f'{image_id}_predictions.json']}))
+            self.assertEqual(progress.output_status_for_image(root, image_id, common.METHODS, False), (True, []))
+            (root / 'run_info.json').write_text(json.dumps({'image_ids': [image_id]}))
+            self.assertEqual(progress.expected_image_ids_for_experiment(root, {'unrelated'}), {image_id})
 
 
 if __name__ == '__main__':

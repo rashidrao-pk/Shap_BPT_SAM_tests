@@ -161,11 +161,15 @@ def prepare_inputs(kind, args):
 def backgrounds(image, mode):
     from scipy.ndimage import gaussian_filter
     rng = np.random.default_rng(0)
-    values = {'black': np.zeros_like(image), 'gray': np.full_like(image, 127),
-              'white': np.full_like(image, 255),
-              'blurred': gaussian_filter(image.astype(float), sigma=(8, 8, 0)).astype(np.uint8),
-              'noise': np.clip(gaussian_filter(rng.normal(128, 128, image.shape), sigma=(2, 2, 0)), 0, 255).astype(np.uint8)}
-    return [values[key] for key in ['black', 'gray', 'white', 'blurred', 'noise']] if mode == 'full' else [values[mode]]
+    def make(name):
+        if name in {'black', 'gray', 'white'}:
+            return np.full_like(image, {'black': 0, 'gray': 127, 'white': 255}[name])
+        if name == 'blurred':
+            return gaussian_filter(image.astype(float), sigma=(8, 8, 0)).astype(np.uint8)
+        if name == 'noise':
+            return np.clip(gaussian_filter(rng.normal(128, 128, image.shape), sigma=(2, 2, 0)), 0, 255).astype(np.uint8)
+        raise ValueError(f'Unknown background: {name}')
+    return [make(name) for name in ['black', 'gray', 'white', 'blurred', 'noise']] if mode == 'full' else [make(mode)]
 
 
 def make_masked_predictor(adapter, image, replacements, batch_size):
@@ -351,8 +355,12 @@ def build_report(runtime, run_dir, evaluation_dir, rows, summaries, save_plots, 
     sections = []
     for summary in summaries:
         folder = run_dir / summary['image_id']
+        completion = json.loads((folder / f"{summary['image_id']}_complete.json").read_text())
+        permitted = set(completion['artifacts'])
         images = []
         for path in sorted(folder.glob('*.png')):
+            if path.name not in permitted:
+                continue
             relative = os.path.relpath(path, evaluation_dir).replace(os.sep, '/')
             images.append(f'<figure><figcaption>{html.escape(path.stem)}</figcaption>'
                           f'<img loading="lazy" src="{html.escape(relative)}"></figure>')

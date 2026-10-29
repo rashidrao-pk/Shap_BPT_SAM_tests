@@ -32,7 +32,7 @@ python src/scripts/generate_camo_partitions.py \
   --max-regions 62 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact refined \
-  --limit 2
+  --limit 1000
 ```
 
 The script defaults to SAM2 Tiny and target 50. It resolves the checkpoint from
@@ -71,3 +71,21 @@ are saved under the configured output directory in
 
 These are generic region partitions, not predicted camouflage class labels or
 CAMO detection/segmentation evaluation results.
+
+## Resume after CUDA out-of-memory
+
+Shared inference now halves the point batch on a CUDA out-of-memory error
+(`64 → 32 → 16 → ... → 1`), clears failed cached image features, and retries the
+current image. The smaller batch remains in use for subsequent images. Retry
+messages go to the run log. Other errors still stop the run.
+
+Sync the updated `generate_sam_partitions.py` and `generate_coco_partitions.py`,
+then repeat your exact command. Completed images are retained and skipped;
+do not add `--overwrite`. Requested settings remain unchanged for resume, while
+JSON records the actual `effective_points_per_batch` used for each new image.
+If batch size 1 still fails, the error is logged and propagated.
+
+The raw-mask target and final region cap do not cap GPU memory during candidate
+mask generation and resizing. Explicitly changing `--points-per-batch` changes
+saved generation settings and can trigger the resume mismatch check, so use the
+automatic retry when continuing an existing dataset.

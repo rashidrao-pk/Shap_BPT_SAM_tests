@@ -2,6 +2,7 @@
 """Count completed partition images for all configured datasets, without SAM/GPU."""
 import argparse
 import json
+import math
 from pathlib import Path
 import re
 
@@ -47,16 +48,54 @@ def source_ids(data, limit=None):
     return set(ids if limit is None else ids[:limit])
 
 
+def format_bytes(size):
+    value = float(size)
+    for unit in ['B', 'KiB', 'MiB', 'GiB', 'TiB']:
+        if value < 1024 or unit == 'TiB':
+            return f'{value:.1f} {unit}'
+        value /= 1024
+
+
+def format_duration(seconds, samples):
+    if not samples:
+        return 'n/a'
+    seconds = round(seconds)
+    hours, rest = divmod(seconds, 3600)
+    minutes, seconds = divmod(rest, 60)
+    return f'{hours:02d}:{minutes:02d}:{seconds:02d}'
+
+
+def output_image_id(name):
+    for suffix in ['_results.json', '_raw_masks.npz', *[f'_{stage}.npy' for stage in STAGES]]:
+        if name.endswith(suffix):
+            return name.removesuffix(suffix)
+    return None
+
+
 def inspect_folder(folder, expected_ids, dataset, methods=None):
     files = {path.name for path in folder.iterdir() if path.is_file()} if folder.is_dir() else set()
     complete, observed = set(), set()
     invalid_metadata = 0
+    subset_bytes = folder_bytes = 0
+    subset_seconds = folder_seconds = 0.0
+    subset_timed = folder_timed = folder_completed = 0
+    if folder.is_dir():
+        for path in folder.rglob('*'):
+            if not path.is_file():
+                continue
+            try:
+                size = path.stat().st_size
+            except FileNotFoundError:
+                continue  # An active generator may atomically rename a temporary file.
+            folder_bytes += size
+            if path.parent == folder and output_image_id(path.name) in expected_ids:
+                subset_bytes += size
     for name in files:
         if name.endswith('_results.json'):
             image_id = name.removesuffix('_results.json')
-            if image_id not in expected_ids:
-                continue
-            observed.add(image_id)
+            in_subset = image_id in expected_ids
+            if in_subset:
+                observed.add(image_id)
             try:
                 record = json.loads((folder / name).read_text())
                 if not isinstance(record, dict):
@@ -67,9 +106,20 @@ def inspect_folder(folder, expected_ids, dataset, methods=None):
                 if not isinstance(stages, list) or not all(isinstance(stage, str) for stage in stages):
                     raise ValueError('Invalid saved stages')
                 if all(f'{image_id}_{stage}.npy' in files for stage in stages):
-                    complete.add(image_id)
+                    folder_completed += 1
+                    if in_subset:
+                        complete.add(image_id)
+                    seconds = record.get('total_time_sec')
+                    if (isinstance(seconds, (int, float)) and not isinstance(seconds, bool)
+                            and math.isfinite(seconds) and seconds >= 0):
+                        folder_seconds += seconds
+                        folder_timed += 1
+                        if in_subset:
+                            subset_seconds += seconds
+                            subset_timed += 1
             except (OSError, ValueError, TypeError, AttributeError):
-                invalid_metadata += 1
+                if in_subset:
+                    invalid_metadata += 1
         elif name.endswith('.npy'):
             for stage in STAGES:
                 suffix = f'_{stage}.npy'
@@ -83,6 +133,12 @@ def inspect_folder(folder, expected_ids, dataset, methods=None):
             'total': total, 'percent': round(100 * len(complete) / total, 2) if total else 0,
             'partial': len(observed - complete), 'remaining': total - len(complete),
             'invalid_metadata': invalid_metadata,
+            'subset_bytes': subset_bytes, 'folder_bytes': folder_bytes,
+            'subset_generation_seconds': subset_seconds, 'folder_generation_seconds': folder_seconds,
+            'subset_timed_images': subset_timed, 'folder_timed_images': folder_timed,
+            'subset_missing_timings': len(complete) - subset_timed,
+            'folder_completed_images': folder_completed,
+            'folder_missing_timings': folder_completed - folder_timed,
             'status': 'present' if folder.is_dir() else 'not created'}
 
 
@@ -115,13 +171,24 @@ def main():
             rows.extend(check_dataset(config, args.methods, args.limit, args.configured_only))
         except (OSError, ValueError, KeyError, TypeError) as exc:
             errors.append({'config': config, 'error': str(exc)})
-    print(f'{"Dataset":<12} {"Completed / Total":>19} {"Progress":>9} {"Partial":>8} {"Remaining":>10}  Folder')
+    print(f'{"Dataset":<12} {"Completed / Total":>19} {"Progress":>9} {"Partial":>8} '
+          f'{"Remaining":>10} {"Size(subset)":>12} {"Size(folder)":>12} '
+          f'{"Time(subset)":>12} {"Time(folder)":>12}  Folder')
     for row in rows:
         counts = f'{row["completed"]} / {row["total"]}'
         print(f'{row["dataset"]:<12} {counts:>19} {row["percent"]:>8.2f}% '
-              f'{row["partial"]:>8} {row["remaining"]:>10}  {Path(row["folder"]).name}')
+              f'{row["partial"]:>8} {row["remaining"]:>10} '
+              f'{format_bytes(row["subset_bytes"]):>12} {format_bytes(row["folder_bytes"]):>12} '
+              f'{format_duration(row["subset_generation_seconds"], row["subset_timed_images"]):>12} '
+              f'{format_duration(row["folder_generation_seconds"], row["folder_timed_images"]):>12}  '
+              f'{Path(row["folder"]).name}')
         if row['status'] != 'present' or row['invalid_metadata']:
             print(f'  {row["status"]}; invalid metadata: {row["invalid_metadata"]}')
+        if row['subset_missing_timings'] or row['folder_missing_timings']:
+            print(f'  Completed images missing timings: subset={row["subset_missing_timings"]}, '
+                  f'folder={row["folder_missing_timings"]}')
+    print('Size = logical file sizes; subset follows --limit, folder includes all files. '
+          'Time = sum of recorded per-image generation times (HH:MM:SS), not Slurm wall time.')
     for error in errors:
         print(f'ERROR {error["config"]}: {error["error"]}')
     if args.json:

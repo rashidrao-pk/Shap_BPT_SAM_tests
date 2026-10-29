@@ -214,3 +214,21 @@ After the first two images complete, follow [XAI/EPITO.md](../XAI/EPITO.md).
 You can run the two-image XAI smoke test before generating all COCO images.
 
 When finished, use `exit` to release the GPU allocation.
+
+## Resume after CUDA out-of-memory
+
+Shared inference now halves the point batch on a CUDA out-of-memory error
+(`64 → 32 → 16 → ... → 1`), clears failed cached image features, and retries the
+current image. The smaller batch remains in use for subsequent images. Retry
+messages go to the run log. Other errors still stop the run.
+
+Sync the updated `generate_sam_partitions.py` and `generate_coco_partitions.py`,
+then repeat your exact command. Completed images are retained and skipped;
+do not add `--overwrite`. Requested settings remain unchanged for resume, while
+JSON records the actual `effective_points_per_batch` used for each new image.
+If batch size 1 still fails, the error is logged and propagated.
+
+The raw-mask target and final region cap do not cap GPU memory during candidate
+mask generation and resizing. Explicitly changing `--points-per-batch` changes
+saved generation settings and can trigger the resume mismatch check, so use the
+automatic retry when continuing an existing dataset.

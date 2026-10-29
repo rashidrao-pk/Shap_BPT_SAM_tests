@@ -9,6 +9,7 @@ tables, plots, and an HTML page.
 from __future__ import annotations
 
 import argparse
+from config_paths import output_path, load_path_config
 import html
 import json
 import re
@@ -907,20 +908,21 @@ window.addEventListener('DOMContentLoaded', () => {{
 def discover_results_dirs(results_root: Path, experiments: list[str] | None) -> list[Path]:
     if experiments:
         return [results_root / exp for exp in experiments]
-    return sorted(path for path in results_root.glob("xai_results*") if path.is_dir())
+    return sorted({path.parent for path in results_root.rglob('run_info.json')})
 
 
 def run(args):
+    config = load_path_config(args.config)
     if args.results_dirs:
         results_dirs = [Path(path).expanduser().resolve() for path in args.results_dirs]
     else:
-        results_root = Path(args.results_root).expanduser().resolve()
+        results_root = Path(args.results_root).expanduser().resolve() if args.results_root else output_path(config, 'explanations')
         results_dirs = discover_results_dirs(results_root, args.experiments)
 
     if not results_dirs:
         raise FileNotFoundError("No result directories were provided or discovered.")
 
-    output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else results_dirs[0].parent / "experiment_comparison"
+    output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else output_path(config, 'evaluations') / 'experiment_comparison'
     output_dir.mkdir(parents=True, exist_ok=True)
 
     frames, metadata, region_frames = [], [], []
@@ -1038,7 +1040,8 @@ def run(args):
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--results-root", default="examples/results", help="Folder containing xai_results_* directories.")
+    parser.add_argument("--config", default="MSCOCO_epito", help="Config for explanation inputs and evaluation outputs.")
+    parser.add_argument("--results-root", default=None, help="Folder containing xai_results_* directories.")
     parser.add_argument("--results-dirs", nargs="*", default=None, help="Explicit result directories to compare.")
     parser.add_argument("--experiments", nargs="*", default=None, help="Directory names under --results-root, e.g. xai_results_E1_1_2 xai_results_E3_1.")
     parser.add_argument("--output-dir", default=None, help="Where to save combined CSVs, plots, and HTML.")

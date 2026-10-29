@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import html
 import re
 import sys
@@ -18,6 +19,10 @@ if str(PROJECT_ROOT_HINT) not in sys.path:
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+
+from config_paths import output_path, evaluation_path
+
+import run_yolo_full as summary_runner
 
 from run_yolo_full import (  # noqa: E402
     aggregate_auc_outputs,
@@ -38,7 +43,12 @@ def resolve_results_dir(project_root: Path, args) -> Path:
         return path
 
     config = load_config(project_root, args.config)
-    path = Path(config["output"]["dir"]) / config["output"].get("folder", "") / "xai_results"
+    path = output_path(config, 'explanations', project_root)
+    if config.get('output', {}).get('explanations'):
+        background = args.bg_type or config.get('evaluation', {}).get('bg-type', 'noise')
+        path = path / 'OD_yolo' / config['data']['mask_dir_final'] / f'bg_{background}_B{args.max_evals}'
+    else:
+        path = path / 'xai_results' 
     if not path.is_absolute():
         path = project_root / path
     return path
@@ -70,6 +80,9 @@ def resolve_auc_csv(results_dir: Path, auc_csv: str | None = None) -> Path:
 
 def infer_max_evals(path: Path, fallback: int) -> int:
     match = re.search(r"auc_results_all_images_(\d+)_\d+\.csv$", path.name)
+    if match:
+        return int(match.group(1))
+    match = re.search(r"bg_.+_B(\d+)$", path.parent.name)
     if match:
         return int(match.group(1))
     return fallback
@@ -194,7 +207,7 @@ def rel_path(path: Path | None, root: Path) -> str:
     try:
         return html_escape(path.relative_to(root).as_posix())
     except ValueError:
-        return html_escape(str(path))
+        return html_escape(os.path.relpath(path, root).replace(os.sep, "/"))
 
 
 def sortable_auc_table(df: pd.DataFrame, results_dir: Path, metric: str, caption: str) -> str:
@@ -239,7 +252,9 @@ def sortable_auc_table(df: pd.DataFrame, results_dir: Path, metric: str, caption
     )
 
 
-def build_auc_outlier_report(auc_all_df: pd.DataFrame, results_dir: Path, top_n: int = 50) -> Path:
+def build_auc_outlier_report(auc_all_df: pd.DataFrame, results_dir: Path, top_n: int = 50, output_dir: Path | None = None) -> Path:
+    output_dir = Path(output_dir) if output_dir is not None else results_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
     required = {"auc_ins", "auc_del"}
     missing = required - set(auc_all_df.columns)
     if missing:
@@ -258,8 +273,8 @@ def build_auc_outlier_report(auc_all_df: pd.DataFrame, results_dir: Path, top_n:
             continue
         seen.add(folder_id)
         image_id = normalize_image_id(row.get("image_id", folder_id))
-        xai_html = f"<img src='{rel_path(xai_path, results_dir)}' alt='XAI {html_escape(image_id)}'>" if xai_path else "<div class='missing'>Missing XAI image</div>"
-        auc_html = f"<img src='{rel_path(auc_path, results_dir)}' alt='AUC {html_escape(image_id)}'>" if auc_path else "<div class='missing'>Missing AUC image</div>"
+        xai_html = f"<img src='{rel_path(xai_path, output_dir)}' alt='XAI {html_escape(image_id)}'>" if xai_path else "<div class='missing'>Missing XAI image</div>"
+        auc_html = f"<img src='{rel_path(auc_path, output_dir)}' alt='AUC {html_escape(image_id)}'>" if auc_path else "<div class='missing'>Missing AUC image</div>"
         image_cards.append(
             f"<section class='image-card' id='image-{html_escape(folder_id)}'>"
             f"<h2>Image {html_escape(image_id)}</h2>"
@@ -333,7 +348,7 @@ function sortTable(th) {{
 </body>
 </html>
 """
-    out_path = results_dir / "auc_outlier_report.html"
+    out_path = output_dir / "auc_outlier_report.html"
     out_path.write_text(html_doc, encoding="utf-8")
     print(f"AUC outlier report written to: {out_path}")
     return out_path
@@ -342,7 +357,14 @@ function sortTable(th) {{
 def run(args):
     project_root = find_project_root()
     results_dir = resolve_results_dir(project_root, args)
-    results_dir.mkdir(parents=True, exist_ok=True)
+    if not results_dir.is_dir():
+        raise FileNotFoundError(results_dir)
+    config = load_config(project_root, args.config)
+    report_dir = (Path(args.output_dir).expanduser() if args.output_dir else
+                  evaluation_path(config, results_dir, project_root))
+    if not report_dir.is_absolute():
+        report_dir = project_root / report_dir
+    report_dir.mkdir(parents=True, exist_ok=True)
 
     if not args.boxplots and not args.html_report and not args.outlier_report:
         args.boxplots = True
@@ -351,6 +373,7 @@ def run(args):
 
     print(f"Project root: {project_root}")
     print(f"Results dir: {results_dir}")
+    print(f"Evaluations dir: {report_dir}")
 
     auc_all_df = None
     if args.boxplots or args.outlier_report:
@@ -361,24 +384,32 @@ def run(args):
         print(f"Images in AUC table: {auc_all_df['image_no'].nunique() if 'image_no' in auc_all_df.columns else 'unknown'}")
         print(f"Max evals: {max_evals}")
 
+    run_info_path = results_dir / 'run_info.json'
+    if run_info_path.is_file():
+        import json
+        recorded_methods = json.loads(run_info_path.read_text()).get('methods')
+        if recorded_methods:
+            summary_runner.METHOD_ORDER = recorded_methods
     if args.boxplots:
         partition_summary_df = prepare_partition_summary(resolve_partition_summary(results_dir, args.partition_summary), auc_all_df)
-        aggregate_auc_outputs(auc_all_df, partition_summary_df, results_dir, max_evals)
-        save_time_comparison_outputs(auc_all_df, partition_summary_df, results_dir, max_evals)
-        save_total_time_outputs(auc_all_df, partition_summary_df, results_dir, max_evals)
+        aggregate_auc_outputs(auc_all_df, partition_summary_df, report_dir, max_evals)
+        save_time_comparison_outputs(auc_all_df, partition_summary_df, report_dir, max_evals)
+        save_total_time_outputs(auc_all_df, partition_summary_df, report_dir, max_evals)
 
     if args.html_report:
-        report_path = build_xai_results_webpage(results_dir)
+        report_path = build_xai_results_webpage(results_dir, evaluation_dir=report_dir)
         print(f"HTML report: {report_path}")
 
     if args.outlier_report:
-        outlier_path = build_auc_outlier_report(auc_all_df, results_dir, top_n=args.outlier_top_n)
+        outlier_path = build_auc_outlier_report(auc_all_df, results_dir, top_n=args.outlier_top_n, output_dir=report_dir)
         print(f"AUC outlier report: {outlier_path}")
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", default="MSCOCO_mac", help="Config name/path used only when --results-dir is omitted.")
+    parser.add_argument("--config", default="MSCOCO_epito", help="Config for output.explanations and output.evaluations.")
+    parser.add_argument("--output-dir", help="Override evaluation report directory.")
+    parser.add_argument("--bg-type", default=None, help="Background used to locate the configured OD_yolo run.")
     parser.add_argument("--results-dir", default=None, help="Path to xai_results folder.")
     parser.add_argument("--auc-csv", default=None, help="Specific aggregate/current AUC CSV to summarize.")
     parser.add_argument("--partition-summary", default=None, help="Specific partition_summary.csv path.")

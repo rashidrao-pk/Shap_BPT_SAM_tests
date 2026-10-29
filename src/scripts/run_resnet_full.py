@@ -21,6 +21,8 @@ PROJECT_ROOT_HINT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT_HINT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT_HINT))
 
+from config_paths import output_path, partition_path, evaluation_path
+
 import cv2
 import matplotlib
 
@@ -269,8 +271,7 @@ def run(args):
     config = load_config(project_root, args.config)
     if args.output_dir:
         config.setdefault("output", {})
-        config["output"]["dir"] = str(Path(args.output_dir).expanduser())
-        config["output"]["folder"] = ""
+        config["output"]["explanations"] = str(Path(args.output_dir).expanduser())
     kernel_shap_samples = args.kernel_shap_samples or args.max_evals
     kernel_shap_batch_size = args.kernel_shap_batch_size or args.eval_batch_size
 
@@ -303,12 +304,15 @@ def run(args):
         )
         describe_compute_resources(device)
 
-    masks_base_path = Path(config["data"]["masks_path"]) / config["data"]["mask_dir"] / config["data"]["mask_dir_final"]
+    masks_base_path = partition_path(config, project_root)
     image_dir = config["data"]["image_dir"]
     exp_no = infer_experiment_no("resnet50", args.bg_type, args.exp_no)
     results_name = add_exp_suffix(args.results_name, exp_no if args.exp_suffix else None)
-    path_results = Path(config["output"]["dir"]) / config["output"].get("folder", "") / results_name
+    path_results = output_path(config, "explanations", project_root) / results_name
     path_results.mkdir(parents=True, exist_ok=True)
+    path_evaluations = evaluation_path(config, path_results, project_root)
+    path_evaluations.mkdir(parents=True, exist_ok=True)
+    print(f"Evaluations: {path_evaluations}")
     save_run_info(
         path_results,
         {
@@ -334,6 +338,7 @@ def run(args):
             "masks_base_path": str(masks_base_path),
             "image_dir": str(image_dir),
             "results_dir": str(path_results),
+            "evaluations_dir": str(path_evaluations),
         },
     )
 
@@ -355,6 +360,7 @@ def run(args):
     print(f"Results: {path_results}")
 
     partition_summary_df = build_partition_summary(image_ids, masks_base_path, path_results, uts2)
+    partition_summary_df.to_csv(path_evaluations / "partition_summary.csv", index=False)
 
     failures = []
     auc_table_rows = []
@@ -567,6 +573,7 @@ def run(args):
                     )
                 )
                 current_run_path, current_auc_df = save_current_auc_table(auc_table_rows, path_results)
+                current_auc_df.to_csv(path_evaluations / current_run_path.name, index=False)
                 if resource_logging and (iteration_index == 1 or (args.verbose_k > 0 and iteration_index % args.verbose_k == 0)):
                     n_saved_images = current_auc_df["image_no"].nunique() if "image_no" in current_auc_df.columns else "unknown"
                     tqdm.write(f"Current-run AUC saved: {current_run_path} ({n_saved_images} images)")
@@ -624,10 +631,11 @@ def run(args):
 
     if auc_table_rows:
         current_run_path, auc_all_df = save_current_auc_table(auc_table_rows, path_results)
+        auc_all_df.to_csv(path_evaluations / current_run_path.name, index=False)
         print(f"Current-run AUC table: {current_run_path}")
-        aggregate_auc_outputs(auc_all_df, partition_summary_df, path_results, args.max_evals)
-        save_time_comparison_outputs(auc_all_df, partition_summary_df, path_results, args.max_evals)
-        save_total_time_outputs(auc_all_df, partition_summary_df, path_results, args.max_evals)
+        aggregate_auc_outputs(auc_all_df, partition_summary_df, path_evaluations, args.max_evals)
+        save_time_comparison_outputs(auc_all_df, partition_summary_df, path_evaluations, args.max_evals)
+        save_total_time_outputs(auc_all_df, partition_summary_df, path_evaluations, args.max_evals)
 
     if failures:
         failures_path = path_results / "full_image_set_failures.json"
@@ -635,7 +643,7 @@ def run(args):
         print(f"Failures saved to: {failures_path}")
 
     if args.build_html:
-        build_xai_results_webpage(path_results)
+        build_xai_results_webpage(path_results, evaluation_dir=path_evaluations)
 
     print(f"Completed images: {len(image_ids) - len(failures)}")
     print(f"Failures: {len(failures)}")
@@ -647,7 +655,7 @@ def parse_args():
     parser.add_argument("--weights", default="IMAGENET1K_V2", choices=["IMAGENET1K_V1", "IMAGENET1K_V2", "DEFAULT", "none"])
     parser.add_argument("--checkpoint", default=None, help="Optional ResNet-50 checkpoint path.")
     parser.add_argument("--device", default=None, choices=["auto", "cpu", "cuda", "mps"], help="Override config device.")
-    parser.add_argument("--output-dir", default=None, help="Override config output.dir.")
+    parser.add_argument("--output-dir", default=None, help="Override config output.explanations.")
     parser.add_argument("--results-name", default="xai_results", help="Results folder created inside output dir/folder.")
     parser.add_argument("--exp-no", default=None, help="Override experiment number, e.g. E2_1.")
     parser.add_argument("--no-exp-suffix", dest="exp_suffix", action="store_false", help="Do not append experiment number to results folder.")

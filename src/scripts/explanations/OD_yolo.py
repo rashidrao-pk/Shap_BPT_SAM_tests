@@ -24,7 +24,11 @@ PROJECT_ROOT_HINT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT_HINT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT_HINT))
 
+SCRIPTS_DIR = PROJECT_ROOT_HINT / 'src/scripts'
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 import yaml
+from config_paths import output_path, partition_path, evaluation_path
 
 
 def load_runtime_dependencies():
@@ -1108,7 +1112,9 @@ def save_total_time_outputs(auc_all_df: pd.DataFrame, partition_summary_df: pd.D
     print(f"Saved total time plot: {plot_path}")
 
 
-def build_xai_results_webpage(xai_results_root: Path):
+def build_xai_results_webpage(xai_results_root: Path, evaluation_dir: Path | None = None):
+    evaluation_dir = Path(evaluation_dir) if evaluation_dir is not None else xai_results_root
+    evaluation_dir.mkdir(parents=True, exist_ok=True)
     def escape(value):
         return html.escape(str(value))
 
@@ -1121,7 +1127,7 @@ def build_xai_results_webpage(xai_results_root: Path):
             return escape(value)
 
     def rel_path(path):
-        return escape(path.relative_to(xai_results_root).as_posix())
+        return escape(os.path.relpath(path, evaluation_dir).replace(os.sep, "/"))
 
     def image_tag(path, label):
         if path is not None and path.exists():
@@ -1159,10 +1165,10 @@ def build_xai_results_webpage(xai_results_root: Path):
             rows.append("<tr>" + "".join(f"<td>{fmt_table_value(row[col], col)}</td>" for col in view.columns) + "</tr>")
         return f'<table><thead><tr>{header}</tr></thead><tbody>{"".join(rows)}</tbody></table>'
 
-    auc_all_path = latest_matching_file(xai_results_root, "auc_results_all_images_*.csv")
-    auc_summary_path = latest_matching_file(xai_results_root, "auc_results_summary_*.csv")
-    auc_boxplot_path = latest_matching_file(xai_results_root, "auc_results_boxplots_*.png")
-    faithfulness_boxplot_path = latest_matching_file(xai_results_root, "faithfulness_metric_boxplots_*.png")
+    auc_all_path = latest_matching_file(evaluation_dir, "auc_results_all_images_*.csv")
+    auc_summary_path = latest_matching_file(evaluation_dir, "auc_results_summary_*.csv")
+    auc_boxplot_path = latest_matching_file(evaluation_dir, "auc_results_boxplots_*.png")
+    faithfulness_boxplot_path = latest_matching_file(evaluation_dir, "faithfulness_metric_boxplots_*.png")
     auc_all_df = pd.read_csv(auc_all_path) if auc_all_path is not None else pd.DataFrame()
     auc_summary_df = pd.read_csv(auc_summary_path) if auc_summary_path is not None else pd.DataFrame()
     if not auc_all_df.empty:
@@ -1410,7 +1416,7 @@ function filterImages() {{
 </body>
 </html>
 """
-    html_report_path = xai_results_root / "xai_results_report.html"
+    html_report_path = evaluation_dir / "xai_results_report.html"
     html_report_path.write_text(html_doc, encoding="utf-8")
     print(f"HTML report written to: {html_report_path}")
     return html_report_path
@@ -1426,7 +1432,7 @@ def prepare_inputs(project_root, config, args):
     def rooted(value):
         path = Path(value).expanduser()
         return path if path.is_absolute() else project_root / path
-    partition_dir = rooted(data["masks_path"]) / data["mask_dir"] / data["mask_dir_final"]
+    partition_dir = partition_path(config, project_root)
     if not partition_dir.is_dir():
         raise FileNotFoundError(f"Partition directory not found: {partition_dir}")
     image_dir = rooted(data["image_dir"])
@@ -1483,14 +1489,14 @@ def prepare_inputs(project_root, config, args):
     if args.output_dir:
         output_root = rooted(args.output_dir)
     else:
-        output = config["output"]
-        output_root = rooted(output["dir"]) / output.get("folder", "")
+        output_root = output_path(config, "explanations", project_root)
         output_root = output_root / "OD_yolo" / data["mask_dir_final"]
     output_root = output_root / f"bg_{args.bg_type}_B{args.max_evals}"
     return {"partition_dir": partition_dir, "image_dir": image_dir,
             "annotation_file": annotation_path, "image_ids": ids,
             "methods": methods, "method_labels": {method: METHOD_LABELS[method] for method in methods},
-            "output_root": output_root}
+            "output_root": output_root,
+            "evaluation_root": evaluation_path(config, output_root, project_root)}
 
 
 def run(args):
@@ -1512,8 +1518,7 @@ def run(args):
 
     if args.output_dir:
         config.setdefault("output", {})
-        config["output"]["dir"] = str(Path(args.output_dir).expanduser())
-        config["output"]["folder"] = ""
+        config["output"]["explanations"] = str(Path(args.output_dir).expanduser())
     kernel_shap_samples = args.kernel_shap_samples or args.max_evals
     kernel_shap_batch_size = args.kernel_shap_batch_size or args.eval_batch_size
 
@@ -1551,6 +1556,9 @@ def run(args):
     exp_no = infer_experiment_no("yolov11", args.bg_type, args.exp_no, max_evals=args.max_evals, include_budget=args.budget_suffix)
     path_results = inputs["output_root"]
     path_results.mkdir(parents=True, exist_ok=True)
+    path_evaluations = evaluation_path(config, path_results, project_root)
+    path_evaluations.mkdir(parents=True, exist_ok=True)
+    print(f"Evaluations: {path_evaluations}")
     save_run_info(
         path_results,
         {
@@ -1578,6 +1586,7 @@ def run(args):
             "masks_base_path": str(masks_base_path),
             "image_dir": str(image_dir),
             "results_dir": str(path_results),
+            "evaluations_dir": str(path_evaluations),
         },
     )
     coco = COCO(str(inputs["annotation_file"]))
@@ -1588,6 +1597,7 @@ def run(args):
     print(f"Results: {path_results}")
 
     partition_summary_df = build_partition_summary(image_ids, masks_base_path, path_results, uts2)
+    partition_summary_df.to_csv(path_evaluations / "partition_summary.csv", index=False)
 
     failures = []
     auc_table_rows = load_existing_auc_rows(path_results) if args.resume else []
@@ -1817,6 +1827,7 @@ def run(args):
                 )
                 auc_table_rows.extend(image_auc_rows)
                 current_run_path, current_auc_df = save_current_auc_table(auc_table_rows, path_results)
+                current_auc_df.to_csv(path_evaluations / current_run_path.name, index=False)
                 if resource_logging and (iteration_index == 1 or (args.verbose_k > 0 and iteration_index % args.verbose_k == 0)):
                     n_saved_images = current_auc_df["image_no"].nunique() if "image_no" in current_auc_df.columns else "unknown"
                     tqdm.write(f"Current-run AUC saved: {current_run_path} ({n_saved_images} images)")
@@ -1875,10 +1886,11 @@ def run(args):
 
     if auc_table_rows:
         current_run_path, auc_all_df = save_current_auc_table(auc_table_rows, path_results)
+        auc_all_df.to_csv(path_evaluations / current_run_path.name, index=False)
         print(f"Current-run AUC table: {current_run_path}")
-        aggregate_auc_outputs(auc_all_df, partition_summary_df, path_results, args.max_evals)
-        save_time_comparison_outputs(auc_all_df, partition_summary_df, path_results, args.max_evals)
-        save_total_time_outputs(auc_all_df, partition_summary_df, path_results, args.max_evals)
+        aggregate_auc_outputs(auc_all_df, partition_summary_df, path_evaluations, args.max_evals)
+        save_time_comparison_outputs(auc_all_df, partition_summary_df, path_evaluations, args.max_evals)
+        save_total_time_outputs(auc_all_df, partition_summary_df, path_evaluations, args.max_evals)
 
     if failures:
         failures_path = path_results / "full_image_set_failures.json"
@@ -1886,7 +1898,7 @@ def run(args):
         print(f"Failures saved to: {failures_path}")
 
     if args.build_html:
-        build_xai_results_webpage(path_results)
+        build_xai_results_webpage(path_results, evaluation_dir=path_evaluations)
 
     print(f"Computed images this run: {len(image_ids) - len(failures) - skipped_images}")
     print(f"Skipped complete images: {skipped_images}")

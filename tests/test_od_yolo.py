@@ -16,7 +16,7 @@ import numpy as np
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('od_yolo', ROOT / 'src/scripts/explations/OD_yolo.py')
+spec = importlib.util.spec_from_file_location('od_yolo', ROOT / 'src/scripts/explanations/OD_yolo.py')
 od = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(od)
 
@@ -65,6 +65,29 @@ class ODYoloTest(unittest.TestCase):
         inputs = od.prepare_inputs(self.root, self.config,
                                    self.args('--bg-type', 'white', '--max-evals', '50', '--output-dir', str(override)))
         self.assertEqual(inputs['output_root'], override / 'bg_white_B50')
+
+    def test_new_output_schema_and_evaluation_report_links(self):
+        import pandas as pd
+        from PIL import Image
+        self.config['output'] = {'partitions': str(self.root / 'partitions'),
+                                 'explanations': str(self.root / 'explanations'),
+                                 'evaluations': str(self.root / 'evaluations')}
+        inputs = od.prepare_inputs(self.root, self.config, self.args('--bg-type', 'black'))
+        run = inputs['output_root']
+        evaluations = inputs['evaluation_root']
+        self.assertEqual(run, self.root / 'explanations/OD_yolo' / self.folder.name / 'bg_black_B500')
+        self.assertEqual(evaluations, self.root / 'evaluations/OD_yolo' / self.folder.name / 'bg_black_B500')
+        image_folder = run / '1'
+        image_folder.mkdir(parents=True)
+        preview = image_folder / '000000000001_xai_results.png'
+        Image.fromarray(np.zeros((8, 10, 3), dtype=np.uint8)).save(preview)
+        (image_folder / '1_predictions.json').write_text(json.dumps({
+            'image_id': '000000000001', 'fixed_category': 'chair', 'explained_class': 'chair',
+            'f_S': .8, 'f_0': .1, 'has_segmentation': True, 'top_k_classes': []}))
+        with patch.object(od, 'pd', pd, create=True):
+            report = od.build_xai_results_webpage(run, evaluation_dir=evaluations)
+        self.assertEqual(report.parent, evaluations)
+        self.assertIn(os.path.relpath(preview, evaluations).replace(os.sep, '/'), report.read_text())
 
     def test_SAM_c_uses_legacy_maps_for_both_methods(self):
         self.assertEqual(od.partition_type_for_method('SAM_c'), 'compact')

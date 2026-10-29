@@ -97,7 +97,7 @@ generation.
 PNG previews and matching statistics JSON files go to:
 
 ```text
-<configured output>/previews/<mask_dir_final>/ILSVRC2012_val_00000001.png
+<output.evaluations>/previews/<mask_dir_final>/ILSVRC2012_val_00000001.png
 ```
 
 No GPU or SAM model is needed to view saved partitions.

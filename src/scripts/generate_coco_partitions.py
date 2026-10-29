@@ -16,6 +16,7 @@ import yaml
 from tqdm import tqdm
 
 import generate_sam_partitions as sam
+from config_paths import output_path
 
 
 def create_parser(description=__doc__, default_config='MSCOCO_epito'):
@@ -66,7 +67,7 @@ def create_parser(description=__doc__, default_config='MSCOCO_epito'):
     # 
     parser.add_argument('--limit', type=int, help='Generate the first N images; omit for all images')
     parser.add_argument('--overwrite', action='store_true', help='Regenerate completed images')
-    parser.add_argument('--log-file', type=Path, help='Append log; default: <masks_path>/<mask_dir>/<partition-folder-name>.log')
+    parser.add_argument('--log-file', type=Path, help='Append log; default: <output.partitions>/<partition-folder-name>.log')
     parser.add_argument('--dry-run', action='store_true', help='Check paths and list work without loading SAM')
     return parser
 
@@ -174,7 +175,7 @@ def _run(args, progress_stream):
     config = yaml.safe_load(config_path.read_text())
     data = config['data']
     folder_name = partition_folder_name(data, args)
-    output = Path(data['masks_path']) / data['mask_dir'] / folder_name
+    output = output_path(config, 'partitions') / folder_name
     images = collect_images(data)
     if args.limit is not None:
         images = images[:args.limit]
@@ -283,9 +284,10 @@ def run(args):
         config_path = root / 'src/configs' / f'{args.config}.yaml'
     elif not config_path.is_absolute():
         config_path = root / config_path
-    data = yaml.safe_load(config_path.read_text())['data']
+    config = yaml.safe_load(config_path.read_text())
+    data = config['data']
     log_path = getattr(args, 'log_file', None) or (
-        Path(data['masks_path']) / data['mask_dir'] / f'{partition_folder_name(data, args)}.log')
+        output_path(config, 'partitions') / f'{partition_folder_name(data, args)}.log')
     log_path.parent.mkdir(parents=True, exist_ok=True)
     terminal = sys.stderr
     with log_path.open('a', buffering=1) as log:

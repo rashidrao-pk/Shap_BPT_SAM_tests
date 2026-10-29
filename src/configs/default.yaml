@@ -104,7 +104,9 @@ threshold:
   #   majority : anomaly if more than half of scores exceed the threshold
 
 output:
-  dir: results/
+  partitions: data/SAM_BPT
+  explanations: results/
+  evaluations: evaluations/
   save_scores: true
   save_predictions: true
   save_metrics: true

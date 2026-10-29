@@ -24,9 +24,11 @@ cd "$PROJECT_DIR"
 
 ```yaml
 data:
-  masks_path: /beegfs/home/mrashid/datasets/
-  mask_dir: SAM_BPT
   mask_dir_final: MSCOCO_sam2_tiny_62_refined_200
+output:
+  partitions: /beegfs/home/mrashid/datasets/SAM_BPT
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/evaluations
 evaluation:
   methods: [BPT, SAM_c, SAM_c_kernelshap]
 ```
@@ -40,7 +42,7 @@ during generation. See [the YOLO explanation guide](OD_yolo.md).
 ## 3. Run two images
 
 ```bash
-python src/scripts/explations/OD_yolo.py \
+python src/scripts/explanations/OD_yolo.py \
   --config MSCOCO_epito \
   --limit 2 \
   --max-evals 50 \
@@ -63,7 +65,7 @@ Increase `--limit`, or omit it to process all image IDs found in the partition
 folder. Generate those partitions first. For other models and experiment
 settings, see [the experiment matrix](../README_exp_epito.md).
 
-Results are saved under the configured output root as
+Results are saved under `output.explanations` as
 `OD_yolo/<mask_dir_final>/bg_<background>_B<max-evals>/`.
 For example, `--bg-type black --max-evals 500` uses `bg_black_B500`.
 Use `exit` when finished to release the GPU allocation.

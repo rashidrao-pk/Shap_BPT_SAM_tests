@@ -5,6 +5,7 @@ import copy
 import json
 from pathlib import Path
 import yaml
+from config_paths import output_path, partition_path
 
 import numpy as np
 from PIL import Image
@@ -69,10 +70,7 @@ def load_view_config(config_name):
 def discover_image_ids(config_name, methods, limit):
     root, config = load_view_config(config_name)
     data = config['data']
-    base = Path(data['masks_path']).expanduser()
-    if not base.is_absolute():
-        base = root / base
-    folder = base / data['mask_dir'] / data['mask_dir_final']
+    folder = partition_path(config, root)
     if not folder.is_dir():
         raise ValueError(f'Partition folder not found: {folder}; check data.mask_dir_final')
     image_ids = []
@@ -105,7 +103,7 @@ def resolve_paths(args):
             path = Path(value).expanduser()
             return path if path.is_absolute() else root / path
 
-        partition_dir = rooted(data['masks_path']) / data['mask_dir'] / data['mask_dir_final']
+        partition_dir = partition_path(config, root)
         if partitions is None:
             partitions = [partition_dir / f'{image_id}_{method}.npy' for method in args.methods]
         if image is None:
@@ -121,10 +119,7 @@ def resolve_paths(args):
                                  f'found {len(candidates)}. Pass --image explicitly.')
             image = candidates[0]
         if output is None:
-            settings = config.get('output', {})
-            if not settings.get('dir') and not settings.get('folder'):
-                raise ValueError('Config needs output.dir/output.folder, or pass --output')
-            output_root = rooted(settings.get('dir', '.')) / settings.get('folder', '')
+            output_root = output_path(config, 'evaluations', root)
             output = output_root / 'previews' / data['mask_dir_final'] / f'{image_id}.png'
     if image is None or partitions is None or output is None:
         raise ValueError('Use --config with --image-id, or provide --image, --partitions, and --output')

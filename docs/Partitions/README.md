@@ -1,5 +1,6 @@
 # Partition generation
 
+- [Shared output path configuration](../OUTPUT_PATHS.md)
 - [Check progress for all datasets](PROGRESS.md)
 - [Notebook pipeline, viewing, and image tests](NOTEBOOK_PIPELINE.md)
 

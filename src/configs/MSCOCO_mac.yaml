@@ -19,8 +19,6 @@ data:
   image_dir: "/Users/rashid/data/DS/MS_COCO/val2017"
   annotation_file: "/Users/rashid/data/DS/MS_COCO/annotations/annotations_trainval2017/annotations/instances_val2017.json"
 
-  masks_path: "/Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/"
-  mask_dir: "data"
   mask_dir_final: "300_boosted_filled"
 
 model:
@@ -30,5 +28,6 @@ model:
   #   yolo26s : YOLOv26s
 
 output:
-  folder: "results"
-  dir: /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/
+  partitions: /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/data
+  explanations: /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/results
+  evaluations: /Users/rashid/data/PhD/datacloud_data/repos/XAI/ShapBPT-SAM/shap_bpt_sam/examples/evaluations

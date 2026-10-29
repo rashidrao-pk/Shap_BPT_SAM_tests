@@ -66,7 +66,7 @@ python src/scripts/view_partitions.py \
 
 Use only stages you saved. Replace `--image-id camourflage_00001` with `--limit 5`
 to preview the first five completed images. Preview images and statistics JSONs
-are saved under the configured output directory in
+are saved under `output.evaluations` in
 `previews/CAMO_sam2_tiny_62_refined_50/`. Viewing needs no GPU.
 
 These are generic region partitions, not predicted camouflage class labels or

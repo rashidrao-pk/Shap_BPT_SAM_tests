@@ -1,6 +1,6 @@
 # YOLO explanations from MS-COCO partitions
 
-[OD_yolo.py](../../src/scripts/explations/OD_yolo.py) is a separate copy of
+[OD_yolo.py](../../src/scripts/explanations/OD_yolo.py) is a separate copy of
 `run_yolo_full_all.py`. The original is unchanged. It retains YOLO prediction,
 ShapBPT/region Kernel SHAP, deletion/insertion AUC, faithfulness metrics,
 per-image heatmaps, plots, CSV summaries, resume checks, and the HTML report.
@@ -19,9 +19,11 @@ In `src/configs/MSCOCO_epito.yaml`, check image/annotation paths and set:
 
 ```yaml
 data:
-  masks_path: /beegfs/home/mrashid/datasets/
-  mask_dir: SAM_BPT
   mask_dir_final: MSCOCO_sam2_large_62_refined_200
+output:
+  partitions: /beegfs/home/mrashid/datasets/SAM_BPT
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/evaluations
 ```
 
 These are selected fields, not a replacement config. Use the folder you actually
@@ -31,7 +33,7 @@ ImageNet/CAMO/CelebA-HQ configs.
 ## 2. Validate inputs without a model
 
 ```bash
-python src/scripts/explations/OD_yolo.py \
+python src/scripts/explanations/OD_yolo.py \
   --config MSCOCO_epito \
   --limit 2 \
   --dry-run
@@ -45,7 +47,7 @@ partition outputs without their completed metadata/files are excluded.
 ## 3. Run a two-image experiment
 
 ```bash
-python src/scripts/explations/OD_yolo.py \
+python src/scripts/explanations/OD_yolo.py \
   --config MSCOCO_epito \
   --limit 2 \
   --max-evals 50 \
@@ -85,7 +87,7 @@ Kernel SHAP budgets, plotting controls, and fail-fast behavior.
 
 ## Outputs and resume
 
-Default outputs use the config's output root, then:
+Default outputs use `output.explanations`, then:
 
 ```text
 OD_yolo/<mask_dir_final>/bg_<background>_B<max-evals>/
@@ -103,9 +105,11 @@ model, methods, and experiment metadata remain recorded in `run_info.json`.
 folder is still appended. Use separate output bases when comparing models or
 other settings with the same background and budget.
 
-Outputs include `run_info.json`, experiment mappings, partition/timing summaries,
-updated per-image AUC CSVs, attribution images, aggregate plots, and
-`xai_results_report.html`. Existing complete images are skipped by default;
+Explanation folders contain `run_info.json`, predictions, GT, attribution images,
+per-image curves, and a resume CSV cache. Aggregate metrics/plots and
+`xai_results_report.html` are written under `output.evaluations`, mirroring the
+same `OD_yolo/<partition-folder>/bg_<value>_B<budget>` run path. The HTML report
+links back to the per-image explanation files. Existing complete images are skipped by default;
 `--no-resume` recomputes them. Use a distinct output directory for changes to
 method sets, custom weights, or other settings you want to compare independently.
 Recorded generation timings are limited to the stage timing data present in the
@@ -120,7 +124,7 @@ execution must be tested on EPITO with the dataset and model weights.
 Add `--show_gt` (or `--show-gt`) to the same command:
 
 ```bash
-python src/scripts/explations/OD_yolo.py \
+python src/scripts/explanations/OD_yolo.py \
   --config MSCOCO_epito \
   --limit 2 \
   --max-evals 50 \

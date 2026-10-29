@@ -16,16 +16,15 @@ python src/scripts/view_partitions.py \
 ```
 
 This reads the image from `data.image_dir` and partitions from
-`data.masks_path / data.mask_dir / data.mask_dir_final`. Set `mask_dir_final`
+`output.partitions / data.mask_dir_final`. Set `mask_dir_final`
 to the dataset you want to inspect (for example,
 `MSCOCO_sam2_large_62_refined_200`). COCO IDs are padded to 12 digits.
-The preview is saved under the config's `output.dir / output.folder`, in
+The preview is saved under `output.evaluations`, in
 `previews/<mask_dir_final>/<image_id>.png`, with a matching statistics JSON.
-An absolute `output.folder` takes precedence over `output.dir`, as in the XAI runner.
 
 By default the viewer compares `sam` and `refined`. Select other stage suffixes
 with `--methods sam boosted boosted_filled` when those files exist.
-ImageNet configs need an `output.dir` or `output.folder` too, or an explicit
+ImageNet configs need `output.evaluations` too, or an explicit
 `--output` argument. Use the full filename stem as `--image-id` for ImageNet.
 
 Preview a few completed ImageNet images using the same viewer:

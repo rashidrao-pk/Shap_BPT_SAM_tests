@@ -1,5 +1,6 @@
 ## UTIL Functions for MS COCO Dataset
 from pathlib import Path
+from config_paths import output_path
 import html
 import json
 from math import comb
@@ -1464,7 +1465,6 @@ def plot_xai(input_data,partitions,shap_values, model, results, image_id,
         ax.axis('off')
     plt.tight_layout()
     if save_fig:
-        # save_path = os.path.join(config['output']['dir'], config['output']['folder'], 'xai_results', str(int(input_data['fname'])))
         # os.makedirs(save_path, exist_ok=True)
         plt.savefig(os.path.join(save_path, f"{image_id}_xai_results.png"), dpi=100, bbox_inches='tight')
     if destroy_fig: 
@@ -1521,7 +1521,7 @@ def save_yolo_predictions(results,input_data,config,has_segmentation,top_k_class
         }
     if output_json is None:
         # path_results = os.path.join(original_working_dir, 'results')
-        path_results = os.path.join(config['output']['dir'], config['output']['folder'], 'xai_results')
+        path_results = os.fspath(output_path(config, 'explanations') / 'xai_results')
         path_results_img = os.path.join(path_results, str(int(input_data['fname'])))
         os.makedirs(path_results_img, exist_ok=True)
         detection_summary_path = os.path.join(path_results_img, f'{int(input_data["fname"])}_predictions.json')

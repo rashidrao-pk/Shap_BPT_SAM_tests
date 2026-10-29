@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 
 import yaml
+from config_paths import output_path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIGS = ['MSCOCO_epito', 'ImageNet_epito', 'CelebAHQ_epito', 'CAMO_epito']
@@ -19,13 +20,17 @@ def rooted(value):
     return path if path.is_absolute() else ROOT / path
 
 
-def load_data(config_name):
+def load_config(config_name):
     path = Path(config_name).expanduser()
     if not path.suffix:
         path = ROOT / 'src/configs' / f'{config_name}.yaml'
     else:
         path = rooted(path)
-    return yaml.safe_load(path.read_text())['data']
+    return yaml.safe_load(path.read_text())
+
+
+def load_data(config_name):
+    return load_config(config_name)['data']
 
 
 def source_ids(data, limit=None):
@@ -143,9 +148,10 @@ def inspect_folder(folder, expected_ids, dataset, methods=None):
 
 
 def check_dataset(config_name, methods=None, limit=None, configured_only=False):
-    data = load_data(config_name)
+    config = load_config(config_name)
+    data = config['data']
     expected = source_ids(data, limit)
-    base = rooted(data['masks_path']) / data['mask_dir']
+    base = output_path(config, 'partitions')
     configured = base / data['mask_dir_final']
     folders = {configured}
     if not configured_only and base.is_dir():

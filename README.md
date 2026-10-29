@@ -4,9 +4,9 @@ Tests for SAM inspired ShapBPT - using Segment Anything Model for Improved ShapB
 
 ---
 
-# ShapBPT: Image Feature Attributions Using Data-Aware Binary Partition Trees
+# SAM Guided ShapBPT
 
-### A python library to compute Shapley image explanations with data-aware Binary Partition Trees
+<!-- ### A python library to compute Shapley image explanations with data-aware Binary Partition Trees -->
 
 <p align="center">
 
@@ -293,10 +293,10 @@ python setup.py clean --all
 python -c "import shap_bpt; print(shap_bpt.__version__); print(shap_bpt.__release_name__)"
 ```
 
-# Examples
+<!-- # Examples
 
 - [ImageNet setup with BPT partitions](examples/ImageNET_BPT.ipynb)
-- [ImageNet setup, AA and BPT partitions](examples/ImageNET_BPT_AA.ipynb)
+- [ImageNet setup, AA and BPT partitions](examples/ImageNET_BPT_AA.ipynb) -->
 
 ## 📖 Citation
 

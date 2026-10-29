@@ -19,8 +19,6 @@ data:
   image_dir: "/beegfs/home/mrashid/datasets/MS_COCO/val2017"
   annotation_file: "/beegfs/home/mrashid/datasets/MS_COCO/annotations/annotations_trainval2017/annotations/instances_val2017.json"
 
-  masks_path: "/beegfs/home/mrashid/datasets/"
-  mask_dir: "SAM_BPT" 
   # New SAM2 batch outputs; older partition directories are preserved.
   mask_dir_final: "sam1_62_refined" 
 
@@ -44,5 +42,6 @@ evaluation:
   #   batch_size : number of images to process in a single batch during evaluation
   # --eval-batch-size", type=int, default=16
 output:
-  folder: "/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results"
-  dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/src
+  partitions: /beegfs/home/mrashid/datasets/SAM_BPT
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/evaluations

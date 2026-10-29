@@ -4,10 +4,10 @@ data:
   name: CelebAHQ
   input_format: directory
   image_dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/CelebAMask-HQ/CelebAMask-HQ/CelebA-HQ-img
-  masks_path: /beegfs/home/mrashid/datasets/
-  mask_dir: SAM_BPT
   # Preview input: match this to the folder produced by your generation command.
   mask_dir_final: CelebAHQ_sam2_tiny_62_refined_50
 
 output:
-  dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results
+  partitions: /beegfs/home/mrashid/datasets/SAM_BPT
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/evaluations

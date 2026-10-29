@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
+from config_paths import output_path, partition_path
 
 
 DEFAULT_METHODS = ["BPT", "sam", "coverage", "compact", "filled", "refined", "refined_filled"]
@@ -91,12 +92,9 @@ def resolve_results_root(project_root: Path, args) -> Path:
         return path if path.is_absolute() else project_root / path
 
     config = load_config(project_root, args.config)
-    output = config.get("output", {})
-    output_dir = output.get("dir")
-    if output_dir:
-        path = Path(output_dir).expanduser() / output.get("folder", "")
-        return path if path.is_absolute() else project_root / path
-    return project_root / "src" / "results"
+    if config:
+        return output_path(config, 'explanations', project_root)
+    return project_root / 'outputs/results'
 
 
 def resolve_masks_base_path(project_root: Path, args) -> Path | None:
@@ -106,11 +104,10 @@ def resolve_masks_base_path(project_root: Path, args) -> Path | None:
     if not args.config:
         return None
     config = load_config(project_root, args.config)
-    data = config.get("data", {})
-    if not all(key in data for key in ["masks_path", "mask_dir", "mask_dir_final"]):
+    try:
+        return partition_path(config, project_root)
+    except (KeyError, ValueError):
         return None
-    path = Path(data["masks_path"]).expanduser() / data["mask_dir"] / data["mask_dir_final"]
-    return path if path.is_absolute() else project_root / path
 
 
 def expected_image_ids_from_masks(masks_base_path: Path | None) -> set[str]:
@@ -300,7 +297,9 @@ def discover_experiment_dirs(results_root: Path, experiments: list[str] | None) 
                 path = results_root / exp
             dirs.append(path)
         return dirs
-    return sorted(path for path in results_root.glob("xai_results*") if path.is_dir())
+    dirs = {path.parent for path in results_root.rglob('run_info.json')}
+    dirs.update(path for path in results_root.glob('xai_results*') if path.is_dir())
+    return sorted(dirs)
 
 
 def summarize_experiment(results_dir: Path, expected_ids: set[str], methods: list[str], require_plots: bool) -> tuple[dict, list[dict]]:
@@ -470,7 +469,7 @@ def run(args):
 
     experiment_dirs = discover_experiment_dirs(results_root, args.experiments)
     if not experiment_dirs:
-        raise FileNotFoundError(f"No xai_results* folders found in: {results_root}")
+        raise FileNotFoundError(f"No explanation runs found in: {results_root}")
 
     print(f"Results root: {results_root}")
     if masks_base_path:
@@ -486,7 +485,8 @@ def run(args):
             print(f"Missing experiment folder: {results_dir}")
             continue
         expected_ids = expected_image_ids_for_experiment(results_dir, global_expected)
-        summary, rows = summarize_experiment(results_dir, expected_ids, methods, args.require_plots)
+        experiment_methods = args.methods or read_json(results_dir / 'run_info.json').get('methods') or methods
+        summary, rows = summarize_experiment(results_dir, expected_ids, experiment_methods, args.require_plots)
         summaries.append(summary)
         partial_rows.extend(rows)
 
@@ -515,7 +515,9 @@ def run(args):
     print("\nExperiment progress:")
     print(summary_df[display_cols].to_string(index=False))
 
-    output_dir = Path(args.output_dir).expanduser() if args.output_dir else results_root
+    output_dir = Path(args.output_dir).expanduser() if args.output_dir else (
+        output_path(load_config(project_root, args.config), 'evaluations', project_root) / 'experiment_progress'
+        if args.config else results_root / 'experiment_progress')
     if not output_dir.is_absolute():
         output_dir = project_root / output_dir
     output_dir.mkdir(parents=True, exist_ok=True)

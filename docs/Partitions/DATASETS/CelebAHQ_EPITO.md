@@ -66,7 +66,7 @@ python src/scripts/view_partitions.py \
 
 For one image, replace `--limit 5` with `--image-id 0` (or another actual filename
 stem). Use only stages that were saved. Previews and statistics JSON files are
-written under the configured output directory in
+written under `output.evaluations` in
 `previews/CelebAHQ_sam2_large_62_refined_200/`. No GPU is needed for viewing.
 
 This prepares partition maps only; it does not add CelebA-HQ support to the COCO

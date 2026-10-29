@@ -90,6 +90,25 @@ class GroundTruthTest(unittest.TestCase):
         self.assertEqual(gt['foreground_pixels'], 2)
         self.assertEqual(gt['scope'], 'selected_class')
 
+    def test_imagenets50_notebook_layout_and_category_line_order(self):
+        labels = np.array([[0, 1], [2, 1000]], dtype=np.uint16)
+        encoded = np.zeros((2, 2, 3), dtype=np.uint8)
+        encoded[:, :, 0], encoded[:, :, 1] = labels % 256, labels // 256
+        self.write('ILSVRC2012_img_val_S/ImageNetS50/validation-segmentation/n00000050/example.png', encoded)
+        categories = self.root / 'gt/ImageNetS_categories_im50.txt'
+        # Deliberately unsorted: label 1 is the FIRST line, not sorted index.
+        categories.write_text('\n'.join(f'n{index:08d}' for index in range(50, 0, -1)))
+        mapping = self.root / 'class_index.json'
+        mapping.write_text(json.dumps({'0': ['n00000050', 'target']}))
+        config = self.config('imagenets', variant=50, class_index_file=str(mapping))
+        gt = load_ground_truth(config, 'example.JPEG', (4, 4, 3), predicted_index=0)
+        self.assertEqual(gt['category_ids'], [1])
+        self.assertEqual(gt['foreground_pixels'], 4)
+        self.assertTrue(gt['mask'][:2, 2:].all())
+        self.assertFalse(gt['mask'][2:].any())
+        self.assertEqual(gt['ignored_pixels'], 4)
+        self.assertTrue(gt['resized'])
+
     def test_missing_annotations_and_mapping_are_explicit(self):
         config = self.imagenets_fixture()
         gt = load_ground_truth(config, 'ILSVRC2012_val_00000001.JPEG', (2, 3, 3),

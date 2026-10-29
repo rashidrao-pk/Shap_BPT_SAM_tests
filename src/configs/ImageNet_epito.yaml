@@ -10,7 +10,8 @@ data:
   ground_truth:
     format: imagenets
     root: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/ImageNet/ImageNetS
-    variant: 919
+    # Same annotation subset used in notebooks/E1_E2_E3_E7.
+    variant: 50
     # Optional: categories_file (ImageNetS synsets) and class_index_file (classifier index -> synset).
 
 output:

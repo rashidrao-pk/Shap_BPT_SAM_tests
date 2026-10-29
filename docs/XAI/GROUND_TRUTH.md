@@ -23,7 +23,7 @@ data:
   ground_truth:
     format: imagenets
     root: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/ImageNet/ImageNetS
-    variant: 919
+    variant: 50
 ```
 
 Set `variant` to the downloaded split (`50`, `300`, or `919`). A root pointing
@@ -91,3 +91,22 @@ Synthetic tests cover binary masks, part groups/padding, RGB IDs above 255,
 background/ignore labels, predicted-class mapping, unavailable masks, ambiguous
 filenames, nearest-neighbor resizing, previews, and CAMO explanation GT artifacts.
 Actual EPITO annotation files are not accessible from the local workspace.
+
+## Reference ImageNet notebook
+
+The EPITO config uses ImageNetS50, matching
+[N1_1_Run_experiments_testing.ipynb](https://github.com/rashidrao-pk/shap_bpt_tests/blob/main/notebooks/E1_E2_E3_E7/N1_1_Run_experiments_testing.ipynb).
+The loader finds the nested `ILSVRC2012_img_val_S/ImageNetS50/validation-segmentation`
+layout below the configured root. When providing `categories_file`, use
+`ImageNetS_categories_im50.txt`: label `i + 1` maps to line `i` in its original
+order. `class_index_file` accepts the notebook's `imagenet_class_index.json`.
+Both files may live outside the dataset when their paths are configured.
+
+The notebook decodes RGB as `R + 256 * G`, excludes 1000, and uses nearest-neighbor
+mask resizing. The runner follows those rules, aligning GT to the explanation
+image dimensions rather than forcing every image to 224 × 224.
+
+The notebook's experiment loop keeps only single-category images whose annotation
+class matches the predicted class. `--show-gt` does not apply that experiment
+filter: it shows the selected class mask and explicitly reports missing or
+unmatched GT. It does not silently discard an explanation.

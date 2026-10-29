@@ -148,7 +148,8 @@ def _categories(root_text, split, explicit):
         raise ValueError(f'Expected a synset per line in ImageNetS categories: {path}')
     if len(set(values)) != len(values) or (str(split) in {'50', '300', '919'} and len(values) != int(split)):
         raise ValueError(f'ImageNetS category file does not match variant {split}: {path}')
-    return sorted(values)
+    # ImageNetS label i+1 follows line i, as in the reference notebook.
+    return values
 
 
 @lru_cache(maxsize=4)

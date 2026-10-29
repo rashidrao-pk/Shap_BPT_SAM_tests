@@ -174,7 +174,8 @@ def _load_imagenets(settings, root, stem, shape, gt_class, predicted_index, labe
     split = str(settings.get('variant', 919))
     path = _one_mask(root, 'imagenets', split, stem)
     if path is None:
-        return _empty(shape, 'ImageNetS', 'annotation not available', scope='unavailable')
+        return _empty(shape, 'ImageNetS', 'annotation not available', scope='unavailable',
+                      image_stem=stem, searched_root=str(root), variant=split)
     with Image.open(path) as source:
         encoded = np.asarray(source)
     if encoded.ndim == 3:

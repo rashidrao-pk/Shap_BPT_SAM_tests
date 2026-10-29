@@ -111,3 +111,12 @@ The notebook's experiment loop keeps only single-category images whose annotatio
 class matches the predicted class. `--show-gt` does not apply that experiment
 filter: it shows the selected class mask and explicitly reports missing or
 unmatched GT. It does not silently discard an explanation.
+
+## ImageNet plot says “annotation not available”
+
+This means no matching mask filename was found in the configured ImageNetS
+variant. It happens before predicted-class matching. The runners now print the
+GT root, indexed mask count, and overlap with completed partitions at startup.
+Use `--show-gt --gt-only --limit 2` to select two annotated images from completed
+partitions. If there is no overlap, check the variant/root or generate partitions
+for annotated images. Changing the variant cannot create missing annotations.

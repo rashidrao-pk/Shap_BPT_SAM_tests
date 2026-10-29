@@ -56,7 +56,10 @@ def create_parser(kind):
                         help='DETR scoring threshold (default: 0 for continuous masked scores)')
     parser.add_argument('--detr-shortest-edge', type=int, help='Override the DETR processor resize')
     parser.add_argument('--target-class', type=int, help='Explain this output index instead of the top prediction')
-    parser.add_argument('--show_gt', '--show-gt', action='store_true', help='Show/save configured dataset segmentation GT')
+    parser.add_argument('--show_gt', '--show-gt', action='store_true',
+                        help='Show/save configured dataset segmentation GT')
+    parser.add_argument('--gt-only', action='store_true',
+                        help='Select only ImageNet images with an ImageNetS annotation, before --limit')
     parser.add_argument('--gt-class', help='Optional GT class: face part, ImageNetS synset/label ID, or foreground')
     parser.add_argument('--output-dir', type=Path, help='Override explanation base before bg_*_B*')
     parser.add_argument('--no-resume', dest='resume', action='store_false')
@@ -86,6 +89,8 @@ def prepare_inputs(kind, args):
     expected = 'mscoco' if kind == 'OD_DETR' else 'camo' if kind == 'COD_ViT' else 'imagenet'
     if data.get('name', '').replace('_', '').lower() != expected:
         raise ValueError(f'{kind} requires the {expected} dataset config')
+    if args.gt_only and (not args.show_gt or expected != 'imagenet'):
+        raise ValueError('--gt-only requires an ImageNet runner with --show-gt')
     if args.show_gt and kind != 'OD_DETR':
         from ground_truth import validate_config
         validate_config(config)
@@ -137,6 +142,24 @@ def prepare_inputs(kind, args):
             continue
     ids = [normalize_id(value, data) for value in args.image_ids] if args.image_ids else sorted(completed)
     ids = list(dict.fromkeys(ids))
+    if args.show_gt and expected == 'imagenet':
+        from ground_truth import validate_config, _mask_index
+        gt_settings, gt_root = validate_config(config)
+        variant = str(gt_settings.get('variant', 919))
+        available = _mask_index(str(gt_root), 'imagenets', variant)
+        matched = [image_id for image_id in ids if image_id in available]
+        print(f'ImageNetS{variant} GT: {len(available)} indexed masks; '
+              f'{len(matched)}/{len(ids)} selected inputs have annotations; root: {gt_root}')
+        if not available:
+            raise ValueError(f'No ImageNetS{variant} annotation masks found below {gt_root}; '
+                             'check ground_truth.root and variant')
+        if args.gt_only:
+            ids = matched
+            if not ids:
+                raise ValueError('No completed partitions overlap the ImageNetS annotations; '
+                                 'generate partitions for annotated images or select the correct GT variant')
+        elif len(matched) < len(ids):
+            print('Some images have no ImageNetS annotation. Use --gt-only to select annotated images before --limit.')
     if args.limit is not None:
         ids = ids[:args.limit]
     if not ids:

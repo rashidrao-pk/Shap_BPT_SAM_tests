@@ -212,6 +212,27 @@ class ModelExplanationTest(unittest.TestCase):
             (root / 'run_info.json').write_text(json.dumps({'image_ids': [image_id]}))
             self.assertEqual(progress.expected_image_ids_for_experiment(root, {'unrelated'}), {image_id})
 
+    def test_gt_only_filters_before_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config, first = self.fixture(root, 'ImageNet')
+            second = 'ILSVRC2012_val_00000002'
+            import shutil
+            shutil.copy(root / 'images' / f'{first}.JPEG', root / 'images' / f'{second}.JPEG')
+            folder = next((root / 'partitions').iterdir())
+            shutil.copy(folder / f'{first}_compact.npy', folder / f'{second}_compact.npy')
+            shutil.copy(folder / f'{first}_results.json', folder / f'{second}_results.json')
+            masks = root / 'gt/ImageNetS50/validation-segmentation/n00000001'
+            masks.mkdir(parents=True)
+            Image.fromarray(np.ones((16, 20), dtype=np.uint8)).save(masks / f'{second}.png')
+            settings = yaml.safe_load(config.read_text())
+            settings['data']['ground_truth'] = {'format': 'imagenets', 'root': str(root / 'gt'), 'variant': 50}
+            config.write_text(yaml.safe_dump(settings))
+            args = common.create_parser('OC_ResNet').parse_args([
+                '--config', str(config), '--show-gt', '--gt-only', '--limit', '1'])
+            inputs = common.prepare_inputs('OC_ResNet', args)
+            self.assertEqual([r['image_id'] for r in inputs['records']], [second])
+
     def test_two_row_layout_and_bpt_cut(self):
         from types import SimpleNamespace
         import matplotlib.pyplot as plt

@@ -63,6 +63,7 @@ Increase `--limit`, or omit it to process all image IDs found in the partition
 folder. Generate those partitions first. For other models and experiment
 settings, see [the experiment matrix](../README_exp_epito.md).
 
-Use a distinct output directory when comparing partition datasets, for example
-add `--output-dir outputs/MSCOCO_sam2_tiny_62_refined_200`. This avoids mixing results with older
-runs. Use `exit` when finished to release the GPU allocation.
+Results are saved under the configured output root as
+`OD_yolo/<mask_dir_final>/bg_<background>_B<max-evals>/`.
+For example, `--bg-type black --max-evals 500` uses `bg_black_B500`.
+Use `exit` when finished to release the GPU allocation.

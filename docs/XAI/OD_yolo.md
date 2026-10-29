@@ -88,14 +88,20 @@ Kernel SHAP budgets, plotting controls, and fail-fast behavior.
 Default outputs use the config's output root, then:
 
 ```text
-OD_yolo/<mask_dir_final>/BPT_SAM_c_kernelshap/<yolo-model>/xai_results_E1_1_1/
+OD_yolo/<mask_dir_final>/bg_<background>_B<max-evals>/
 ```
 
-The experiment suffix above corresponds to noise background and `max_evals=50`.
-The runner prints the actual final results path. Each partition dataset and YOLO
-model has a separate output namespace. The trio has its own namespace so older
-all-variant results are not reused by default. `--output-dir` explicitly overrides that
-namespace, as in the original runner.
+For example, black background and budget 500 save to:
+
+```text
+OD_yolo/MSCOCO_sam2_large_62_refined_200/bg_black_B500/139/000000000139_xai_results.png
+```
+
+There are no extra method, YOLO-model, or experiment-ID folders. The selected
+model, methods, and experiment metadata remain recorded in `run_info.json`.
+`--output-dir` overrides the output base; the `bg_<background>_B<max-evals>`
+folder is still appended. Use separate output bases when comparing models or
+other settings with the same background and budget.
 
 Outputs include `run_info.json`, experiment mappings, partition/timing summaries,
 updated per-image AUC CSVs, attribution images, aggregate plots, and

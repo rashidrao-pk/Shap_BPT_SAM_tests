@@ -56,7 +56,15 @@ class ODYoloTest(unittest.TestCase):
         inputs = od.prepare_inputs(self.root, self.config, self.args())
         self.assertEqual(inputs['image_ids'], ['000000000001', '000000000002'])
         self.assertEqual(inputs['methods'], ['BPT', 'SAM_c', 'SAM_c_kernelshap'])
-        self.assertEqual(inputs['output_root'], self.root / 'output/OD_yolo' / self.folder.name / 'BPT_SAM_c_kernelshap' / 'yolo11s')
+        self.assertEqual(inputs['output_root'], self.root / 'output/OD_yolo' / self.folder.name / 'bg_noise_B500')
+
+    def test_background_budget_paths_and_override(self):
+        inputs = od.prepare_inputs(self.root, self.config, self.args('--bg-type', 'black', '--max-evals', '500'))
+        self.assertEqual(inputs['output_root'], self.root / 'output/OD_yolo' / self.folder.name / 'bg_black_B500')
+        override = self.root / 'custom'
+        inputs = od.prepare_inputs(self.root, self.config,
+                                   self.args('--bg-type', 'white', '--max-evals', '50', '--output-dir', str(override)))
+        self.assertEqual(inputs['output_root'], override / 'bg_white_B50')
 
     def test_SAM_c_uses_legacy_maps_for_both_methods(self):
         self.assertEqual(od.partition_type_for_method('SAM_c'), 'compact')

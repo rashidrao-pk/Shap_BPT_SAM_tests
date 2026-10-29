@@ -7,6 +7,7 @@ Runs from any working directory; use --raw-masks to refine saved SAM masks offli
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import os
 import sys
@@ -206,14 +207,35 @@ def infer_masks(image, args, loaded_generator=None, return_history=False, return
     t0 = time.perf_counter()
     history = []
     with torch.inference_mode():
-        target = getattr(args, 'generate_at_least_n_masks', None)
-        if target:
-            annotations, history = generate_at_least_n_masks(
-                image, generator, min_masks=target,
-                max_steps=args.mask_tuning_max_steps,
-            )
-        else:
-            annotations = generator.generate(image)
+        while True:
+            try:
+                target = getattr(args, 'generate_at_least_n_masks', None)
+                if target:
+                    annotations, history = generate_at_least_n_masks(
+                        image, generator, min_masks=target,
+                        max_steps=args.mask_tuning_max_steps,
+                    )
+                else:
+                    annotations = generator.generate(image)
+                break
+            except torch.OutOfMemoryError:
+                batch_size = getattr(generator, 'points_per_batch', 1)
+                if str(device).split(':')[0] != 'cuda' or batch_size <= 1:
+                    raise
+                smaller_batch = max(1, batch_size // 2)
+                print(f'[CUDA OOM] image={image.shape[:2]} '
+                      f'points_per_batch={batch_size} -> {smaller_batch}; '
+                      'retrying this image', flush=True)
+            # Outside the exception handler: release the failed call's traceback
+            # and cached image features before reclaiming unused CUDA blocks.
+            predictor = getattr(generator, 'predictor', None)
+            if predictor is not None and hasattr(predictor, 'reset_predictor'):
+                predictor.reset_predictor()
+            gc.collect()
+            torch.cuda.empty_cache()
+            generator.points_per_batch = smaller_batch
+            # Keep the smaller batch for subsequent images. CLI settings stay
+            # unchanged so completed outputs remain resumable.
     dt = time.perf_counter() - t0
     masks = np.stack([m["segmentation"] for m in annotations]).astype(bool) if annotations else np.empty((0, *image.shape[:2]), dtype=bool)
     result = masks, dt, device, str(checkpoint)

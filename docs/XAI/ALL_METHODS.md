@@ -15,6 +15,31 @@ Optional dependencies, inside the existing SAM/PyTorch environment:
 python -m pip install -r requirements-xai-all.txt
 ```
 
+The requirements pin NumPy 1.26.4, Captum 0.8.0, SHAP 0.49.1 and OpenCV
+4.11.0.86 for the SAM environment. Earlier unbounded requirements could upgrade
+NumPy to 2.x and conflict with SAM3. After syncing the updated requirements,
+repair that installation with:
+
+```bash
+python -m pip install -r requirements-xai-all.txt
+python -m pip check
+```
+
+If `pip check` reports **Transformers 5.15.0** with `huggingface-hub 2.x`, its
+reported requirement is `huggingface-hub>=1.5,<2`. Repair that separate conflict:
+
+```bash
+python -m pip install 'huggingface-hub>=1.5,<2'
+python -m pip check
+```
+
+Do not force-reinstall the shared PyTorch packages. Verify imports before running
+an experiment:
+
+```bash
+python -c "import numpy, cv2, torch, torchvision, captum, shap; print(numpy.__version__, cv2.__version__, torch.__version__, torchvision.__version__, captum.__version__, shap.__version__)"
+```
+
 The existing 2×3 figure is retained. `<image-id>_all_methods.png` adds a wide
 heatmap strip and, when GT has foreground, a second row of GT overlap panels.
 The shared HTML report lets you scroll the wide comparison horizontally.

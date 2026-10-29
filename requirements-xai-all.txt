@@ -1,5 +1,9 @@
-# Optional comparison mode; keep the site's existing torch/torchvision installation.
-captum>=0.8
-lime>=0.2.0.1
-shap>=0.46
-scikit-image
+# Optional comparison mode, compatible with the NumPy 1.x SAM environment.
+# Keep the site's existing torch/torchvision installation.
+numpy==1.26.4
+captum==0.8.0
+lime==0.2.0.1
+shap==0.49.1
+scikit-image>=0.22,<0.26
+# OpenCV 4.12 requires NumPy 2 on Python 3.12, conflicting with SAM3.
+opencv-python==4.11.0.86

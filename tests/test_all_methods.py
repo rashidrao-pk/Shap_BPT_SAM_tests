@@ -72,6 +72,29 @@ class AllMethodsTest(unittest.TestCase):
         with self.assertRaisesRegex(allx.UnsupportedMethod, 'transformer-specific'):
             engine.compute('LRP', 0)
 
+    def test_asymmetric_gt_contour_uses_image_coordinates(self):
+        import matplotlib.pyplot as plt
+        from matplotlib.axes import Axes
+        from unittest.mock import patch
+        image = np.zeros((8, 12, 3), dtype=np.uint8)
+        mask = np.zeros((8, 12), dtype=bool)
+        mask[:2, 1:4] = True  # Top left; a vertical flip would place it at bottom.
+        contours = []
+        original = Axes.contour
+        def capture(ax, *args, **kwargs):
+            result = original(ax, *args, **kwargs)
+            contours.append(result)
+            return result
+        with tempfile.TemporaryDirectory() as temporary, patch.object(Axes, 'contour', capture):
+            result = allx.comparison_plot(
+                SimpleNamespace(plt=plt), image, {'BPT-8': mask[None].astype(float)},
+                {'explained_class': 'object'}, Path(temporary) / 'asymmetric.png',
+                {'mask': mask, 'status': 'matched'}, {'BPT-8': {'status': 'complete'}})
+        vertices = np.concatenate(contours[0].allsegs[0])
+        np.testing.assert_allclose(vertices.min(axis=0), [.5, -.5])
+        np.testing.assert_allclose(vertices.max(axis=0), [3.5, 1.5])
+        self.assertEqual(result['BPT-8']['best_iou'], 1.)
+
     def test_comparison_records_iou_and_missing_method(self):
         import matplotlib.pyplot as plt
         runtime = SimpleNamespace(plt=plt)

@@ -386,8 +386,10 @@ def comparison_plot(runtime, image, attributions, prediction, output, ground_tru
             ax.imshow(heatmap, cmap='coolwarm', vmin=-limit, vmax=limit)
             if has_gt:
                 mask = np.asarray(ground_truth['mask'], dtype=bool)
-                ax.contour(np.pad(mask.astype(float), 1), levels=[.5], colors='black', linewidths=.7,
-                           extent=(-1.5, mask.shape[1]+.5, mask.shape[0]+.5, -1.5))
+                ax.contour(np.arange(-1, mask.shape[1] + 1),
+                           np.arange(-1, mask.shape[0] + 1),
+                           np.pad(mask.astype(float), 1), levels=[.5],
+                           colors='black', linewidths=.7)
                 ax.set_xlim(-.5, mask.shape[1]-.5)
                 ax.set_ylim(mask.shape[0]-.5, -.5)
                 result = best_iou(heatmap, ground_truth)

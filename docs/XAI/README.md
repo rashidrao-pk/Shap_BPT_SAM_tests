@@ -73,6 +73,31 @@ ViT-B/16 classifier architecture; spatial COD segmentation checkpoints require a
 different model adapter. Class names may also be stored in checkpoint metadata.
 The default score is ImageNet classification confidence on CAMO images.
 
+## Show ground truth
+
+GT paths are configured in `data.ground_truth` in each dataset YAML.
+Add `--show_gt` to the explanation command:
+
+```bash
+python src/scripts/explanations/OC_ResNet.py --config ImageNet_epito --limit 2 --show_gt --no-heatmaps
+python src/scripts/explanations/OC_ViT.py --config ImageNet_epito --limit 2 --show_gt --no-heatmaps
+python src/scripts/explanations/COD_ViT.py --config CAMO_epito --limit 2 --show_gt --no-heatmaps
+```
+
+ImageNetS GT is filtered to the predicted ImageNet class when its synset mapping
+is available. Use `--gt-class foreground` to display all annotated objects instead.
+CAMO shows its binary camouflaged-object foreground, independently of the ViT's
+ImageNet class prediction. Missing annotations/mappings are labelled explicitly.
+
+CelebA face-part GT can be shown in partition previews:
+
+```bash
+python src/scripts/view_partitions.py --config CelebAHQ_epito --image-id 0 --methods compact --show_gt --gt-class hair
+```
+
+Omit `--gt-class hair` to combine available face-part masks. Partition previews
+for ImageNet and CAMO also accept `--show_gt`. See [GT formats and mapping](GROUND_TRUTH.md).
+
 ## Outputs and useful options
 
 Outputs follow the same layout for every runner:

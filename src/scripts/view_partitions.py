@@ -15,13 +15,13 @@ import matplotlib.pyplot as plt
 from skimage.segmentation import mark_boundaries
 
 
-def render(image_path, partition_paths, output, alpha=0.45):
+def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None):
     image = np.asarray(Image.open(image_path).convert('RGB'))
     paths = [Path(path) for path in partition_paths]
     if not paths:
         raise ValueError('No partition maps selected')
-    fig, axes = plt.subplots(2, len(paths) + 1, squeeze=False,
-                             figsize=(4 * (len(paths) + 1), 7))
+    columns = len(paths) + 1 + int(ground_truth is not None)
+    fig, axes = plt.subplots(2, columns, squeeze=False, figsize=(4 * columns, 7))
     axes[0, 0].imshow(image)
     axes[0, 0].set_title('Original')
     axes[1, 0].imshow(image)
@@ -45,16 +45,41 @@ def render(image_path, partition_paths, output, alpha=0.45):
                                'zero_pixels': int(np.count_nonzero(labels == 0)),
                                'min_region_pixels': int(counts.min()),
                                'max_region_pixels': int(counts.max())})
+        if ground_truth is not None:
+            from ground_truth import title as gt_title
+            axes[0, -1].imshow(ground_truth['mask'], cmap='gray', vmin=0, vmax=1)
+            axes[0, -1].set_title(gt_title(ground_truth), fontsize=9)
+            axes[1, -1].imshow(image)
+            overlay = np.zeros((*image.shape[:2], 4))
+            overlay[ground_truth['mask']] = [0, 1, 0, alpha]
+            axes[1, -1].imshow(overlay)
+            axes[1, -1].set_title('GT overlay')
         for ax in axes.ravel():
             ax.axis('off')
         fig.tight_layout()
         output = Path(output)
         output.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(output, dpi=140)
+        if ground_truth is not None:
+            from ground_truth import save_ground_truth
+            summary = save_ground_truth(ground_truth, image, output.parent, output.stem)
+            statistics.append({'kind': 'ground_truth', **summary})
         output.with_suffix('.json').write_text(json.dumps(statistics, indent=2) + '\n')
     finally:
         plt.close(fig)
     return statistics
+
+
+def preview_ground_truth(args, image):
+    if not args.show_gt:
+        return None
+    if not args.config:
+        raise ValueError('--show_gt requires --config to locate dataset ground truth')
+    from ground_truth import load_ground_truth
+    _, config = load_view_config(args.config)
+    with Image.open(image) as source:
+        shape = (source.height, source.width, 3)
+    return load_ground_truth(config, image, shape, gt_class=args.gt_class)
 
 
 def load_view_config(config_name):
@@ -138,6 +163,8 @@ def main():
     parser.add_argument('--partitions', type=Path, nargs='+')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--alpha', type=float, default=0.45)
+    parser.add_argument('--show_gt', '--show-gt', action='store_true', help='Include dataset ground truth in the preview')
+    parser.add_argument('--gt-class', help='Optional face part, ImageNetS synset/label ID, or foreground')
     args = parser.parse_args()
     if not 0 <= args.alpha <= 1:
         parser.error('--alpha must be between 0 and 1')
@@ -152,13 +179,13 @@ def main():
                 selected = copy.copy(args)
                 selected.image_id = image_id
                 image, partitions, output = resolve_paths(selected)
-                render(image, partitions, output, args.alpha)
+                render(image, partitions, output, args.alpha, preview_ground_truth(args, image))
                 print(f'Preview: {output}')
             return
         image, partitions, output = resolve_paths(args)
     except ValueError as exc:
         parser.error(str(exc))
-    print(json.dumps(render(image, partitions, output, args.alpha), indent=2))
+    print(json.dumps(render(image, partitions, output, args.alpha, preview_ground_truth(args, image)), indent=2))
     print(f'Preview: {output}')
 
 

@@ -1,10 +1,6 @@
-# Shap_BPT_SAM_tests
-
-Tests for SAM inspired ShapBPT - using Segment Anything Model for Improved ShapBPT
-
----
-
 # SAM Guided ShapBPT
+
+- Tests for SAM inspired ShapBPT - using Segment Anything Model for Improved ShapBPT
 
 <!-- ### A python library to compute Shapley image explanations with data-aware Binary Partition Trees -->
 

@@ -7,6 +7,10 @@ data:
   # Preview input: match this to the folder produced by your generation command.
   mask_dir_final: CelebAHQ_sam2_tiny_62_refined_50
 
+  ground_truth:
+    format: celebamask_hq
+    root: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/CelebAMask-HQ/CelebAMask-HQ/CelebAMask-HQ-mask-anno
+
 output:
   partitions: /beegfs/home/mrashid/datasets/SAM_BPT
   explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations

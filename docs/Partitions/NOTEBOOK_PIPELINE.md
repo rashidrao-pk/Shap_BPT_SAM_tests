@@ -171,3 +171,10 @@ and rejecting mismatched image/map dimensions.
 
 Dependencies: numpy, scipy, Pillow, matplotlib, scikit-image, and imageio.
 Only live inference needs PyTorch/SAM2. Install `imageio` if it is missing.
+
+## Ground-truth preview
+
+Add `--show_gt` to the config-based viewer. CelebA can select a part, for example
+`--config CelebAHQ_epito --image-id 0 --methods compact --show_gt --gt-class hair`.
+ImageNet and CAMO masks are also supported. See
+[ground-truth matching and formats](../XAI/GROUND_TRUTH.md).

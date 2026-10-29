@@ -54,7 +54,8 @@ def create_parser(kind):
                         help='DETR scoring threshold (default: 0 for continuous masked scores)')
     parser.add_argument('--detr-shortest-edge', type=int, help='Override the DETR processor resize')
     parser.add_argument('--target-class', type=int, help='Explain this output index instead of the top prediction')
-    parser.add_argument('--show_gt', '--show-gt', action='store_true', help='COCO class segmentation overlay for DETR')
+    parser.add_argument('--show_gt', '--show-gt', action='store_true', help='Show/save configured dataset segmentation GT')
+    parser.add_argument('--gt-class', help='Optional GT class: face part, ImageNetS synset/label ID, or foreground')
     parser.add_argument('--output-dir', type=Path, help='Override explanation base before bg_*_B*')
     parser.add_argument('--no-resume', dest='resume', action='store_false')
     parser.add_argument('--no-auc', dest='compute_auc', action='store_false')
@@ -84,7 +85,8 @@ def prepare_inputs(kind, args):
     if data.get('name', '').replace('_', '').lower() != expected:
         raise ValueError(f'{kind} requires the {expected} dataset config')
     if args.show_gt and kind != 'OD_DETR':
-        raise ValueError('--show_gt requires COCO instance annotations (OD_DETR)')
+        from ground_truth import validate_config
+        validate_config(config)
     for name in ['max_evals', 'eval_batch_size', 'model_batch_size', 'auc_batch_size']:
         if getattr(args, name) < 1:
             raise ValueError(f'{name} must be positive')
@@ -157,7 +159,8 @@ def prepare_inputs(kind, args):
     run_dir = base / f'bg_{args.bg_type}_B{args.max_evals}'
     return {'config': config, 'records': records, 'partition_dir': folder,
             'run_dir': run_dir, 'evaluation_dir': evaluation_path(config, run_dir),
-            'annotation_file': annotation_file, 'methods': list(METHODS)}
+            'annotation_file': annotation_file, 'methods': list(METHODS),
+            'ground_truth': data.get('ground_truth') if args.show_gt else None}
 
 
 def backgrounds(image, mode):
@@ -240,11 +243,15 @@ def write_json(path, value):
     temporary.replace(path)
 
 
-def run_signature(kind, args):
+def run_signature(kind, args, config=None):
     ignored = {'limit', 'image_ids', 'dry_run', 'resume', 'verbose_level', 'fail_fast', 'torch_threads', 'output_dir'}
     settings = {key: jsonable(value) for key, value in vars(args).items() if key not in ignored}
     if settings.get('save_heatmaps', True):
         settings.pop('save_heatmaps', None)  # Preserve signatures from before this option existed.
+    if settings.get('gt_class') is None:
+        settings.pop('gt_class', None)
+    if args.show_gt and config and config['data'].get('ground_truth'):
+        settings['ground_truth'] = config['data']['ground_truth']
     for name in ['checkpoint', 'class_names']:
         path = getattr(args, name)
         if path and path.is_file():
@@ -312,7 +319,8 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
             overlay = np.zeros((*image.shape[:2], 4))
             overlay[ground_truth['mask']] = [0, 1, 0, .45]
             axes[position].imshow(overlay)
-            axes[position].set_title(f"GT: {ground_truth['class_name']} ({ground_truth['instance_count']} instances)")
+            from ground_truth import title as gt_title
+            axes[position].set_title(gt_title(ground_truth), fontsize=9)
             position += 1
         for method, values in attributions.items():
             heatmap = np.asarray(values[0])
@@ -393,7 +401,7 @@ def run(kind, args, adapter=None):
                        'mps' if runtime.torch.backends.mps.is_available() else 'cpu')
     device = runtime.torch.device(device_name)
     run_dir, evaluations = inputs['run_dir'], inputs['evaluation_dir']
-    signature = run_signature(kind, args)
+    signature = run_signature(kind, args, inputs['config'])
     run_dir.mkdir(parents=True, exist_ok=True)
     evaluations.mkdir(parents=True, exist_ok=True)
     prior, pending = [], []
@@ -407,15 +415,12 @@ def run(kind, args, adapter=None):
     print(f'Pending: {len(pending)}; complete: {len(prior)}; device: {device}')
     if pending and adapter is None:
         adapter = load_adapter(kind, args, device)
-    coco = None
-    if pending and args.show_gt:
-        from pycocotools.coco import COCO
-        coco = COCO(str(inputs['annotation_file']))
     write_json(run_dir / 'run_info.json', {'runner': kind, 'model': args.model, 'signature': signature,
                'methods': METHODS, 'config': args.config, 'masks_base_path': str(inputs['partition_dir']),
                'image_ids': [record['image_id'] for record in inputs['records']],
                'background_replacement_values': args.bg_type, 'max_evals': args.max_evals,
                'results_dir': run_dir, 'evaluations_dir': evaluations, 'settings': vars(args),
+               'ground_truth': inputs['ground_truth'],
                'score_type': 'detection confidence' if kind == 'OD_DETR' else 'classification probability'})
     rows = [row for manifest in prior for row in manifest['rows']]
     summaries = [manifest['prediction'] for manifest in prior]
@@ -449,8 +454,12 @@ def run(kind, args, adapter=None):
                           'detections': adapter.detections(image)}
             ground_truth = None
             if args.show_gt:
-                from OD_yolo import load_class_ground_truth, save_ground_truth
-                ground_truth = load_class_ground_truth(coco, int(image_id), prediction['explained_class'], image.shape)
+                from ground_truth import load_ground_truth, save_ground_truth
+                gt_class = (args.gt_class or prediction['explained_class']) if kind == 'OD_DETR' else args.gt_class
+                ground_truth = load_ground_truth(
+                    inputs['config'], record['image_path'], image.shape, gt_class=gt_class,
+                    predicted_index=target, label_space=getattr(adapter, 'label_space', None),
+                    predicted_class=prediction['explained_class'])
                 prediction['ground_truth'] = save_ground_truth(ground_truth, image, folder, image_id)
             write_json(folder / f'{image_id}_predictions.json', prediction)
             attributions, image_rows, auc_results = {}, [], []
@@ -501,7 +510,7 @@ def run(kind, args, adapter=None):
                 if args.compute_auc:
                     artifacts += [f'auc_results_{image_id}.png', f'faithfulness_curves_{image_id}.png']
             if args.show_gt:
-                artifacts += [f'{image_id}_gt{extension}' for extension in ['.npy', '.png', '.json']]
+                artifacts += [f'{image_id}_gt{extension}' for extension in ['.npy', '.png', '.json', '_labels.npz']]
             manifest = {'signature': signature, 'input_stamp': input_stamp(record), 'artifacts': artifacts,
                         'rows': image_rows, 'prediction': prediction, 'total_time_sec': time.perf_counter() - started}
             write_json(marker, manifest)  # Completion marker is always written last.

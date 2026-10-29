@@ -212,6 +212,31 @@ class ModelExplanationTest(unittest.TestCase):
             (root / 'run_info.json').write_text(json.dumps({'image_ids': [image_id]}))
             self.assertEqual(progress.expected_image_ids_for_experiment(root, {'unrelated'}), {image_id})
 
+    def test_camo_gt_in_explanation_grid_and_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config, image_id = self.fixture(root, 'CAMO')
+            gt_dir = root / 'GT/Train'
+            gt_dir.mkdir(parents=True)
+            mask = np.zeros((16, 20), dtype=np.uint8)
+            mask[:8, :10] = 255
+            Image.fromarray(mask).save(gt_dir / f'{image_id}.png')
+            settings = yaml.safe_load(config.read_text())
+            settings['data']['ground_truth'] = {'format': 'binary', 'root': str(gt_dir.parent), 'split': 'Train'}
+            config.write_text(yaml.safe_dump(settings))
+            args = common.create_parser('COD_ViT').parse_args([
+                '--config', str(config), '--max-evals', '8', '--kernel-shap-samples', '10',
+                '--show_gt', '--no-auc', '--no-heatmaps', '--torch-threads', '2'])
+            result = common.run('COD_ViT', args, adapter=SmallAdapter())
+            folder = result['run_dir'] / image_id
+            self.assertTrue((folder / f'{image_id}_xai_results.png').is_file())
+            ground_truth = json.loads((folder / f'{image_id}_gt.json').read_text())
+            self.assertEqual(ground_truth['class_name'], 'Camouflaged object')
+            self.assertEqual(ground_truth['scope'], 'dataset_foreground')
+            self.assertEqual(ground_truth['foreground_pixels'], 80)
+            manifest = json.loads((folder / f'{image_id}_complete.json').read_text())
+            self.assertIn(f'{image_id}_gt_labels.npz', manifest['artifacts'])
+
 
 if __name__ == '__main__':
     unittest.main()

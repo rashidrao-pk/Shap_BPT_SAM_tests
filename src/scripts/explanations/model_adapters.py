@@ -40,6 +40,7 @@ class ClassifierAdapter:
             raise ValueError(f'{len(names)} class names supplied for a {classes}-class checkpoint')
         self.class_names = names or (list(default_weights.meta['categories']) if classes == 1000
                                     else [f'class_{index}' for index in range(classes)])
+        self.label_space = metadata.get('label_space') or ('imagenet1k' if state is None else None)
         # A complete checkpoint supplies the backbone too; do not download a second copy.
         self.model = builder(weights=None if state is not None else weights, num_classes=classes)
         if state is not None:

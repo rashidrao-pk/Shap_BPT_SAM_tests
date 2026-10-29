@@ -7,6 +7,12 @@ data:
   # Reference for downstream use; generation names its folder from CLI settings.
   mask_dir_final: ImageNet_sam2_tiny_62_refined_100
 
+  ground_truth:
+    format: imagenets
+    root: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/ImageNet/ImageNetS
+    variant: 919
+    # Optional: categories_file (ImageNetS synsets) and class_index_file (classifier index -> synset).
+
 output:
   partitions: /beegfs/home/mrashid/datasets/SAM_BPT
   explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations

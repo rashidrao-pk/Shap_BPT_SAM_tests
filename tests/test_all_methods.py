@@ -72,27 +72,38 @@ class AllMethodsTest(unittest.TestCase):
         with self.assertRaisesRegex(allx.UnsupportedMethod, 'transformer-specific'):
             engine.compute('LRP', 0)
 
-    def test_asymmetric_gt_contour_uses_image_coordinates(self):
+    def test_notebook_style_and_asymmetric_gt_boundaries(self):
         import matplotlib.pyplot as plt
-        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
         from unittest.mock import patch
+        from skimage.segmentation import find_boundaries
+        from attribution_visuals import notebook_style
+        import shap_bpt
+        values = np.arange(100, dtype=float).reshape(10, 10)
+        style = notebook_style(values)
+        self.assertEqual(style['vmax'], np.quantile(np.abs(values), .99))
+        self.assertEqual(style['vmin'], -style['vmax'])
+        self.assertIs(style['cmap'], shap_bpt.shapley_values_colormap)
+        # Including zeros differs from the old nonzero-only percentile.
+        sparse = np.zeros((10, 10))
+        sparse[0, 0] = 100
+        self.assertAlmostEqual(notebook_style(sparse)['vmax'], 1.)
         image = np.zeros((8, 12, 3), dtype=np.uint8)
         mask = np.zeros((8, 12), dtype=bool)
-        mask[:2, 1:4] = True  # Top left; a vertical flip would place it at bottom.
-        contours = []
-        original = Axes.contour
-        def capture(ax, *args, **kwargs):
-            result = original(ax, *args, **kwargs)
-            contours.append(result)
-            return result
-        with tempfile.TemporaryDirectory() as temporary, patch.object(Axes, 'contour', capture):
+        mask[:2, 1:4] = True
+        images = []
+        def capture(fig, *args, **kwargs):
+            images.extend(fig.axes[2].images)
+        with patch.object(Figure, 'savefig', capture):
             result = allx.comparison_plot(
                 SimpleNamespace(plt=plt), image, {'BPT-8': mask[None].astype(float)},
-                {'explained_class': 'object'}, Path(temporary) / 'asymmetric.png',
+                {'explained_class': 'object'}, 'unused.png',
                 {'mask': mask, 'status': 'matched'}, {'BPT-8': {'status': 'complete'}})
-        vertices = np.concatenate(contours[0].allsegs[0])
-        np.testing.assert_allclose(vertices.min(axis=0), [.5, -.5])
-        np.testing.assert_allclose(vertices.max(axis=0), [3.5, 1.5])
+        overlay = np.asarray(images[1].get_array())
+        np.testing.assert_array_equal(overlay[..., 3] > 0, find_boundaries(mask, mode='thick'))
+        self.assertFalse(overlay[4:, :, 3].any())
+        self.assertTrue((overlay[overlay[..., 3] > 0, :3] == 0).all())
+        self.assertEqual(images[1].origin, 'upper')
         self.assertEqual(result['BPT-8']['best_iou'], 1.)
 
     def test_comparison_records_iou_and_missing_method(self):

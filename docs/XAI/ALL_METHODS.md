@@ -134,3 +134,13 @@ python src/scripts/explanations/OC_ResNet.py \
 
 Local checks use synthetic annotations/partitions and CPU pretrained ResNet/ViT
 smoke runs. They do not establish localization accuracy on the EPITO datasets.
+
+## Notebook heatmap styling
+
+Attribution figures use `shap_bpt.shapley_values_colormap`, the notebook's custom
+blue–white–red map, with `vmax = quantile(abs(map), 0.99)` over all pixels and
+`vmin = -vmax`, independently for each method. A zero limit uses a small positive
+fallback. This affects display only; saved attribution values and IoU are unchanged.
+GT panels use `binary` (black foreground on white); attribution panels use black
+`mark_boundaries(..., mode="thick")` overlays, matching
+`fun_plot_heatmaps_filtered` in the reference notebook.

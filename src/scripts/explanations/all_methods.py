@@ -368,7 +368,7 @@ def comparison_plot(runtime, image, attributions, prediction, output, ground_tru
             row[0].imshow(image)
             row[0].set_title('Input')
             if ground_truth is not None:
-                row[1].imshow(ground_truth['mask'], cmap='gray', vmin=0, vmax=1)
+                row[1].imshow(ground_truth['mask'], cmap='binary', vmin=0, vmax=1)
                 row[1].set_title('GT' if has_gt else f"GT: {ground_truth['status']}", fontsize=8)
         offset = 1 + int(ground_truth is not None)
         for column, name in enumerate(names, offset):
@@ -382,16 +382,11 @@ def comparison_plot(runtime, image, attributions, prediction, output, ground_tru
                                      transform=row[column].transAxes)
                 continue
             heatmap = np.asarray(heatmap)[0]
-            limit = max(float(np.nanpercentile(np.abs(heatmap), 99.5)), 1e-12)
-            ax.imshow(heatmap, cmap='coolwarm', vmin=-limit, vmax=limit)
+            from attribution_visuals import notebook_style, draw_gt_boundaries
+            ax.imshow(heatmap, origin='upper', **notebook_style(heatmap))
             if has_gt:
                 mask = np.asarray(ground_truth['mask'], dtype=bool)
-                ax.contour(np.arange(-1, mask.shape[1] + 1),
-                           np.arange(-1, mask.shape[0] + 1),
-                           np.pad(mask.astype(float), 1), levels=[.5],
-                           colors='black', linewidths=.7)
-                ax.set_xlim(-.5, mask.shape[1]-.5)
-                ax.set_ylim(mask.shape[0]-.5, -.5)
+                draw_gt_boundaries(ax, mask)
                 result = best_iou(heatmap, ground_truth)
                 selected = result.pop('mask')
                 iou_results[name] = result

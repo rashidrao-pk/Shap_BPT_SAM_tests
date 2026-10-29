@@ -377,21 +377,15 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
             if method not in attributions:
                 continue
             heatmap = np.asarray(attributions[method][0])
-            maximum = max(float(np.nanpercentile(np.abs(heatmap), 99.5)), 1e-12)
-            handle = ax.imshow(heatmap, cmap='coolwarm', vmin=-maximum, vmax=maximum)
+            from attribution_visuals import notebook_style, draw_gt_boundaries
+            handle = ax.imshow(heatmap, origin='upper', **notebook_style(heatmap))
             ax.set_title(f'Attributions-{method}')
             if ground_truth is not None:
                 mask = np.asarray(ground_truth['mask'], dtype=bool)
                 if mask.shape != heatmap.shape:
                     raise ValueError('GT mask and attribution dimensions must match')
                 if mask.any():
-                    # Padding also outlines objects touching the image boundary.
-                    padded = np.pad(mask.astype(float), 1)
-                    ax.contour(np.arange(-1, mask.shape[1] + 1),
-                               np.arange(-1, mask.shape[0] + 1), padded,
-                               levels=[.5], colors='lime', linewidths=1.3)
-                    ax.set_xlim(-.5, mask.shape[1] - .5)
-                    ax.set_ylim(mask.shape[0] - .5, -.5)
+                    draw_gt_boundaries(ax, mask)
             from mpl_toolkits.axes_grid1 import make_axes_locatable
             divider = make_axes_locatable(ax)
             colorbar_ax = divider.append_axes('right', size='4%', pad=.08)
@@ -402,7 +396,7 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
         top = max(top_classes, key=lambda item: float(item['confidence'])) if top_classes else None
         predicted_title = (f"Top predicted: {top['class_name']} ({float(top['confidence']):.4f})"
                            if top else 'Top predicted: unavailable')
-        gt_note = (' | GT contour: green' if ground_truth is not None and np.any(ground_truth['mask'])
+        gt_note = (' | GT boundary: black' if ground_truth is not None and np.any(ground_truth['mask'])
                    else ' | GT: ' + ground_truth['status'] if ground_truth is not None else '')
         fig.suptitle(f"{predicted_title} | Explained: {prediction['explained_class']}{gt_note}")
         fig.tight_layout(rect=(0, 0, 1, .97))
@@ -574,7 +568,7 @@ def run(kind, args, adapter=None):
                 image_rows.append(row)
                 if args.save_plots and args.save_heatmaps:
                     runtime.utx.plot_single_attributions(values, str(folder), f'{method}_{image_id}.png',
-                                                        save_plot=True, destroy_fig=True)
+                                                        save_plot=True, destroy_fig=True, notebook_style=True)
             if args.explain_all:
                 from all_methods import compute_extra
                 for method, values, info, elapsed in compute_extra(
@@ -596,7 +590,7 @@ def run(kind, args, adapter=None):
                     image_rows.append(row)
                     if args.save_plots and args.save_heatmaps:
                         runtime.utx.plot_single_attributions(values, str(folder), f'{method}_{image_id}.png',
-                                                            save_plot=True, destroy_fig=True)
+                                                            save_plot=True, destroy_fig=True, notebook_style=True)
                 from all_methods import best_iou
                 for method, values in attributions.items():
                     result = best_iou(values[0], ground_truth)

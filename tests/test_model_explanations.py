@@ -282,7 +282,7 @@ class ModelExplanationTest(unittest.TestCase):
                           *[f'Attributions-{method}' for method in common.METHODS]])
         self.assertEqual(len(captured), 9)  # Six image panels plus three colorbars.
         for ax in captured[3:6]:
-            self.assertTrue(ax.collections)  # GT contour on every attribution.
+            self.assertEqual(len(ax.images), 2)  # Notebook GT boundary overlay on every attribution.
             self.assertFalse(ax.axison)
 
     def test_camo_gt_in_explanation_grid_and_manifest(self):

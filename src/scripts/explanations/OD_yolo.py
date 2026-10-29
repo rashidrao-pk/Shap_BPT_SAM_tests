@@ -1786,7 +1786,7 @@ def run(args):
                         shap_values[method],
                         str(path_results_img),
                         f"{method}_{image_no}.png",
-                        robust_percentile=99.9985,
+                        notebook_style=True,
                         save_plot=True,
                         destroy_fig=True,
                     )
@@ -1828,7 +1828,7 @@ def run(args):
                                         'time_partition': None, 'time_exp': elapsed})
                     if args.save_plots and args.save_heatmaps:
                         utx.plot_single_attributions(values, str(path_results_img), f'{method}_{image_no}.png',
-                                                     save_plot=True, destroy_fig=True)
+                                                     save_plot=True, destroy_fig=True, notebook_style=True)
                 for method, values in shap_values.items():
                     result = best_iou(values[0], input_data.get('ground_truth'))
                     if result:

@@ -1101,7 +1101,7 @@ def scale_shap_values(shap_values, robust_percentile=99.5, factor=1):
 
 
 def plot_single_attributions(shap_values, savepath, figure_name, save_plot=True, factor=1,
-                             destroy_fig=True, robust_percentile=99.5):
+                             destroy_fig=True, robust_percentile=99.5, notebook_style=False):
     exp_code, _ = figure_name.split('_')[:2]
 
     shap_values = np.array(shap_values)
@@ -1121,7 +1121,11 @@ def plot_single_attributions(shap_values, savepath, figure_name, save_plot=True,
 
     # print(f'{figure_name}: color scale [-{max_val:.4g}, {max_val:.4g}]')
     fig = plt.figure(figsize=(6, 6))
-    ax = plt.imshow(shap_values_1, cmap=shapley_values_colormap, vmin = -max_val, vmax = max_val)
+    if notebook_style:
+        from attribution_visuals import notebook_style as display_style
+        ax = plt.imshow(shap_values_1, origin='upper', **display_style(shap_values_1))
+    else:
+        ax = plt.imshow(shap_values_1, cmap=shapley_values_colormap, vmin=-max_val, vmax=max_val)
     plt.colorbar(ax, fraction=0.03)#, location='bottom') #,  fraction=0.5, 
     plt.xticks([]); plt.yticks([]);
     # plt.tight_layout()

@@ -29,7 +29,7 @@ class ODYoloTest(unittest.TestCase):
         self.images = self.root / 'images'
         self.images.mkdir()
         for image_id in ['000000000001', '000000000002']:
-            stages = ['sam', 'compact', 'refined'] if image_id.endswith('1') else ['sam', 'refined']
+            stages = ['sam', 'compact', 'refined']
             for stage in stages:
                 np.save(self.folder / f'{image_id}_{stage}.npy', np.zeros((8, 10), dtype=np.uint16))
             (self.folder / f'{image_id}_results.json').write_text(json.dumps({
@@ -53,21 +53,30 @@ class ODYoloTest(unittest.TestCase):
     def test_config_selection_completed_images_and_output_isolation(self):
         inputs = od.prepare_inputs(self.root, self.config, self.args())
         self.assertEqual(inputs['image_ids'], ['000000000001', '000000000002'])
-        self.assertEqual(inputs['methods'], ['BPT', 'refined'])
-        self.assertEqual(inputs['output_root'], self.root / 'output/OD_yolo' / self.folder.name / 'yolo11s')
+        self.assertEqual(inputs['methods'], ['BPT', 'SAM_c', 'SAM_c_kernelshap'])
+        self.assertEqual(inputs['output_root'], self.root / 'output/OD_yolo' / self.folder.name / 'BPT_SAM_c_kernelshap' / 'yolo11s')
 
-    def test_auto_uses_shared_saved_stages_and_limit(self):
-        args = self.args('--methods', 'auto')
-        inputs = od.prepare_inputs(self.root, self.config, args)
-        self.assertEqual(inputs['methods'], ['BPT', 'sam', 'refined', 'sam_kernelshap'])
-        args.limit = 1
-        self.assertIn('compact', od.prepare_inputs(self.root, self.config, args)['methods'])
+    def test_SAM_c_uses_legacy_maps_for_both_methods(self):
+        self.assertEqual(od.partition_type_for_method('SAM_c'), 'compact')
+        self.assertEqual(od.partition_type_for_method('SAM_c_kernelshap'), 'compact')
+        inputs = od.prepare_inputs(self.root, self.config, self.args())
+        self.assertEqual(inputs['method_labels']['SAM_c'], 'BPT+SAM_c')
+        self.assertEqual(inputs['method_labels']['SAM_c_kernelshap'], 'SAM_c+Kernel SHAP')
+        # SAM/refined maps alone must not satisfy the compact experiment.
+        (self.folder / '000000000002_compact.npy').unlink()
+        metadata = json.loads((self.folder / '000000000002_results.json').read_text())
+        del metadata['saved_partitions']['compact']
+        (self.folder / '000000000002_results.json').write_text(json.dumps(metadata))
+        with self.assertRaisesRegex(ValueError, 'compact.npy'):
+            od.prepare_inputs(self.root, self.config, self.args())
 
     def test_missing_requested_stage_and_incomplete_image_fail_before_inference(self):
-        with self.assertRaisesRegex(ValueError, 'not saved'):
-            od.prepare_inputs(self.root, self.config, self.args('--methods', 'boosted'))
         with self.assertRaisesRegex(ValueError, 'incomplete'):
             od.prepare_inputs(self.root, self.config, self.args('--image-ids', '3'))
+        args = self.args()
+        args.methods = ['boosted']
+        with self.assertRaisesRegex(ValueError, 'Supported methods'):
+            od.prepare_inputs(self.root, self.config, args)
 
     def test_dry_run_never_loads_runtime_or_creates_results(self):
         with patch.object(od, 'load_runtime_dependencies') as load:

@@ -1396,7 +1396,8 @@ import utils_sam_2 as uts2
 
 shapley_values_colormap = utx.get_shapley_values_colormap()
 def plot_xai(input_data,partitions,shap_values, model, results, image_id,
-              destroy_fig=False, save_path=None, save_fig=False):
+              destroy_fig=False, save_path=None, save_fig=False,
+              partition_panels=("sam", "boosted_filled")):
     n_panels = 4 + len(shap_values)
     ncols = 4
     nrows = int(np.ceil(n_panels / ncols))
@@ -1431,8 +1432,8 @@ def plot_xai(input_data,partitions,shap_values, model, results, image_id,
         ax.set_xticks([])
         ax.set_yticks([])
 
-    plot_partition_panel(axes[2], "sam")
-    plot_partition_panel(axes[3], "boosted_filled")
+    plot_partition_panel(axes[2], partition_panels[0])
+    plot_partition_panel(axes[3], partition_panels[1])
     
     # axes[2].set_title(f"partition")
     # axes[2].axis('off')

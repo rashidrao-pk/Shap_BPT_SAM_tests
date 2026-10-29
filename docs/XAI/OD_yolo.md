@@ -8,6 +8,11 @@ per-image heatmaps, plots, CSV summaries, resume checks, and the HTML report.
 Use the same EPITO environment as [EPITO.md](EPITO.md#1-start-a-session).
 No SAM inference or partition generation is run by this script.
 
+Result keys, plot labels, and method-specific output paths use `SAM_c` and
+`SAM_c_kernelshap`. Existing partition storage remains `*_compact.npy`; no
+regeneration or renaming is required. The generator still uses
+`--save-partitions compact` to produce this input.
+
 ## 1. Select the saved partition dataset
 
 In `src/configs/MSCOCO_epito.yaml`, check image/annotation paths and set:
@@ -28,7 +33,6 @@ ImageNet/CAMO/CelebA-HQ configs.
 ```bash
 python src/scripts/explations/OD_yolo.py \
   --config MSCOCO_epito \
-  --methods auto \
   --limit 2 \
   --dry-run
 ```
@@ -43,7 +47,6 @@ partition outputs without their completed metadata/files are excluded.
 ```bash
 python src/scripts/explations/OD_yolo.py \
   --config MSCOCO_epito \
-  --methods auto \
   --limit 2 \
   --max-evals 50 \
   --eval-batch-size 16 \
@@ -54,16 +57,25 @@ python src/scripts/explations/OD_yolo.py \
   --class-aggregation sum
 ```
 
-Method selection:
+The default experiment runs exactly these methods, regardless of legacy
+`evaluation.methods` in the config:
 
-- Omit `--methods` to use `evaluation.methods` from the config.
-- `--methods auto` uses saved stages common to all selected images, plus `BPT` and `sam_kernelshap` when SAM maps exist.
-- `--methods BPT sam compact refined` explicitly selects methods; unavailable stages fail before model loading.
+| Result key | Explanation method | Partition input |
+| --- | --- | --- |
+| `BPT` | Stock BPT explanations | Image-built hierarchy |
+| `SAM_c` | BPT + SAM_c guidance | `<image_id>_compact.npy` |
+| `SAM_c_kernelshap` | Kernel SHAP over SAM_c regions | Same `<image_id>_compact.npy` |
 
-The modern stage names are `sam`, `compact`, `boosted`, `filled`, `boosted_filled`,
-and `refined`. Old `greedy_selection`/`compact_selection` filenames are not
-silently substituted for different algorithms. All loaded partition maps still
-go through the original XAI loader's 63-label cap/sanitization.
+No raw-SAM, boosted, filled, or component-refined variant is run. Both SAM_c
+methods use the same saved map and the same loader cap/sanitization. Generate
+partitions with `--save-partitions compact` (or include compact among other stages)
+before this experiment. The new script requires SAM_c maps for each selected
+image and validates them before loading model weights.
+
+`--max-evals` controls the BPT explanation budget. `--kernel-shap-samples` controls
+the Kernel SHAP coalition budget (defaults to `--max-evals`). A subset of the
+three methods can be explicitly selected with `--methods`, but other variants
+and the old `auto` option are no longer accepted.
 
 Increase or remove `--limit` for a larger run. `--image-ids 139 285` selects
 specific completed COCO images. Other options from the original script remain
@@ -75,12 +87,13 @@ Kernel SHAP budgets, plotting controls, and fail-fast behavior.
 Default outputs use the config's output root, then:
 
 ```text
-OD_yolo/<mask_dir_final>/<yolo-model>/xai_results_E1_1_1/
+OD_yolo/<mask_dir_final>/BPT_SAM_c_kernelshap/<yolo-model>/xai_results_E1_1_1/
 ```
 
 The experiment suffix above corresponds to noise background and `max_evals=50`.
 The runner prints the actual final results path. Each partition dataset and YOLO
-model has a separate output namespace. `--output-dir` explicitly overrides that
+model has a separate output namespace. The trio has its own namespace so older
+all-variant results are not reused by default. `--output-dir` explicitly overrides that
 namespace, as in the original runner.
 
 Outputs include `run_info.json`, experiment mappings, partition/timing summaries,

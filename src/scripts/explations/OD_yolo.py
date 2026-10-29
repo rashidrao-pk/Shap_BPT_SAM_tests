@@ -47,20 +47,29 @@ def load_runtime_dependencies():
     from ultralytics.utils.downloads import attempt_download_asset, safe_download
 
 
-# Default ordering; run() replaces this with the selected available methods.
-METHOD_ORDER = ["BPT", "sam", "compact", "boosted", "filled", "boosted_filled",
-                "refined", "sam_kernelshap"]
-SUPPORTED_METHODS = METHOD_ORDER + ["coverage", "refined_filled", "greedy_selection", "compact_selection"]
+# This experiment compares only these three explanation methods.
+METHOD_ORDER = ["BPT", "SAM_c", "SAM_c_kernelshap"]
+SUPPORTED_METHODS = list(METHOD_ORDER)
+METHOD_LABELS = {"BPT": "BPT", "SAM_c": "BPT+SAM_c",
+                 "SAM_c_kernelshap": "SAM_c+Kernel SHAP"}
+
+
+def partition_type_for_method(method):
+    if method == "BPT":
+        return None
+    if method in {"SAM_c", "SAM_c_kernelshap"}:
+        return "compact"
+    raise ValueError(f"Unsupported explanation method: {method}")
 
 PARTITION_TIME_BY_METHOD = {
     "BPT": None,
     "sam": "time_sam",
     "coverage": "time_coverage",
-    "compact": "time_compact",
+    "SAM_c": "time_compact",
     "filled": "time_filler",
     "refined": "time_refined",
     "refined_filled": "time_refined_filled",
-    "sam_kernelshap": "time_sam",
+    "SAM_c_kernelshap": "time_compact",
 }
 FAITHFULNESS_METRIC_COLUMNS = [
     "sensitivity_n_corr",
@@ -582,7 +591,7 @@ def build_partition_summary(image_ids, masks_base_path: Path, path_results: Path
                 "total_time_sec": partition_results.get("total_time_sec", 0.0),
                 "time_sam": partition_results.get("time_sam", 0.0),
                 "time_coverage": partition_results.get("time_coverage", 0.0),
-                "time_compact": partition_results.get("time_compact", 0.0),
+                "time_SAM_c": partition_results.get("time_compact", 0.0),
                 "time_filler": partition_results.get("time_filler", 0.0),
                 "time_refined": partition_results.get("time_refined", 0.0),
                 "steps": partition_results.get("steps", 0),
@@ -673,7 +682,7 @@ def cumulative_partition_time_frame(partition_summary_df: pd.DataFrame) -> pd.Da
         return pd.DataFrame()
 
     df = partition_summary_df.copy()
-    for col in ["time_sam", "time_coverage", "time_compact", "time_filler", "time_refined", "time_refined_filled"]:
+    for col in ["time_sam", "time_coverage", "time_SAM_c", "time_filler", "time_refined", "time_refined_filled"]:
         if col not in df.columns:
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
@@ -681,7 +690,8 @@ def cumulative_partition_time_frame(partition_summary_df: pd.DataFrame) -> pd.Da
     df["partition_time_BPT"] = 0.0
     df["partition_time_sam"] = df["time_sam"]
     df["partition_time_coverage"] = df["time_sam"] + df["time_coverage"]
-    df["partition_time_compact"] = df["time_sam"] + df["time_compact"]
+    df["partition_time_SAM_c"] = df["time_sam"] + df["time_SAM_c"]
+    df["partition_time_SAM_c_kernelshap"] = df["partition_time_SAM_c"]
     df["partition_time_filled"] = df["time_sam"] + df["time_filler"]
     df["partition_time_refined"] = df["time_sam"] + df["time_refined"]
     df["partition_time_refined_filled"] = df["time_sam"] + df["time_refined_filled"]
@@ -1396,30 +1406,29 @@ def prepare_inputs(project_root, config, args):
             raise FileNotFoundError(image_path)
     available = []
     for method in SUPPORTED_METHODS:
-        suffix = "sam" if method == "sam_kernelshap" else method
+        suffix = partition_type_for_method(method)
         if method == "BPT" or all(f"{image_id}_{suffix}.npy" in files and
                 (not completed[image_id].get("saved_partitions") or
                  suffix in completed[image_id]["saved_partitions"]) for image_id in ids):
             available.append(method)
-    requested = args.methods if args.methods is not None else config.get("evaluation", {}).get("methods")
-    if requested is None or requested == ["auto"]:
-        methods = available
-    else:
-        if not isinstance(requested, list) or not requested or any(method not in SUPPORTED_METHODS for method in requested):
-            raise ValueError("Methods must be supported names, or --methods auto by itself")
-        methods = list(dict.fromkeys(requested))
-        missing = [method for method in methods if method not in available]
-        if missing:
-            raise ValueError(f"Requested methods are not saved for every selected image: {missing}; available: {available}")
+    requested = args.methods if args.methods is not None else SUPPORTED_METHODS
+    if not isinstance(requested, list) or not requested or any(method not in SUPPORTED_METHODS for method in requested):
+        raise ValueError("Supported methods: BPT, SAM_c, SAM_c_kernelshap")
+    methods = list(dict.fromkeys(requested))
+    missing = [method for method in methods if method not in available]
+    if missing:
+        raise ValueError(f"Requested methods are not saved for every selected image: {missing}; "
+                         "both SAM_c methods require existing <image_id>_compact.npy (SAM_c input)")
     if args.output_dir:
         output_root = rooted(args.output_dir)
     else:
         output = config["output"]
         output_root = rooted(output["dir"]) / output.get("folder", "")
-        output_root = output_root / "OD_yolo" / data["mask_dir_final"] / args.model
+        output_root = output_root / "OD_yolo" / data["mask_dir_final"] / "BPT_SAM_c_kernelshap" / args.model
     return {"partition_dir": partition_dir, "image_dir": image_dir,
             "annotation_file": annotation_path, "image_ids": ids,
-            "methods": methods, "output_root": output_root}
+            "methods": methods, "method_labels": {method: METHOD_LABELS[method] for method in methods},
+            "output_root": output_root}
 
 
 def run(args):
@@ -1502,6 +1511,7 @@ def run(args):
             "kernel_shap_batch_size": kernel_shap_batch_size,
             "num_explained_classes": args.num_explained_classes,
             "methods": METHOD_ORDER,
+            "method_labels": {method: METHOD_LABELS[method] for method in METHOD_ORDER},
             "config": args.config,
             "masks_base_path": str(masks_base_path),
             "image_dir": str(image_dir),
@@ -1625,12 +1635,12 @@ def run(args):
                     bptree = None
                 else:
                     timing_start = time.time()
-                    partition_type = "sam" if method == "sam_kernelshap" else method
+                    partition_type = partition_type_for_method(method)
                     partitions[method], partition_capped[method] = uts2.load_refine_partitions(
                         input_data["image_to_explain"], str(masks_base_path), image_id, partition_type=partition_type
                     )
                     first_iteration_breakdown["load_partitions"] += time.time() - timing_start
-                    if method == "sam_kernelshap":
+                    if method == "SAM_c_kernelshap":
                         bptree = None
                     else:
                         timing_start = time.time()
@@ -1638,7 +1648,7 @@ def run(args):
                         first_iteration_breakdown["build_bpt"] += time.time() - timing_start
 
                 start = time.time()
-                if method == "sam_kernelshap":
+                if method == "SAM_c_kernelshap":
                     shap_values[method] = utx.kernel_shap_partition_regions(
                         predict_masked,
                         partition_capped[method],
@@ -1696,6 +1706,7 @@ def run(args):
                     destroy_fig=True,
                     save_path=str(path_results_img),
                     save_fig=True,
+                    partition_panels=("SAM_c", "SAM_c_kernelshap"),
                 )
                 first_iteration_breakdown["xai_grid_plot"] += time.time() - timing_start
 
@@ -1818,8 +1829,8 @@ def run(args):
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="MSCOCO_epito", help="Config name from src/configs or path to YAML.")
-    parser.add_argument("--methods", nargs="+", choices=["auto", *SUPPORTED_METHODS],
-                        help="Override evaluation.methods; auto uses stages shared by selected images")
+    parser.add_argument("--methods", nargs="+", choices=SUPPORTED_METHODS, default=list(SUPPORTED_METHODS),
+                        help="Default: BPT SAM_c SAM_c_kernelshap; ignores legacy evaluation.methods")
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs without loading models or creating outputs")
     parser.add_argument("--model", default="yolo11s", help="YOLO model/checkpoint name. Examples: yolo11s, yolo_26.")
     parser.add_argument("--weights", default=None, help="Explicit YOLO weights path. Overrides --model.")
@@ -1845,8 +1856,8 @@ def parse_args():
     parser.add_argument("--eval-batch-size", type=int, default=16)
     parser.add_argument("--auc-batch-size", type=int, default=4)
     parser.add_argument("--auc_num_samples", type=int, default=101)
-    parser.add_argument("--kernel-shap-samples", type=int, default=None, help="Number of region coalitions for sam_kernelshap. Default: --max-evals.")
-    parser.add_argument("--kernel-shap-batch-size", type=int, default=None, help="Prediction batch size for sam_kernelshap. Default: --eval-batch-size.")
+    parser.add_argument("--kernel-shap-samples", type=int, default=None, help="Number of region coalitions for SAM_c_kernelshap. Default: --max-evals.")
+    parser.add_argument("--kernel-shap-batch-size", type=int, default=None, help="Prediction batch size for SAM_c_kernelshap. Default: --eval-batch-size.")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--verbose-level", default="low", 
                         choices=["low", "medium", "high"])

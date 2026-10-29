@@ -28,11 +28,12 @@ data:
   mask_dir: SAM_BPT
   mask_dir_final: MSCOCO_sam2_tiny_62_refined_200
 evaluation:
-  methods: [BPT, refined]
+  methods: [BPT, SAM_c, SAM_c_kernelshap]
 ```
 
 These are the relevant fields, not a replacement for the complete config.
-`BPT` builds its own image hierarchy; `refined` uses the new SAM2 partition maps.
+`OD_yolo.py` defaults to BPT, BPT+SAM_c, and SAM_c+Kernel SHAP.
+Both SAM_c methods require the saved `*_compact.npy` maps.
 Optional notebook stages such as `boosted` are available only when explicitly saved
 during generation. See [the YOLO explanation guide](OD_yolo.md).
 
@@ -41,7 +42,6 @@ during generation. See [the YOLO explanation guide](OD_yolo.md).
 ```bash
 python src/scripts/explations/OD_yolo.py \
   --config MSCOCO_epito \
-  --methods auto \
   --limit 2 \
   --max-evals 50 \
   --eval-batch-size 16 \
@@ -55,7 +55,7 @@ python src/scripts/explations/OD_yolo.py \
 The runner discovers generated image IDs from the configured partition folder
 and selects the first two in sorted order. Confirm the printed `Masks`,
 `methods`, and `Images to process` values. Result paths are printed at startup.
-To compare the raw SAM label maps too, set `methods: [BPT, sam, refined]`.
+The new script ignores legacy method lists and defaults to the three SAM_c comparison methods.
 
 ## 4. Run more images
 

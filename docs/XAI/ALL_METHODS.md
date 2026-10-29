@@ -92,6 +92,8 @@ intervals. It does not copy the upstream empty-interval indexing issue.
 
 ## Architecture support
 
+- **OC_CelebA:** all 13 methods with the E5 CelebModel checkpoint; raw attribute
+  logits, direct resize, and GradCAM at `unit8.conv`. See [CelebA setup](CELEBA.md).
 - **OC_ResNet:** all listed methods, including LRP with explicit residual addition
   modules on a separate model copy. The copy's logits are checked against the
   scoring model before attribution.

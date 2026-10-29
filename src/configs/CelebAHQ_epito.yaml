@@ -11,6 +11,10 @@ data:
     format: celebamask_hq
     root: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/CelebAMask-HQ/CelebAMask-HQ/CelebAMask-HQ-mask-anno
 
+# Download once with python src/scripts/download_celeba_checkpoint.py
+model:
+  checkpoint: src/checkpoints/celeba_model.pth
+
 output:
   partitions: /beegfs/home/mrashid/datasets/SAM_BPT
   explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations

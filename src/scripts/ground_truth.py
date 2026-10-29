@@ -18,6 +18,18 @@ IMAGENETS_MERGES = {'n04356056': 'n04355933', 'n04493381': 'n02808440',
                     'n03642806': 'n03832673', 'n04008634': 'n03773504', 'n03887697': 'n15075141'}
 
 
+CELEBA_ATTRIBUTE_PARTS = {
+    **{name: ['hair'] for name in ['Brown_Hair', 'Black_Hair', 'Blond_Hair', 'Gray_Hair',
+                                  'Straight_Hair', 'Wavy_Hair', 'Bangs', 'Receding_Hairline']},
+    'Smiling': ['l_lip', 'mouth', 'u_lip'], 'Mouth_Slightly_Open': ['mouth', 'l_lip', 'u_lip'],
+    'Eyeglasses': ['eye_g'], 'Wearing_Hat': ['hat'],
+    'Wearing_Lipstick': ['l_lip', 'u_lip'], 'Big_Lips': ['l_lip', 'u_lip'],
+    'Big_Nose': ['nose'], 'Pointy_Nose': ['nose'],
+    'Arched_Eyebrows': ['l_brow', 'r_brow'], 'Bushy_Eyebrows': ['l_brow', 'r_brow'],
+    'Narrow_Eyes': ['l_eye', 'r_eye'], 'Wearing_Earrings': ['ear_r'],
+    'Wearing_Necklace': ['neck_l'],
+}
+
 def title(gt):
     count = gt.get('display_count', gt.get('instance_count', 0))
     unit = gt.get('count_label', 'instances')
@@ -260,6 +272,16 @@ def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_
             raise ValueError('CAMO GT is binary; use --gt-class foreground')
         return _load_camo(settings, root, stem, image_shape)
     if format_name in {'celebamask_hq', 'celebahq'}:
+        if predicted_class and gt_class is None:
+            parts = CELEBA_ATTRIBUTE_PARTS.get(predicted_class)
+            if parts is None:
+                return _empty(image_shape, predicted_class,
+                              'no part-mask mapping for attribute; use --gt-class PART',
+                              scope='attribute_unmapped', attribute_name=predicted_class)
+            result = _load_celeba({**settings, 'parts': parts}, root, stem, image_shape, None)
+            result.update(class_name=f'{predicted_class}: {result["class_name"]}',
+                          scope='attribute_region_proxy', attribute_name=predicted_class)
+            return result
         return _load_celeba(settings, root, stem, image_shape, gt_class)
     if format_name == 'imagenets':
         return _load_imagenets(settings, root, stem, image_shape, gt_class, predicted_index, label_space, predicted_class)

@@ -154,6 +154,16 @@ def lrp_model(model):
     from torchvision.models.resnet import Bottleneck
     from captum.attr._utils.custom_modules import Addition_Module
     result = copy.deepcopy(model)
+    if hasattr(result, 'unit13') and hasattr(result, 'model'):
+        # The notebook registers units twice (named and Sequential aliases).
+        # Captum needs a single traversal of each executed layer.
+        class CelebaLRP(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.features, self.fc = result.model, result.fc
+            def forward(self, x):
+                return self.fc(self.features(x).flatten(1))
+        return CelebaLRP().eval()
     for module in result.modules():
         if isinstance(module, Bottleneck):
             module.relu1 = torch.nn.ReLU()
@@ -181,7 +191,7 @@ class GradientMethods:
         self.x = adapter.preprocess(Image.fromarray(image)).unsqueeze(0).to(self.device)
         self.baselines = torch.stack([adapter.preprocess(Image.fromarray(background))
                                      for background in replacements]).to(self.device)
-        self.forward = lambda x: torch.softmax(self.model(x), dim=1)
+        self.forward = getattr(adapter, 'forward_tensor', None) or (lambda x: torch.softmax(self.model(x), dim=1))
 
     def restore(self, values):
         """Undo center crop/resize; assign zero outside the model's field of view."""
@@ -193,6 +203,9 @@ class GradientMethods:
         crop_h, crop_w = self.x.shape[-2:]
         values = torch.nn.functional.interpolate(values[None, None], (crop_h, crop_w),
                                                   mode='bilinear', align_corners=False)[0, 0]
+        if getattr(self.adapter, 'preprocessing_geometry', None) == 'resize':
+            return torch.nn.functional.interpolate(values[None, None], self.image.shape[:2],
+                                                    mode='bilinear', align_corners=False)[0].cpu().numpy()
         raw = torch.from_numpy(np.array(self.image)).permute(2, 0, 1).float()
         resized = F.resize(raw, self.adapter.preprocess.resize_size,
                            interpolation=self.adapter.preprocess.interpolation,
@@ -214,7 +227,7 @@ class GradientMethods:
         x = self.x.detach().requires_grad_(True)
         with torch.enable_grad(), seeded(torch, args.explanation_seed):
             if method == 'LRP':
-                if getattr(self.adapter, 'name', '') != 'resnet50':
+                if getattr(self.adapter, 'name', '') not in {'resnet50', 'celeba_cnn'}:
                     raise UnsupportedMethod('LRP for torchvision ViT needs a transformer-specific relevance backend; no substitute map is generated')
                 from captum.attr import LRP
                 model = lrp_model(self.model)
@@ -230,6 +243,9 @@ class GradientMethods:
                 if getattr(self.adapter, 'name', '') == 'resnet50':
                     layer = self.model.layer4[-1]
                     values = LayerGradCam(self.forward, layer).attribute(x, target=target, relu_attributions=True)
+                elif getattr(self.adapter, 'name', '') == 'celeba_cnn':
+                    values = LayerGradCam(self.forward, self.model.unit8.conv).attribute(
+                        x, target=target, relu_attributions=True)
                 elif getattr(self.adapter, 'name', '') == 'vit_b_16':
                     # Patch tokens before the last attention block still influence CLS.
                     layer = self.model.encoder.layers[-1].ln_1
@@ -279,12 +295,13 @@ class GradientMethods:
 
     def forward_module(self, target):
         torch, model = self.torch, self.model
+        score_function = self.forward
         class ProbabilityModel(torch.nn.Module):
             def __init__(self):
                 super().__init__()
                 self.model = model
             def forward(self, x):
-                return torch.softmax(self.model(x), dim=1)[:, target:target+1]
+                return score_function(x)[:, target:target+1]
         return ProbabilityModel().eval()
 
     def idg(self, x, target):
@@ -339,7 +356,11 @@ def compute_extra(runtime, args, adapter, image, replacements, explainer, tree, 
     gradients = None
     gradient_error = None
     sam_tree = None
-    for name in method_names(args):
+    names = method_names(args)
+    for index, name in enumerate(names, 1):
+        show_progress = getattr(args, 'verbose_level', 'low') != 'low'
+        if show_progress:
+            print(f'Method {index}/{len(names)}: {name} starting', flush=True)
         started = time.perf_counter()
         info = {'status': 'complete'}
         try:
@@ -387,16 +408,19 @@ def compute_extra(runtime, args, adapter, image, replacements, explainer, tree, 
                         gradient_error = str(error)
                         raise
                 values = gradients.compute(name, target)
-                info.update(score='logit' if name == 'LRP' else 'classification probability',
+                info.update(score='logit' if name == 'LRP' or getattr(adapter, 'score_type', '') == 'attribute logit' else 'classification probability',
                             reduction='signed sum over input channels',
-                            alignment='inverse model resize and center crop; zero outside crop')
+                            alignment='inverse direct resize' if getattr(adapter, 'preprocessing_geometry', None) == 'resize' else 'inverse model resize and center crop; zero outside crop')
             values = np.asarray(values, dtype=float)
             if values.shape != (1, *image.shape[:2]) or not np.isfinite(values).all():
                 raise ValueError(f'{name}: invalid attribution map {values.shape}')
         except UnsupportedMethod as error:
             values = None
             info = {'status': 'unsupported', 'reason': str(error)}
-        yield name, values, info, time.perf_counter()-started
+        elapsed = time.perf_counter()-started
+        if show_progress:
+            print(f"Method {index}/{len(names)}: {name} {info['status']} ({elapsed:.1f}s)", flush=True)
+        yield name, values, info, elapsed
 
 
 def comparison_plot(runtime, image, attributions, prediction, output, ground_truth, statuses):

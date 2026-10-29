@@ -126,8 +126,16 @@ Pretrained weights download on first use if absent; DETR supports
 `--local-files-only` when its checkpoint is already cached.
 
 See [partition generation](../Partitions/README.md) and [YOLO details](OD_yolo.md).
-CelebA-HQ currently has partition/preview tooling; an attribute-classification
-explanation runner was not requested here.
+CelebA-HQ attribute explanations use the E5 notebook's trained CNN:
+
+```bash
+python src/scripts/download_celeba_checkpoint.py
+python src/scripts/explanations/OC_CelebA.py \
+  --config CelebAHQ_epito --attribute Brown_Hair --show-gt --limit 1 \
+  --explain_all --no-heatmaps --no-auc --no-resume
+```
+
+See [CelebA checkpoint, attributes, and GT matching](CELEBA.md).
 
 ## Local validation
 

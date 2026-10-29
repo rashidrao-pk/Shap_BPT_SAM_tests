@@ -23,9 +23,9 @@ from model_adapters import load_adapter
 
 METHODS = ['BPT', 'SAM_c', 'SAM_c_kernelshap']
 DEFAULT_CONFIGS = {'OD_DETR': 'MSCOCO_epito', 'OC_ResNet': 'ImageNet_epito',
-                   'OC_ViT': 'ImageNet_epito', 'COD_ViT': 'CAMO_epito'}
+                   'OC_ViT': 'ImageNet_epito', 'COD_ViT': 'CAMO_epito', 'OC_CelebA': 'CelebAHQ_epito'}
 MODEL_NAMES = {'OD_DETR': 'facebook/detr-resnet-50', 'OC_ResNet': 'resnet50',
-               'OC_ViT': 'vit_b_16', 'COD_ViT': 'vit_b_16'}
+               'OC_ViT': 'vit_b_16', 'COD_ViT': 'vit_b_16', 'OC_CelebA': 'celeba_cnn'}
 
 
 def create_parser(kind):
@@ -50,11 +50,13 @@ def create_parser(kind):
     parser.add_argument('--auc-batch-size', type=int, default=8)
     parser.add_argument('--auc_num_samples', '--auc-num-samples', type=int, default=101)
     parser.add_argument('--bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'], 
-                        default='black', help='Background replacement for masked pixels')
+                        default='gray' if kind == 'OC_CelebA' else 'black', help='Background replacement for masked pixels')
     parser.add_argument('--class-aggregation', choices=['sum', 'max'], default='sum')
     parser.add_argument('--threshold', type=float, default=0.0,
                         help='DETR scoring threshold (default: 0 for continuous masked scores)')
     parser.add_argument('--detr-shortest-edge', type=int, help='Override the DETR processor resize')
+    parser.add_argument('--attribute', help='CelebA attribute name; default Brown_Hair for OC_CelebA')
+    parser.add_argument('--attribute-file', type=Path, help='CelebA-HQ-attribute.txt to read output label order')
     parser.add_argument('--target-class', type=int, help='Explain this output index instead of the top prediction')
     parser.add_argument('--show_gt', '--show-gt', action='store_true',
                         help='Show/save configured dataset segmentation GT')
@@ -96,7 +98,7 @@ def prepare_inputs(kind, args):
         validate(args)
     config = load_path_config(args.config)
     data = config['data']
-    expected = 'mscoco' if kind == 'OD_DETR' else 'camo' if kind == 'COD_ViT' else 'imagenet'
+    expected = 'mscoco' if kind == 'OD_DETR' else 'camo' if kind == 'COD_ViT' else 'celebahq' if kind == 'OC_CelebA' else 'imagenet'
     if data.get('name', '').replace('_', '').lower() != expected:
         raise ValueError(f'{kind} requires the {expected} dataset config')
     if args.gt_only and (not args.show_gt or expected != 'imagenet'):
@@ -183,7 +185,15 @@ def prepare_inputs(kind, args):
         records.append({'image_id': image_id, 'image_path': images[image_id],
                         'partition_path': folder / f'{image_id}_compact.npy',
                         'partition_metadata': completed[image_id]})
-    for name in ['checkpoint', 'class_names']:
+    if args.attribute and kind != 'OC_CelebA':
+        raise ValueError('--attribute is for OC_CelebA')
+    if kind == 'OC_CelebA':
+        args.checkpoint = args.checkpoint or config.get('model', {}).get('checkpoint')
+        if not args.checkpoint:
+            raise ValueError('Set --checkpoint or model.checkpoint; run download_celeba_checkpoint.py first')
+        if args.attribute and args.target_class is not None:
+            raise ValueError('Choose --attribute or --target-class, not both')
+    for name in ['checkpoint', 'class_names', 'attribute_file']:
         if getattr(args, name):
             setattr(args, name, resolve_path(getattr(args, name)))
             if not getattr(args, name).exists():
@@ -191,11 +201,17 @@ def prepare_inputs(kind, args):
     if kind != 'OD_DETR' and args.model != MODEL_NAMES[kind]:
         raise ValueError(f'{kind} supports --model {MODEL_NAMES[kind]}')
     base = resolve_path(args.output_dir) if args.output_dir else output_path(config, 'explanations') / kind / folder.name
+    if kind == 'OC_CelebA':
+        attribute_folder = args.attribute or ('Brown_Hair' if args.target_class is None else f'class_{args.target_class}')
+        if not attribute_folder.replace('_', '').isalnum():
+            raise ValueError('Attribute names must contain letters, numbers, and underscores')
+        base = base / attribute_folder
     run_dir = base / f'bg_{args.bg_type}_B{args.max_evals}'
     return {'config': config, 'records': records, 'partition_dir': folder,
             'run_dir': run_dir, 'evaluation_dir': evaluation_path(config, run_dir),
             'annotation_file': annotation_file, 'methods': comparison_names(args) if args.explain_all else list(METHODS),
-            'ground_truth': data.get('ground_truth') if args.show_gt else None}
+            'ground_truth': ({'format': 'coco', 'annotation_file': annotation_file}
+                             if expected == 'mscoco' else data.get('ground_truth')) if args.show_gt else None}
 
 
 def backgrounds(image, mode):
@@ -287,11 +303,14 @@ def run_signature(kind, args, config=None):
             settings.pop(option, None)
     if settings.get('save_heatmaps', True):
         settings.pop('save_heatmaps', None)  # Preserve signatures from before this option existed.
+    for option in ['attribute', 'attribute_file']:
+        if settings.get(option) is None:
+            settings.pop(option, None)
     if settings.get('gt_class') is None:
         settings.pop('gt_class', None)
     if args.show_gt and config and config['data'].get('ground_truth'):
         settings['ground_truth'] = config['data']['ground_truth']
-    for name in ['checkpoint', 'class_names']:
+    for name in ['checkpoint', 'class_names', 'attribute_file']:
         path = getattr(args, name)
         if path and path.is_file():
             stat = path.stat()
@@ -490,7 +509,7 @@ def run(kind, args, adapter=None):
                'background_replacement_values': args.bg_type, 'max_evals': args.max_evals,
                'results_dir': run_dir, 'evaluations_dir': evaluations, 'settings': vars(args),
                'ground_truth': inputs['ground_truth'],
-               'score_type': 'detection confidence' if kind == 'OD_DETR' else 'classification probability'})
+               'score_type': 'detection confidence' if kind == 'OD_DETR' else 'attribute logit' if kind == 'OC_CelebA' else 'classification probability'})
     rows = [row for manifest in prior for row in manifest['rows']]
     summaries = [manifest['prediction'] for manifest in prior]
     failures = []
@@ -510,7 +529,13 @@ def run(kind, args, adapter=None):
             replacements = backgrounds(image, args.bg_type)
             predict = make_masked_predictor(adapter, image, replacements, args.model_batch_size)
             full = predict(np.ones((1, *image.shape[:2]), dtype=bool))[0]
-            target = int(np.argmax(full)) if args.target_class is None else args.target_class
+            if kind == 'OC_CelebA' and args.target_class is None:
+                attribute = args.attribute or 'Brown_Hair'
+                if attribute not in adapter.class_names:
+                    raise ValueError(f'Unknown CelebA attribute: {attribute}')
+                target = adapter.class_names.index(attribute)
+            else:
+                target = int(np.argmax(full)) if args.target_class is None else args.target_class
             if target < 0 or target >= len(adapter.class_names):
                 raise ValueError(f'Target class {target} outside model output range')
             explainer = runtime.shap_bpt.Explainer(predict, image, num_explained_classes=None,
@@ -531,12 +556,17 @@ def run(kind, args, adapter=None):
                     predicted_index=target, label_space=getattr(adapter, 'label_space', None),
                     predicted_class=prediction['explained_class'])
                 prediction['ground_truth'] = save_ground_truth(ground_truth, image, folder, image_id)
+                if args.verbose_level != 'low':
+                    print(f"{image_id} GT: {ground_truth['class_name']}; {ground_truth['status']}; "
+                          f"foreground pixels={ground_truth['foreground_pixels']}", flush=True)
             write_json(folder / f'{image_id}_predictions.json', prediction)
             attributions, image_rows, auc_results = {}, [], []
             bpt_labels = None
             bpt_tree = None
             statuses = {}
             if args.explain_all:
+                if args.verbose_level != 'low':
+                    print(f'{image_id}: building BPT tree', flush=True)
                 bpt_tree = runtime.shap_bpt.build_bpt_from_image(image)
                 bpt_labels = bpt_partition_labels(bpt_tree, len(np.unique(labels)), image.shape[:2])
             for method in ([] if args.explain_all else METHODS):

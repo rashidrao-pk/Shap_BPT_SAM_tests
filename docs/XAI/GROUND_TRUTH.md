@@ -83,8 +83,8 @@ YOLO COCO helper retains its existing GT file layout.
 
 To add GT to an already completed explanation run, use `--no-resume` or a separate
 `--output-dir` when the settings check requests it. Partition regeneration is not
-needed. CelebA currently has partition previews; no CelebA attribute classifier
-was supplied in the earlier runner requests.
+needed. CelebA attribute explanations are available through `OC_CelebA.py`; see
+[checkpoint and attribute-to-part matching](CELEBA.md).
 
 ## Tests
 

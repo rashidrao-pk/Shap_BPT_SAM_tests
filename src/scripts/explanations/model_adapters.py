@@ -127,6 +127,9 @@ class DetrAdapter:
 
 
 def load_adapter(kind, args, device):
+    if kind == 'OC_CelebA':
+        from celeba_model import CelebaAdapter
+        return CelebaAdapter(args, device)
     if kind == 'OD_DETR':
         return DetrAdapter(args, device)
     return ClassifierAdapter(args, device, 'resnet50' if kind == 'OC_ResNet' else 'vit_b_16')

@@ -46,8 +46,9 @@ synthetic GT, valid combined PNGs and an HTML report. Checked the exact method
 list, both budgets for all three partition-based methods, requested LIME segment
 counts (250 for COCO, 100 otherwise), numeric R², and saved arrays. SLIC returned
 194 regions for the larger COCO fixture and 88 for the classifier fixtures.
-CelebA-HQ's partition/GT preview was checked separately; no CelebA classifier exists
-in this workflow.
+CelebA-HQ's partition/GT preview was checked separately. The subsequently added
+`OC_CelebA.py` runner and published-checkpoint smoke test are documented in
+[CELEBA.md](CELEBA.md).
 
 Artifacts and a report index are in `results/all_methods_dataset_smoke/`, with
 `validation_summary.json` recording each check. The smoke runs used partition

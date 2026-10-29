@@ -321,7 +321,7 @@ def bpt_partition_labels(tree, region_count, shape):
 def explanation_grid(runtime, image, partition, attributions, prediction, output,
                      ground_truth=None, bpt_partition=None, auc_results=None):
     plt = runtime.plt
-    fig, axes = plt.subplots(3, 3, figsize=(15, 12))
+    fig, axes = plt.subplots(2, 3, figsize=(15, 8))
     try:
         axes[0, 0].imshow(image)
         for detection in prediction.get('detections', []):
@@ -330,7 +330,7 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
             from matplotlib.patches import Rectangle
             x1, y1, x2, y2 = detection['box']
             axes[0, 0].add_patch(Rectangle((x1, y1), x2-x1, y2-y1, fill=False, edgecolor='lime', linewidth=1))
-        axes[0, 0].set_title('Original')
+        axes[0, 0].set_title('Input')
         for ax, labels, name in [(axes[0, 1], bpt_partition, 'BPT'), (axes[0, 2], partition, 'SAM_c')]:
             if labels is not None:
                 ax.imshow(labels, cmap='turbo', interpolation='nearest')
@@ -341,36 +341,29 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
             heatmap = np.asarray(attributions[method][0])
             maximum = max(float(np.nanpercentile(np.abs(heatmap), 99.5)), 1e-12)
             handle = ax.imshow(heatmap, cmap='coolwarm', vmin=-maximum, vmax=maximum)
-            ax.set_title(method)
+            ax.set_title(f'Attributions-{method}')
+            if ground_truth is not None:
+                mask = np.asarray(ground_truth['mask'], dtype=bool)
+                if mask.shape != heatmap.shape:
+                    raise ValueError('GT mask and attribution dimensions must match')
+                if mask.any():
+                    # Padding also outlines objects touching the image boundary.
+                    padded = np.pad(mask.astype(float), 1)
+                    ax.contour(np.arange(-1, mask.shape[1] + 1),
+                               np.arange(-1, mask.shape[0] + 1), padded,
+                               levels=[.5], colors='lime', linewidths=1.3)
+                    ax.set_xlim(-.5, mask.shape[1] - .5)
+                    ax.set_ylim(mask.shape[0] - .5, -.5)
             fig.colorbar(handle, ax=ax, fraction=.04)
         for ax in axes[:2].ravel():
             ax.axis('off')
-        for ax, key, name in [(axes[2, 0], 'auc_ins', 'AUC+'), (axes[2, 1], 'auc_del', 'AUC−')]:
-            ax.set_title(name)
-            if auc_results:
-                for result in auc_results:
-                    curve = result[key]
-                    ax.plot(curve['xs'], curve['y_clipr'], label=f"{result['label']} {curve['auc_clipr']:.4f}")
-                ax.set_xlabel('Fraction of pixels inserted' if key == 'auc_ins' else 'Fraction of pixels removed')
-                ax.set_ylabel('Normalized confidence')
-                ax.grid(alpha=.25)
-                ax.legend(fontsize=8)
-            else:
-                ax.text(.5, .5, 'AUC disabled', ha='center', va='center', transform=ax.transAxes)
-                ax.axis('off')
-        axes[2, 2].axis('off')
-        if ground_truth is not None:
-            axes[2, 2].imshow(image)
-            overlay = np.zeros((*image.shape[:2], 4))
-            overlay[ground_truth['mask']] = [0, 1, 0, .45]
-            axes[2, 2].imshow(overlay)
-            from ground_truth import title as gt_title
-            axes[2, 2].set_title(gt_title(ground_truth), fontsize=9)
         top_classes = prediction.get('top_k_classes') or []
         top = max(top_classes, key=lambda item: float(item['confidence'])) if top_classes else None
         predicted_title = (f"Top predicted: {top['class_name']} ({float(top['confidence']):.4f})"
                            if top else 'Top predicted: unavailable')
-        fig.suptitle(f"{predicted_title} | Explained: {prediction['explained_class']}")
+        gt_note = (' | GT contour: green' if ground_truth is not None and np.any(ground_truth['mask'])
+                   else ' | GT: ' + ground_truth['status'] if ground_truth is not None else '')
+        fig.suptitle(f"{predicted_title} | Explained: {prediction['explained_class']}{gt_note}")
         fig.tight_layout(rect=(0, 0, 1, .97))
         fig.savefig(output, dpi=130)
     finally:

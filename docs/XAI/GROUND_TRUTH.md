@@ -76,7 +76,8 @@ New GT loaders save:
 <image-id>_gt.json         # Sources, class scope, alignment, and status
 ```
 
-The combined XAI figure/HTML report includes the overlay. `--no-heatmaps` skips
+The combined 2×3 XAI figure draws a green GT contour on each attribution panel;
+the HTML report also links the standalone GT overlay. `--no-heatmaps` skips
 individual explanation PNGs but keeps GT and the combined plot. The original
 YOLO COCO helper retains its existing GT file layout.
 

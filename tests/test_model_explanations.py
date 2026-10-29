@@ -212,7 +212,7 @@ class ModelExplanationTest(unittest.TestCase):
             (root / 'run_info.json').write_text(json.dumps({'image_ids': [image_id]}))
             self.assertEqual(progress.expected_image_ids_for_experiment(root, {'unrelated'}), {image_id})
 
-    def test_three_row_layout_and_bpt_cut(self):
+    def test_two_row_layout_and_bpt_cut(self):
         from types import SimpleNamespace
         import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
@@ -233,12 +233,15 @@ class ModelExplanationTest(unittest.TestCase):
         with patch.object(Figure, 'savefig', capture):
             common.explanation_grid(SimpleNamespace(plt=plt), image, labels, maps,
                                     {'explained_class': 'object'}, 'unused.png',
-                                    bpt_partition=labels, auc_results=auc)
+                                    bpt_partition=labels, auc_results=auc,
+                                    ground_truth={'mask': np.array([[0, 1], [0, 0]], dtype=bool), 'status': 'matched'})
         self.assertEqual([ax.get_title() for ax in captured[:6]],
-                         ['Original', 'BPT: 2 regions', 'SAM_c: 2 regions', *common.METHODS])
-        self.assertEqual([ax.get_title() for ax in captured[6:8]], ['AUC+', 'AUC−'])
-        self.assertEqual(len(captured[6].lines), 3)
-        self.assertFalse(captured[8].axison)
+                         ['Input', 'BPT: 2 regions', 'SAM_c: 2 regions',
+                          *[f'Attributions-{method}' for method in common.METHODS]])
+        self.assertEqual(len(captured), 9)  # Six image panels plus three colorbars.
+        for ax in captured[3:6]:
+            self.assertTrue(ax.collections)  # GT contour on every attribution.
+            self.assertFalse(ax.axison)
 
     def test_camo_gt_in_explanation_grid_and_manifest(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -139,12 +139,12 @@ the full EPITO datasets. See [validation details](VALIDATION.md).
 
 ### Combined figure layout
 
-All explanation runners save a three-row figure:
+All explanation runners save a two-row, three-column figure:
 
-1. Original image, BPT partitions, SAM_c partitions.
+1. Input image, BPT partitions, SAM_c partitions.
 2. BPT, SAM_c, and SAM_c_kernelshap attributions.
-3. AUC+, AUC−, and ground truth when `--show-gt` is enabled.
 
-The BPT panel cuts the explanation tree to the SAM_c region count. With
-`--no-auc`, the curve panels say AUC disabled. `--no-heatmaps` still keeps
-this combined figure. Use `--no-resume` to regenerate previously saved figures.
+With `--show-gt`, available GT is outlined in green on all three attribution
+panels. AUC plots remain separate. The BPT panel cuts the explanation tree to
+the SAM_c region count. `--no-heatmaps` still keeps this combined figure.
+Use `--no-resume` to regenerate previously saved figures.

@@ -54,16 +54,17 @@ python src/scripts/explations/OD_yolo.py \
   --verbose-level medium \
   --model yolo11s \
   --bg-type noise \
-  --class-aggregation sum
+  --class-aggregation sum \
+  --no-heatmaps
 ```
 
 The default experiment runs exactly these methods, regardless of legacy
 `evaluation.methods` in the config:
 
-| Result key | Explanation method | Partition input |
-| --- | --- | --- |
-| `BPT` | Stock BPT explanations | Image-built hierarchy |
-| `SAM_c` | BPT + SAM_c guidance | `<image_id>_compact.npy` |
+| Result key         | Explanation method             | Partition input               |
+| ------------------ | ------------------------------ | ----------------------------- |
+| `BPT`              | Stock BPT explanations         | Image-built hierarchy         |
+| `SAM_c`            | BPT + SAM_c guidance           | `<image_id>_compact.npy`      |
 | `SAM_c_kernelshap` | Kernel SHAP over SAM_c regions | Same `<image_id>_compact.npy` |
 
 No raw-SAM, boosted, filled, or component-refined variant is run. Both SAM_c
@@ -107,3 +108,36 @@ partition metadata; notebook batch stages may only have a combined stage time.
 Local checks cover input/method selection, partial-output filtering, output-path
 isolation, dry runs, and detector-score sum/max aggregation. Actual YOLO/SHAP GPU
 execution must be tested on EPITO with the dataset and model weights.
+
+## Show ground truth for the explained class
+
+Add `--show_gt` (or `--show-gt`) to the same command:
+
+```bash
+python src/scripts/explations/OD_yolo.py \
+  --config MSCOCO_epito \
+  --limit 2 \
+  --max-evals 50 \
+  --kernel-shap-samples 50 \
+  --show_gt
+```
+
+The class is the first class actually selected by the explainer, for example
+chair. It is matched to COCO categories by name, not the YOLO class index (the
+numbering differs). All segmentation instances of that class, including crowd
+annotations, are decoded through COCO and unioned into a boolean mask. Other
+classes are excluded. Polygon and RLE annotations use COCO's mask decoder.
+
+Each image saves `<image_no>_gt.npy`, `<image_no>_gt.png` (mask + overlay), and
+`<image_no>_gt.json` (class/category/annotation IDs and instance count). The XAI
+grid adds a GT overlay, and the HTML report includes the standalone GT preview.
+The predictions JSON also records the GT metadata. If that class has no matching
+segmentation, an empty mask is saved with an explicit status; it is not replaced
+by another class or a bounding box. Unknown custom detector classes are marked
+as absent from COCO categories.
+
+The standalone GT files are saved even with `--no-plots` or `--heatmaps-only`.
+GT is for visualization; it does not alter explanations or the existing
+faithfulness/AUC calculations. Runs with `--show_gt` require GT files before an
+image is considered complete for resume, so older results without GT are
+recomputed. No SAM or partition regeneration is required.

@@ -1398,7 +1398,9 @@ shapley_values_colormap = utx.get_shapley_values_colormap()
 def plot_xai(input_data,partitions,shap_values, model, results, image_id,
               destroy_fig=False, save_path=None, save_fig=False,
               partition_panels=("sam", "boosted_filled")):
-    n_panels = 4 + len(shap_values)
+    ground_truth = input_data.get('ground_truth')
+    has_gt = ground_truth is not None
+    n_panels = 4 + int(has_gt) + len(shap_values)
     ncols = 4
     nrows = int(np.ceil(n_panels / ncols))
     fig, axes = plt.subplots(nrows, ncols, figsize=(20, 3.8 * nrows))
@@ -1434,6 +1436,14 @@ def plot_xai(input_data,partitions,shap_values, model, results, image_id,
 
     plot_partition_panel(axes[2], partition_panels[0])
     plot_partition_panel(axes[3], partition_panels[1])
+    if has_gt:
+        axes[4].imshow(input_data['image_to_explain'])
+        overlay = np.zeros((*ground_truth['mask'].shape, 4))
+        overlay[ground_truth['mask']] = [0, 1, 0, .45]
+        axes[4].imshow(overlay)
+        axes[4].set_title(f"GT: {ground_truth['class_name']}\n"
+                          f"{ground_truth['instance_count']} instances; {ground_truth['status']}")
+        axes[4].axis('off')
     
     # axes[2].set_title(f"partition")
     # axes[2].axis('off')
@@ -1444,7 +1454,7 @@ def plot_xai(input_data,partitions,shap_values, model, results, image_id,
         sv,mv = utx.scale_shap_values(sv, robust_percentile=99.5, factor=1)
         max_abs = np.max(np.abs(sv))
         # print(method, max_abs, mv)
-        panel_index = i + 4
+        panel_index = i + 4 + int(has_gt)
         im = axes[panel_index].imshow(sv[0], vmin=-mv, vmax=mv, cmap=shapley_values_colormap)
         fig.colorbar(im, ax=axes[panel_index], fraction=0.03)#, location='bottom') #,  fraction=0.5, 
         axes[panel_index].set_title(f"{method} Explanation")
@@ -1505,6 +1515,10 @@ def save_yolo_predictions(results,input_data,config,has_segmentation,top_k_class
         ],
     }
 
+    if input_data.get('ground_truth') is not None:
+        detection_summary['ground_truth'] = {
+            key: value for key, value in input_data['ground_truth'].items() if key != 'mask'
+        }
     if output_json is None:
         # path_results = os.path.join(original_working_dir, 'results')
         path_results = os.path.join(config['output']['dir'], config['output']['folder'], 'xai_results')

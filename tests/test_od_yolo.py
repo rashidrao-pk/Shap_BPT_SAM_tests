@@ -1,8 +1,10 @@
 """Input compatibility and unchanged detector-score behavior without model weights."""
 from contextlib import redirect_stdout
 import importlib.util
+import ast
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -103,6 +105,79 @@ class ODYoloTest(unittest.TestCase):
         with patch.object(od, 'np', np, create=True):
             np.testing.assert_allclose(od.yolo_result_to_scores(result, 2, 'sum'), [1, .8])
             np.testing.assert_allclose(od.yolo_result_to_scores(result, 2, 'max'), [.7, .8])
+
+    def test_gt_matches_category_name_and_unions_only_that_class(self):
+        first = np.zeros((8, 10), dtype=bool)
+        second = first.copy()
+        first[:2, :2] = True
+        second[1:3, 1:3] = True
+        masks = {10: first, 11: second, 12: np.ones((8, 10), dtype=bool)}
+        records = [{'id': 10, 'category_id': 62, 'segmentation': [1]},
+                   {'id': 11, 'category_id': 62, 'segmentation': [1], 'iscrowd': 1},
+                   {'id': 12, 'category_id': 1, 'segmentation': [1]}]
+        class FakeCOCO:
+            def getCatIds(self):
+                return [1, 62]
+            def loadCats(self, ids):
+                return [{'id': 1, 'name': 'person'}, {'id': 62, 'name': 'chair'}]
+            def getAnnIds(self, imgIds, catIds):
+                return [ann['id'] for ann in records if ann['category_id'] in catIds]
+            def loadAnns(self, ids):
+                return [ann for ann in records if ann['id'] in ids]
+            def annToMask(self, annotation):
+                return masks[annotation['id']]
+        gt = od.load_class_ground_truth(FakeCOCO(), 1, 'chair', (8, 10, 3))
+        self.assertEqual(gt['category_ids'], [62])  # Not the YOLO zero-based index.
+        self.assertEqual(gt['annotation_ids'], [10, 11])
+        self.assertEqual(gt['instance_count'], 2)
+        self.assertEqual(gt['foreground_pixels'], 7)
+        unknown = od.load_class_ground_truth(FakeCOCO(), 1, 'custom_class', (8, 10, 3))
+        self.assertFalse(unknown['mask'].any())
+        self.assertEqual(unknown['status'], 'class not in COCO categories')
+        # Known class with no instances is distinct from an unknown category.
+        records.clear()
+        absent = od.load_class_ground_truth(FakeCOCO(), 1, 'chair', (8, 10, 3))
+        self.assertEqual(absent['status'], 'no matching segmentation')
+
+    def test_gt_preview_outputs_and_resume(self):
+        gt = {'mask': np.ones((8, 10), dtype=bool), 'class_name': 'chair',
+              'category_ids': [62], 'annotation_ids': [10], 'instance_count': 1,
+              'foreground_pixels': 80, 'status': 'matched'}
+        summary = od.save_ground_truth(gt, np.zeros((8, 10, 3), dtype=np.uint8), self.root / 'gt', 1)
+        self.assertNotIn('mask', summary)
+        self.assertTrue(Path(summary['preview_path']).is_file())
+        self.assertTrue(np.load(summary['mask_path']).all())
+        self.assertEqual(json.loads((self.root / 'gt/1_gt.json').read_text())['class_name'], 'chair')
+        args = self.args('--show_gt', '--no-plots')
+        self.assertTrue(args.show_gt)
+        (self.root / 'gt/1_predictions.json').write_text('{}')
+        self.assertTrue(od.image_outputs_are_complete(self.root / 'gt', 1, [], args))
+        (self.root / 'gt/1_gt.png').unlink()
+        self.assertFalse(od.image_outputs_are_complete(self.root / 'gt', 1, [], args))
+
+    def test_gt_panel_does_not_replace_explanation_panel(self):
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        tree = ast.parse((ROOT / 'src/scripts/utils_xai.py').read_text())
+        plot_function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'plot_xai')
+        namespace = {'np': np, 'plt': plt, 'os': os, 'shapley_values_colormap': 'coolwarm',
+                     'utx': SimpleNamespace(plot_predictions=lambda *args, **kwargs: None,
+                                            scale_shap_values=lambda values, **kwargs: (values, 1))}
+        exec(compile(ast.Module(body=[plot_function], type_ignores=[]), '<plot>', 'exec'), namespace)
+        input_data = {'image_to_explain': np.zeros((8, 10, 3)), 'fixed_category': 'chair',
+                      'ground_truth': {'mask': np.ones((8, 10), dtype=bool), 'class_name': 'chair',
+                                       'instance_count': 1, 'status': 'matched'}}
+        try:
+            namespace['plot_xai'](input_data, {}, {'BPT': np.zeros((1, 8, 10))}, None, None, 1,
+                                  save_path=str(self.root), save_fig=True,
+                                  partition_panels=('SAM_c', 'SAM_c_kernelshap'))
+            titles = [ax.get_title() for ax in plt.gcf().axes]
+            self.assertTrue(any(title.startswith('GT: chair') for title in titles))
+            self.assertIn('BPT Explanation', titles)
+            self.assertTrue((self.root / '1_xai_results.png').is_file())
+        finally:
+            plt.close('all')
 
 
 if __name__ == '__main__':

@@ -564,6 +564,63 @@ def image_has_segmentation(coco: COCO, image_no: int) -> bool:
     return any("segmentation" in ann for ann in annotations)
 
 
+def load_class_ground_truth(coco, image_no, class_name, image_shape):
+    """Match by category name: YOLO class indices are not COCO category IDs."""
+    import numpy as np
+    normalize = lambda name: " ".join(str(name).lower().replace("_", " ").split())
+    aliases = {"sofa": "couch", "tvmonitor": "tv", "diningtable": "dining table",
+               "pottedplant": "potted plant", "motorbike": "motorcycle", "aeroplane": "airplane"}
+    name = aliases.get(normalize(class_name), normalize(class_name))
+    category_ids = [int(category['id']) for category in coco.loadCats(coco.getCatIds())
+                    if normalize(category['name']) == name]
+    mask = np.zeros(image_shape[:2], dtype=bool)
+    annotation_ids = []
+    if category_ids:
+        annotations = coco.loadAnns(coco.getAnnIds(imgIds=[int(image_no)], catIds=category_ids))
+        for annotation in annotations:
+            if not annotation.get('segmentation'):
+                continue
+            instance = np.asarray(coco.annToMask(annotation), dtype=bool)
+            if instance.shape != mask.shape:
+                raise ValueError(f'Ground-truth shape {instance.shape} differs from image {mask.shape}')
+            mask |= instance
+            annotation_ids.append(int(annotation['id']))
+    return {'class_name': str(class_name), 'category_ids': category_ids,
+            'annotation_ids': annotation_ids, 'instance_count': len(annotation_ids),
+            'foreground_pixels': int(mask.sum()),
+            'status': ('matched' if annotation_ids else 'no matching segmentation')
+                      if category_ids else 'class not in COCO categories', 'mask': mask}
+
+
+def save_ground_truth(ground_truth, image, folder, image_no):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    mask_path = folder / f'{image_no}_gt.npy'
+    preview_path = folder / f'{image_no}_gt.png'
+    np.save(mask_path, ground_truth['mask'], allow_pickle=False)
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    try:
+        axes[0].imshow(ground_truth['mask'], cmap='gray', vmin=0, vmax=1)
+        axes[0].set_title(f"GT: {ground_truth['class_name']}")
+        axes[1].imshow(image)
+        overlay = np.zeros((*ground_truth['mask'].shape, 4))
+        overlay[ground_truth['mask']] = [0, 1, 0, .45]
+        axes[1].imshow(overlay)
+        axes[1].set_title(f"{ground_truth['instance_count']} instances; {ground_truth['status']}")
+        for ax in axes:
+            ax.axis('off')
+        fig.tight_layout()
+        fig.savefig(preview_path, dpi=140)
+    finally:
+        plt.close(fig)
+    summary = {key: value for key, value in ground_truth.items() if key != 'mask'}
+    summary.update(mask_path=str(mask_path), preview_path=str(preview_path))
+    (folder / f'{image_no}_gt.json').write_text(json.dumps(summary, indent=2) + '\n')
+    return summary
+
+
 def collect_image_ids(masks_base_path: Path) -> list[str]:
     image_ids = []
     for path in masks_base_path.glob("*"):
@@ -649,6 +706,9 @@ def image_rows_are_complete(auc_table_rows: list[dict], image_no: int, methods: 
 
 def image_outputs_are_complete(path_results_img: Path, image_no: int, methods: list[str], args) -> bool:
     if not (path_results_img / f"{image_no}_predictions.json").exists():
+        return False
+    if getattr(args, 'show_gt', False) and not all(
+            (path_results_img / f'{image_no}_gt{suffix}').is_file() for suffix in ['.npy', '.png', '.json']):
         return False
     if not args.save_plots:
         return True
@@ -1281,6 +1341,7 @@ def build_xai_results_webpage(xai_results_root: Path):
     {auc_results_table(item['image_id'])}
   </details>
   <figure><figcaption>XAI results</figcaption>{image_tag(item['xai_path'], item['image_id'] + ' XAI results')}</figure>
+  {('<figure><figcaption>Ground truth for explained class</figcaption>' + image_tag(Path(pred['ground_truth']['preview_path']), 'Class ground truth') + '</figure>') if pred.get('ground_truth', {}).get('preview_path') else ''}
   <figure><figcaption>AUC curves</figcaption>{image_tag(item['auc_path'], item['image_id'] + ' AUC curves')}</figure>
   <figure><figcaption>Faithfulness curves</figcaption>{image_tag(item['faithfulness_curves_path'], item['image_id'] + ' Faithfulness curves')}</figure>
 </section>"""
@@ -1511,6 +1572,7 @@ def run(args):
             "kernel_shap_batch_size": kernel_shap_batch_size,
             "num_explained_classes": args.num_explained_classes,
             "methods": METHOD_ORDER,
+            "show_gt": args.show_gt,
             "method_labels": {method: METHOD_LABELS[method] for method in METHOD_ORDER},
             "config": args.config,
             "masks_base_path": str(masks_base_path),
@@ -1603,6 +1665,11 @@ def run(args):
             f_S = float(explainer.base_nuN[0])
             f_0 = float(explainer.base_nu0[0])
             input_data["explained_class"] = class_names[predicted_cls]
+            if args.show_gt:
+                ground_truth = load_class_ground_truth(
+                    coco, image_no, input_data['explained_class'], input_data['image_to_explain'].shape)
+                summary = save_ground_truth(ground_truth, input_data['image_to_explain'], path_results_img, image_no)
+                input_data['ground_truth'] = {**ground_truth, **summary}
             input_data["f_S"] = f_S
             input_data["f_0"] = f_0
             timing_start = time.time()
@@ -1832,6 +1899,8 @@ def parse_args():
     parser.add_argument("--methods", nargs="+", choices=SUPPORTED_METHODS, default=list(SUPPORTED_METHODS),
                         help="Default: BPT SAM_c SAM_c_kernelshap; ignores legacy evaluation.methods")
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs without loading models or creating outputs")
+    parser.add_argument('--show_gt', '--show-gt', action='store_true',
+                        help='Show/save COCO segmentation GT for the explained predicted class')
     parser.add_argument("--model", default="yolo11s", help="YOLO model/checkpoint name. Examples: yolo11s, yolo_26.")
     parser.add_argument("--weights", default=None, help="Explicit YOLO weights path. Overrides --model.")
     parser.add_argument(
@@ -1867,7 +1936,8 @@ def parse_args():
     parser.add_argument("--no-auc", dest="compute_auc", action="store_false")
     parser.add_argument("--no-plots", dest="save_plots", action="store_false")
     parser.add_argument("--heatmaps-only", action="store_true", help="Save only per-method attribution heatmaps; skip XAI grid, AUC curves, and faithfulness curves.")
-    parser.add_argument("--no-heatmaps", dest="save_heatmaps", action="store_false", help="Do not save per-method attribution heatmap PNGs.")
+    parser.add_argument("--no-heatmaps", dest="save_heatmaps", action="store_false",
+                         help="Do not save per-method attribution heatmap PNGs.")
     parser.add_argument("--no-html", dest="build_html", action="store_false")
     parser.set_defaults(compute_auc=True, save_plots=True, save_heatmaps=True, build_html=True, exp_suffix=True, budget_suffix=True, resume=True)
     return parser.parse_args()

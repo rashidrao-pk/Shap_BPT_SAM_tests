@@ -20,7 +20,7 @@ data:
   annotation_file: "/beegfs/home/mrashid/datasets/MS_COCO/annotations/annotations_trainval2017/annotations/instances_val2017.json"
 
   # New SAM2 batch outputs; older partition directories are preserved.
-  mask_dir_final: "sam1_62_refined" 
+  mask_dir_final: "sam1_62_refined"
 
 evaluation:
   methods: [BPT, refined]
@@ -30,18 +30,18 @@ evaluation:
   eval-batch-size: 2048
   auc-batch-size: 1024
   auc_num_samples: 101
-  
+
   # Options:
   #   black   : black background
   #   gray    : gray background
   #   white   : white background
   #   blurred : blurred background
-  #  noise  
+  #  noise
 
   # Options:
   #   batch_size : number of images to process in a single batch during evaluation
   # --eval-batch-size", type=int, default=16
 output:
   partitions: /beegfs/home/mrashid/datasets/SAM_BPT
-  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results
-  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/evaluations
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/evaluations

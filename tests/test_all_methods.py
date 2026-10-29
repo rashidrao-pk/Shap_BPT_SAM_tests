@@ -142,6 +142,34 @@ class AllMethodsTest(unittest.TestCase):
         self.assertEqual(images[1].origin, 'upper')
         self.assertEqual(result['BPT-8']['best_iou'], 1.)
 
+    def test_high_resolution_gt_has_visible_vector_outline(self):
+        import matplotlib.pyplot as plt
+        from attribution_visuals import draw_gt_boundaries
+        from matplotlib.axes import Axes
+        from unittest.mock import patch
+        mask = np.zeros((1024, 1024), dtype=bool)
+        mask[100:300, 200:400] = True
+        fig, ax = plt.subplots(figsize=(2.1, 2.1))
+        captured = []
+        original = Axes.contour
+        def capture(ax, *args, **kwargs):
+            result = original(ax, *args, **kwargs)
+            captured.append(result)
+            return result
+        try:
+            with patch.object(Axes, 'contour', capture):
+                draw_gt_boundaries(ax, mask)
+            contour = captured[0]
+            vertices = np.concatenate(contour.allsegs[0])
+            np.testing.assert_allclose(vertices.min(axis=0), [199.5, 99.5])
+            np.testing.assert_allclose(vertices.max(axis=0), [399.5, 299.5])
+            self.assertGreaterEqual(float(contour.get_linewidths()[0]), 1.)
+            self.assertEqual(contour.get_zorder(), 5)
+            self.assertTrue(contour.get_path_effects())
+            self.assertGreater(ax.get_ylim()[0], ax.get_ylim()[1])
+        finally:
+            plt.close(fig)
+
     def test_comparison_records_iou_and_missing_method(self):
         import matplotlib.pyplot as plt
         runtime = SimpleNamespace(plt=plt)

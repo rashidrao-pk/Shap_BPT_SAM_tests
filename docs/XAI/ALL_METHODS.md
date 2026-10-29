@@ -154,3 +154,8 @@ fallback. This affects display only; saved attribution values and IoU are unchan
 GT panels use `binary` (black foreground on white); attribution panels use black
 `mark_boundaries(..., mode="thick")` overlays, matching
 `fun_plot_heatmaps_filtered` in the reference notebook.
+
+GT boundaries also have a black vector outline with a thin white halo so they
+remain visible when high-resolution masks are downsampled into narrow comparison
+panels. Line width is set in display points, not source-image pixels. GT arrays,
+attribution values and IoU calculations are unchanged.

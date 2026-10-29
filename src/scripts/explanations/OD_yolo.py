@@ -1709,7 +1709,12 @@ def run(args):
                 if method_progress:
                     methods_iter.set_postfix_str(method)
                 if method == "BPT":
-                    bptree = None
+                    bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"])
+                    from experiment_common import bpt_partition_labels
+                    _, sam_labels = uts2.load_refine_partitions(
+                        input_data["image_to_explain"], str(masks_base_path), image_id, partition_type="compact")
+                    bpt_labels = bpt_partition_labels(
+                        bptree, len(np.unique(sam_labels)), input_data["image_to_explain"].shape[:2])
                 else:
                     timing_start = time.time()
                     partition_type = partition_type_for_method(method)
@@ -1771,22 +1776,7 @@ def run(args):
                     }
                 )
 
-            if args.save_plots and not args.heatmaps_only:
-                timing_start = time.time()
-                utx.plot_xai(
-                    input_data,
-                    partitions,
-                    shap_values,
-                    model,
-                    results,
-                    image_id,
-                    destroy_fig=True,
-                    save_path=str(path_results_img),
-                    save_fig=True,
-                    partition_panels=("SAM_c", "SAM_c_kernelshap"),
-                )
-                first_iteration_breakdown["xai_grid_plot"] += time.time() - timing_start
-
+            auc_results = []
             if args.compute_auc:
                 timing_start = time.time()
                 auc_results = utx.compute_auc_results(
@@ -1831,6 +1821,16 @@ def run(args):
                 if resource_logging and (iteration_index == 1 or (args.verbose_k > 0 and iteration_index % args.verbose_k == 0)):
                     n_saved_images = current_auc_df["image_no"].nunique() if "image_no" in current_auc_df.columns else "unknown"
                     tqdm.write(f"Current-run AUC saved: {current_run_path} ({n_saved_images} images)")
+
+            if args.save_plots and not args.heatmaps_only:
+                from types import SimpleNamespace
+                from experiment_common import explanation_grid
+                prediction = {'explained_class': fixed_category,
+                              'predicted_class_id': predicted_cls, 'detections': []}
+                explanation_grid(SimpleNamespace(plt=plt), input_data['image_to_explain'],
+                                 partition_capped['SAM_c'], shap_values, prediction,
+                                 path_results_img / f'{image_id}_xai_results.png',
+                                 input_data.get('ground_truth'), bpt_labels, auc_results)
 
         except Exception as exc:
             failure = {"image_id": image_id, "error": repr(exc), "traceback": traceback.format_exc()}

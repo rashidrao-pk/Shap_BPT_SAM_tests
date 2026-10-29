@@ -212,6 +212,34 @@ class ModelExplanationTest(unittest.TestCase):
             (root / 'run_info.json').write_text(json.dumps({'image_ids': [image_id]}))
             self.assertEqual(progress.expected_image_ids_for_experiment(root, {'unrelated'}), {image_id})
 
+    def test_three_row_layout_and_bpt_cut(self):
+        from types import SimpleNamespace
+        import matplotlib.pyplot as plt
+        from matplotlib.figure import Figure
+        image = np.zeros((2, 2, 3), dtype=np.uint8)
+        tree = SimpleNamespace(N=7, U=4, cl_left=np.array([0, 2, 4]),
+                               cl_right=np.array([1, 3, 5]), leaf_idx=np.arange(4),
+                               cl_start=np.array([0, 2, 0]), cl_end=np.array([2, 4, 4]),
+                               pixels=np.arange(4))
+        labels = common.bpt_partition_labels(tree, 2, (2, 2))
+        self.assertEqual(len(np.unique(labels)), 2)
+        self.assertEqual(labels[0, 0], labels[0, 1])
+        maps = {method: np.ones((1, 2, 2)) for method in common.METHODS}
+        curve = {'xs': [0, 1], 'y_clipr': [0, 1], 'auc_clipr': .5}
+        auc = [{'label': method, 'auc_ins': curve, 'auc_del': curve} for method in common.METHODS]
+        captured = []
+        def capture(fig, *args, **kwargs):
+            captured.extend(fig.axes[:9])
+        with patch.object(Figure, 'savefig', capture):
+            common.explanation_grid(SimpleNamespace(plt=plt), image, labels, maps,
+                                    {'explained_class': 'object'}, 'unused.png',
+                                    bpt_partition=labels, auc_results=auc)
+        self.assertEqual([ax.get_title() for ax in captured[:6]],
+                         ['Original', 'BPT: 2 regions', 'SAM_c: 2 regions', *common.METHODS])
+        self.assertEqual([ax.get_title() for ax in captured[6:8]], ['AUC+', 'AUC−'])
+        self.assertEqual(len(captured[6].lines), 3)
+        self.assertFalse(captured[8].axison)
+
     def test_camo_gt_in_explanation_grid_and_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

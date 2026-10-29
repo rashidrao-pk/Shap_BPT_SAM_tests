@@ -48,7 +48,8 @@ def create_parser(kind):
                         type=int, default=8, help='Maximum images in one model forward pass')
     parser.add_argument('--auc-batch-size', type=int, default=8)
     parser.add_argument('--auc_num_samples', '--auc-num-samples', type=int, default=101)
-    parser.add_argument('--bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'], default='noise')
+    parser.add_argument('--bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'], 
+                        default='black', help='Background replacement for masked pixels')
     parser.add_argument('--class-aggregation', choices=['sum', 'max'], default='sum')
     parser.add_argument('--threshold', type=float, default=0.0,
                         help='DETR scoring threshold (default: 0 for continuous masked scores)')
@@ -294,44 +295,79 @@ def evaluate(runtime, method, values, predict, target, f_s, f_0, args, explanati
     return result
 
 
-def explanation_grid(runtime, image, partition, attributions, prediction, output, ground_truth=None):
+def bpt_partition_labels(tree, region_count, shape):
+    """Cut the actual explanation tree at the SAM region count for display."""
+    import heapq
+    nodes = [-(int(tree.N) - 1)]
+    while len(nodes) < min(region_count, int(tree.U)):
+        node = -heapq.heappop(nodes)
+        if node < tree.U:
+            heapq.heappush(nodes, -node)
+            break
+        offset = node - tree.U
+        heapq.heappush(nodes, -int(tree.cl_left[offset]))
+        heapq.heappush(nodes, -int(tree.cl_right[offset]))
+    labels = np.empty(shape, dtype=np.int32)
+    for label, negative in enumerate(sorted(nodes)):
+        node = -negative
+        if node < tree.U:
+            start, end = int(tree.leaf_idx[node]), int(tree.leaf_idx[node]) + 1
+        else:
+            start, end = int(tree.cl_start[node-tree.U]), int(tree.cl_end[node-tree.U])
+        labels.ravel()[np.asarray(tree.pixels[start:end], dtype=int)] = label
+    return labels
+
+
+def explanation_grid(runtime, image, partition, attributions, prediction, output,
+                     ground_truth=None, bpt_partition=None, auc_results=None):
     plt = runtime.plt
-    panels = 3 + len(attributions) + int(ground_truth is not None)
-    fig, axes = plt.subplots(math.ceil(panels / 3), 3, figsize=(15, 4 * math.ceil(panels / 3)))
-    axes = np.atleast_1d(axes).ravel()
+    fig, axes = plt.subplots(3, 3, figsize=(15, 12))
     try:
-        axes[0].imshow(image)
+        axes[0, 0].imshow(image)
         for detection in prediction.get('detections', []):
             if detection['class_id'] != prediction['predicted_class_id']:
                 continue
             from matplotlib.patches import Rectangle
             x1, y1, x2, y2 = detection['box']
-            axes[0].add_patch(Rectangle((x1, y1), x2-x1, y2-y1, fill=False, edgecolor='lime', linewidth=1))
-        axes[0].set_title('Original / predicted boxes')
-        axes[1].text(0, .95, '\n'.join(f"{item['class_name']}: {item['confidence']:.4f}"
-                                      for item in prediction['top_k_classes']), va='top')
-        axes[1].set_title(f"Explained: {prediction['explained_class']}")
-        axes[2].imshow(partition, cmap='turbo', interpolation='nearest')
-        axes[2].set_title(f'SAM_c: {len(np.unique(partition))} regions')
-        position = 3
+            axes[0, 0].add_patch(Rectangle((x1, y1), x2-x1, y2-y1, fill=False, edgecolor='lime', linewidth=1))
+        axes[0, 0].set_title('Original')
+        for ax, labels, name in [(axes[0, 1], bpt_partition, 'BPT'), (axes[0, 2], partition, 'SAM_c')]:
+            if labels is not None:
+                ax.imshow(labels, cmap='turbo', interpolation='nearest')
+                ax.set_title(f'{name}: {len(np.unique(labels))} regions')
+        for ax, method in zip(axes[1], METHODS):
+            if method not in attributions:
+                continue
+            heatmap = np.asarray(attributions[method][0])
+            maximum = max(float(np.nanpercentile(np.abs(heatmap), 99.5)), 1e-12)
+            handle = ax.imshow(heatmap, cmap='coolwarm', vmin=-maximum, vmax=maximum)
+            ax.set_title(method)
+            fig.colorbar(handle, ax=ax, fraction=.04)
+        for ax in axes[:2].ravel():
+            ax.axis('off')
+        for ax, key, name in [(axes[2, 0], 'auc_ins', 'AUC+'), (axes[2, 1], 'auc_del', 'AUC−')]:
+            ax.set_title(name)
+            if auc_results:
+                for result in auc_results:
+                    curve = result[key]
+                    ax.plot(curve['xs'], curve['y_clipr'], label=f"{result['label']} {curve['auc_clipr']:.4f}")
+                ax.set_xlabel('Fraction of pixels inserted' if key == 'auc_ins' else 'Fraction of pixels removed')
+                ax.set_ylabel('Normalized confidence')
+                ax.grid(alpha=.25)
+                ax.legend(fontsize=8)
+            else:
+                ax.text(.5, .5, 'AUC disabled', ha='center', va='center', transform=ax.transAxes)
+                ax.axis('off')
+        axes[2, 2].axis('off')
         if ground_truth is not None:
-            axes[position].imshow(image)
+            axes[2, 2].imshow(image)
             overlay = np.zeros((*image.shape[:2], 4))
             overlay[ground_truth['mask']] = [0, 1, 0, .45]
-            axes[position].imshow(overlay)
+            axes[2, 2].imshow(overlay)
             from ground_truth import title as gt_title
-            axes[position].set_title(gt_title(ground_truth), fontsize=9)
-            position += 1
-        for method, values in attributions.items():
-            heatmap = np.asarray(values[0])
-            maximum = max(float(np.nanpercentile(np.abs(heatmap), 99.5)), 1e-12)
-            handle = axes[position].imshow(heatmap, cmap='coolwarm', vmin=-maximum, vmax=maximum)
-            axes[position].set_title(method)
-            fig.colorbar(handle, ax=axes[position], fraction=.04)
-            position += 1
-        for ax in axes:
-            ax.axis('off')
-        fig.tight_layout()
+            axes[2, 2].set_title(gt_title(ground_truth), fontsize=9)
+        fig.suptitle(f"Explained: {prediction['explained_class']}")
+        fig.tight_layout(rect=(0, 0, 1, .97))
         fig.savefig(output, dpi=130)
     finally:
         plt.close(fig)
@@ -463,6 +499,7 @@ def run(kind, args, adapter=None):
                 prediction['ground_truth'] = save_ground_truth(ground_truth, image, folder, image_id)
             write_json(folder / f'{image_id}_predictions.json', prediction)
             attributions, image_rows, auc_results = {}, [], []
+            bpt_labels = None
             for method in METHODS:
                 start = time.perf_counter()
                 if method == 'SAM_c_kernelshap':
@@ -472,7 +509,9 @@ def run(kind, args, adapter=None):
                                   batch_size=args.kernel_shap_batch_size or args.eval_batch_size, seed=0))
                 else:
                     tree = (runtime.shap_bpt.build_bpt_from_image(image, prebuilt_partitions=labels)
-                            if method == 'SAM_c' else None)
+                            if method == 'SAM_c' else runtime.shap_bpt.build_bpt_from_image(image))
+                    if method == 'BPT':
+                        bpt_labels = bpt_partition_labels(tree, len(np.unique(labels)), image.shape[:2])
                     values = explainer.explain_instance(args.max_evals, bpt=tree, method='BPT', batch_size=args.eval_batch_size)
                 elapsed = time.perf_counter() - start
                 values = np.asarray(values, dtype=float)
@@ -496,7 +535,7 @@ def run(kind, args, adapter=None):
             write_json(folder / f'{image_id}_metrics.json', auc_results if args.compute_auc else image_rows)
             if args.save_plots:
                 explanation_grid(runtime, image, labels, attributions, prediction,
-                                 folder / f'{image_id}_xai_results.png', ground_truth)
+                                 folder / f'{image_id}_xai_results.png', ground_truth, bpt_labels, auc_results)
                 if args.compute_auc:
                     runtime.utx.plot_auc_results(auc_results, str(folder), save_plot=True,
                                                  image_no=image_id, destroy_figs=True)

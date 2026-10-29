@@ -354,7 +354,10 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
                                levels=[.5], colors='lime', linewidths=1.3)
                     ax.set_xlim(-.5, mask.shape[1] - .5)
                     ax.set_ylim(mask.shape[0] - .5, -.5)
-            fig.colorbar(handle, ax=ax, fraction=.04)
+            from mpl_toolkits.axes_grid1 import make_axes_locatable
+            divider = make_axes_locatable(ax)
+            colorbar_ax = divider.append_axes('right', size='4%', pad=.08)
+            fig.colorbar(handle, cax=colorbar_ax)
         for ax in axes[:2].ravel():
             ax.axis('off')
         top_classes = prediction.get('top_k_classes') or []

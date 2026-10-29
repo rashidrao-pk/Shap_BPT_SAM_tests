@@ -366,7 +366,11 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
             axes[2, 2].imshow(overlay)
             from ground_truth import title as gt_title
             axes[2, 2].set_title(gt_title(ground_truth), fontsize=9)
-        fig.suptitle(f"Explained: {prediction['explained_class']}")
+        top_classes = prediction.get('top_k_classes') or []
+        top = max(top_classes, key=lambda item: float(item['confidence'])) if top_classes else None
+        predicted_title = (f"Top predicted: {top['class_name']} ({float(top['confidence']):.4f})"
+                           if top else 'Top predicted: unavailable')
+        fig.suptitle(f"{predicted_title} | Explained: {prediction['explained_class']}")
         fig.tight_layout(rect=(0, 0, 1, .97))
         fig.savefig(output, dpi=130)
     finally:

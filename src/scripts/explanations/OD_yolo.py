@@ -1826,7 +1826,9 @@ def run(args):
                 from types import SimpleNamespace
                 from experiment_common import explanation_grid
                 prediction = {'explained_class': fixed_category,
-                              'predicted_class_id': predicted_cls, 'detections': []}
+                              'predicted_class_id': predicted_cls, 'detections': [],
+                              'top_k_classes': [{'class_id': cid, 'class_name': name, 'confidence': score}
+                                                for cid, name, score in top_k_classes]}
                 explanation_grid(SimpleNamespace(plt=plt), input_data['image_to_explain'],
                                  partition_capped['SAM_c'], shap_values, prediction,
                                  path_results_img / f'{image_id}_xai_results.png',

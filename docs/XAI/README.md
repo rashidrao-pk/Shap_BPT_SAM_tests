@@ -148,3 +148,9 @@ With `--show-gt`, available GT is outlined in green on all three attribution
 panels. AUC plots remain separate. The BPT panel cuts the explanation tree to
 the SAM_c region count. `--no-heatmaps` still keeps this combined figure.
 Use `--no-resume` to regenerate previously saved figures.
+
+### Optional all-method comparison
+
+Use `--explain_all` to add budgeted BPT/AA/LIME, LRP, GradCAM, IDG, GradExp,
+and GradShap comparisons. See [commands, dependencies, budgets, and architecture
+support](ALL_METHODS.md). The comparison includes GT-IoU panels when GT is available.

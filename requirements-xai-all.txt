@@ -1,0 +1,5 @@
+# Optional comparison mode; keep the site's existing torch/torchvision installation.
+captum>=0.8
+lime>=0.2.0.1
+shap>=0.46
+scikit-image

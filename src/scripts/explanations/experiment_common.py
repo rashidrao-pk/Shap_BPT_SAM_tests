@@ -71,7 +71,14 @@ def create_parser(kind):
     parser.add_argument('--verbose-level', choices=['low', 'medium', 'high'], default='medium')
     parser.add_argument('--fail-fast', action='store_true')
     parser.add_argument('--torch-threads', type=int, help='Optional CPU intra-op thread limit')
+    from all_methods import add_arguments
+    add_arguments(parser)
     return parser
+
+
+def comparison_names(args):
+    from all_methods import method_names
+    return method_names(args)
 
 
 def normalize_id(value, data):
@@ -84,6 +91,9 @@ def normalize_id(value, data):
 
 
 def prepare_inputs(kind, args):
+    if args.explain_all:
+        from all_methods import validate
+        validate(args)
     config = load_path_config(args.config)
     data = config['data']
     expected = 'mscoco' if kind == 'OD_DETR' else 'camo' if kind == 'COD_ViT' else 'imagenet'
@@ -184,7 +194,7 @@ def prepare_inputs(kind, args):
     run_dir = base / f'bg_{args.bg_type}_B{args.max_evals}'
     return {'config': config, 'records': records, 'partition_dir': folder,
             'run_dir': run_dir, 'evaluation_dir': evaluation_path(config, run_dir),
-            'annotation_file': annotation_file, 'methods': list(METHODS),
+            'annotation_file': annotation_file, 'methods': list(METHODS) + (comparison_names(args) if args.explain_all else []),
             'ground_truth': data.get('ground_truth') if args.show_gt else None}
 
 
@@ -271,6 +281,10 @@ def write_json(path, value):
 def run_signature(kind, args, config=None):
     ignored = {'limit', 'image_ids', 'dry_run', 'resume', 'verbose_level', 'fail_fast', 'torch_threads', 'output_dir'}
     settings = {key: jsonable(value) for key, value in vars(args).items() if key not in ignored}
+    if not args.explain_all:
+        for option in ['explain_all', 'bpt_budgets', 'lime_budgets', 'gradient_samples',
+                       'idg_steps', 'attribution_batch_size', 'explanation_seed']:
+            settings.pop(option, None)
     if settings.get('save_heatmaps', True):
         settings.pop('save_heatmaps', None)  # Preserve signatures from before this option existed.
     if settings.get('gt_class') is None:
@@ -405,7 +419,7 @@ def build_report(runtime, run_dir, evaluation_dir, rows, summaries, save_plots, 
     frame.to_csv(csv, index=False)
     frame.to_csv(run_dir / csv.name, index=False)
     metrics = [column for column in ['auc_ins', 'auc_del', 'time_exp', 'time_eval',
-                                    'sensitivity_n_corr', 'stability_top10_jaccard'] if column in frame]
+                                    'sensitivity_n_corr', 'stability_top10_jaccard', 'best_iou'] if column in frame]
     if not frame.empty:
         frame.groupby('method', sort=False)[metrics].agg(['mean', 'std', 'median']).to_csv(
             evaluation_dir / 'method_summary.csv')
@@ -413,7 +427,7 @@ def build_report(runtime, run_dir, evaluation_dir, rows, summaries, save_plots, 
         fig, axes = plt.subplots(1, max(1, len(metrics)), figsize=(4 * max(1, len(metrics)), 4), squeeze=False)
         try:
             for ax, metric in zip(axes.ravel(), metrics):
-                available = [method for method in METHODS if method in set(frame['method'])]
+                available = list(dict.fromkeys(frame['method']))
                 ax.boxplot([frame.loc[frame['method'] == method, metric].dropna() for method in available],
                            tick_labels=available)
                 ax.set_title(metric)
@@ -441,6 +455,7 @@ def build_report(runtime, run_dir, evaluation_dir, rows, summaries, save_plots, 
     table = frame.to_html(index=False, escape=True) if not frame.empty else '<p>No completed images.</p>'
     document = ('<!doctype html><meta charset="utf-8"><title>XAI results</title>'
                 '<style>body{font:14px sans-serif;margin:24px}img{max-width:100%}'
+                'figure{overflow-x:auto}img[src$="_all_methods.png"]{max-width:none}'
                 'table{border-collapse:collapse}td,th{padding:6px}section{margin:24px 0}</style>'
                 f'<h1>XAI results</h1><p>{len(summaries)} completed images</p>{table}{"".join(sections)}')
     (evaluation_dir / 'xai_results_report.html').write_text(document)
@@ -476,7 +491,7 @@ def run(kind, args, adapter=None):
     if pending and adapter is None:
         adapter = load_adapter(kind, args, device)
     write_json(run_dir / 'run_info.json', {'runner': kind, 'model': args.model, 'signature': signature,
-               'methods': METHODS, 'config': args.config, 'masks_base_path': str(inputs['partition_dir']),
+               'methods': inputs['methods'], 'config': args.config, 'masks_base_path': str(inputs['partition_dir']),
                'image_ids': [record['image_id'] for record in inputs['records']],
                'background_replacement_values': args.bg_type, 'max_evals': args.max_evals,
                'results_dir': run_dir, 'evaluations_dir': evaluations, 'settings': vars(args),
@@ -498,7 +513,8 @@ def run(kind, args, adapter=None):
             with Image.open(record['image_path']) as source:
                 image = np.asarray(source.convert('RGB'))
             _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id, 'compact')
-            predict = make_masked_predictor(adapter, image, backgrounds(image, args.bg_type), args.model_batch_size)
+            replacements = backgrounds(image, args.bg_type)
+            predict = make_masked_predictor(adapter, image, replacements, args.model_batch_size)
             full = predict(np.ones((1, *image.shape[:2]), dtype=bool))[0]
             target = int(np.argmax(full)) if args.target_class is None else args.target_class
             if target < 0 or target >= len(adapter.class_names):
@@ -524,6 +540,8 @@ def run(kind, args, adapter=None):
             write_json(folder / f'{image_id}_predictions.json', prediction)
             attributions, image_rows, auc_results = {}, [], []
             bpt_labels = None
+            bpt_tree = None
+            statuses = {}
             for method in METHODS:
                 start = time.perf_counter()
                 if method == 'SAM_c_kernelshap':
@@ -535,6 +553,7 @@ def run(kind, args, adapter=None):
                     tree = (runtime.shap_bpt.build_bpt_from_image(image, prebuilt_partitions=labels)
                             if method == 'SAM_c' else runtime.shap_bpt.build_bpt_from_image(image))
                     if method == 'BPT':
+                        bpt_tree = tree
                         bpt_labels = bpt_partition_labels(tree, len(np.unique(labels)), image.shape[:2])
                     values = explainer.explain_instance(args.max_evals, bpt=tree, method='BPT', batch_size=args.eval_batch_size)
                 elapsed = time.perf_counter() - start
@@ -542,6 +561,7 @@ def run(kind, args, adapter=None):
                 if values.shape != (1, *image.shape[:2]) or not np.isfinite(values).all():
                     raise ValueError(f'{method}: invalid attribution map {values.shape}')
                 attributions[method] = values
+                statuses[method] = {'status': 'complete'}
                 row = {'image_id': image_id, 'image_no': image_id, 'method': method,
                        'fixed_category': prediction['explained_class'], 'f_S': f_s, 'f_0': f_0,
                        'time_exp': elapsed, 'time_eval': 0.0}
@@ -555,21 +575,59 @@ def run(kind, args, adapter=None):
                 if args.save_plots and args.save_heatmaps:
                     runtime.utx.plot_single_attributions(values, str(folder), f'{method}_{image_id}.png',
                                                         save_plot=True, destroy_fig=True)
+            if args.explain_all:
+                from all_methods import compute_extra
+                for method, values, info, elapsed in compute_extra(
+                        runtime, args, adapter, image, replacements, explainer, bpt_tree, target):
+                    statuses[method] = info
+                    if values is None:
+                        print(f'{image_id} {method}: {info["status"]}: {info.get("reason", "")}')
+                        continue
+                    attributions[method] = values
+                    row = {'image_id': image_id, 'image_no': image_id, 'method': method,
+                           'fixed_category': prediction['explained_class'], 'f_S': f_s, 'f_0': f_0,
+                           'time_exp': elapsed, 'time_eval': 0.0}
+                    if args.compute_auc:
+                        result = evaluate(runtime, method, values, predict, target, f_s, f_0, args, elapsed)
+                        auc_results.append(result)
+                        row.update({key: float(result[key]['auc_clipr']) for key in ['auc_ins', 'auc_del']})
+                        row.update({key: value for key, value in result.items()
+                                    if isinstance(value, (int, float, np.number))})
+                    image_rows.append(row)
+                    if args.save_plots and args.save_heatmaps:
+                        runtime.utx.plot_single_attributions(values, str(folder), f'{method}_{image_id}.png',
+                                                            save_plot=True, destroy_fig=True)
+                from all_methods import best_iou
+                for method, values in attributions.items():
+                    result = best_iou(values[0], ground_truth)
+                    if result:
+                        result.pop('mask')
+                        statuses[method].update(result)
+                        next(row for row in image_rows if row['method'] == method).update(result)
+                write_json(folder / f'{image_id}_method_status.json', statuses)
             np.savez_compressed(folder / f'{image_id}_attributions.npz', **attributions)
             write_json(folder / f'{image_id}_metrics.json', auc_results if args.compute_auc else image_rows)
             if args.save_plots:
                 explanation_grid(runtime, image, labels, attributions, prediction,
                                  folder / f'{image_id}_xai_results.png', ground_truth, bpt_labels, auc_results)
+                if args.explain_all:
+                    from all_methods import comparison_plot
+                    comparison_plot(runtime, image, attributions, prediction,
+                                    folder / f'{image_id}_all_methods.png', ground_truth, statuses)
                 if args.compute_auc:
                     runtime.utx.plot_auc_results(auc_results, str(folder), save_plot=True,
                                                  image_no=image_id, destroy_figs=True)
                     runtime.utx.plot_faithfulness_curves(auc_results, str(folder), save_plot=True,
                                                        image_no=image_id, destroy_figs=True)
             artifacts = [f'{image_id}_predictions.json', f'{image_id}_attributions.npz', f'{image_id}_metrics.json']
+            if args.explain_all:
+                artifacts += [f'{image_id}_method_status.json']
+                if args.save_plots:
+                    artifacts += [f'{image_id}_all_methods.png']
             if args.save_plots:
                 artifacts += [f'{image_id}_xai_results.png']
                 if args.save_heatmaps:
-                    artifacts += [f'{method}_{image_id}.png' for method in METHODS]
+                    artifacts += [f'{method}_{image_id}.png' for method in attributions]
                 if args.compute_auc:
                     artifacts += [f'auc_results_{image_id}.png', f'faithfulness_curves_{image_id}.png']
             if args.show_gt:

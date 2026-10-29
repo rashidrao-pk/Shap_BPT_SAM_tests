@@ -233,6 +233,27 @@ class ModelExplanationTest(unittest.TestCase):
             inputs = common.prepare_inputs('OC_ResNet', args)
             self.assertEqual([r['image_id'] for r in inputs['records']], [second])
 
+    def test_explain_all_artifacts_and_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config, image_id = self.fixture(Path(directory), 'ImageNet')
+            args = common.create_parser('OC_ResNet').parse_args([
+                '--config', str(config), '--explain_all', '--bpt-budgets', '8', '--lime-budgets', '8',
+                '--gradient-samples', '2', '--idg-steps', '4', '--max-evals', '8',
+                '--no-auc', '--no-heatmaps', '--no-html', '--torch-threads', '2'])
+            result = common.run('OC_ResNet', args, adapter=SmallAdapter())
+            folder = result['run_dir'] / image_id
+            status = json.loads((folder / f'{image_id}_method_status.json').read_text())
+            self.assertEqual(status['LIME-8']['status'], 'complete')
+            self.assertEqual(status['LRP']['status'], 'unsupported')
+            values = np.load(folder / f'{image_id}_attributions.npz')
+            self.assertIn('BPT-8', values.files)
+            self.assertIn('AA-8', values.files)
+            self.assertNotIn('LRP', values.files)
+            self.assertTrue((folder / f'{image_id}_all_methods.png').is_file())
+            self.assertFalse((folder / f'LIME-8_{image_id}.png').exists())
+            resumed = common.run('OC_ResNet', args, adapter=SmallAdapter())
+            self.assertEqual(len(resumed['rows']), len(result['rows']))
+
     def test_two_row_layout_and_bpt_cut(self):
         from types import SimpleNamespace
         import matplotlib.pyplot as plt

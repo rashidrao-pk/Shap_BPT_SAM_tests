@@ -24,6 +24,10 @@ PROJECT_ROOT_HINT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT_HINT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT_HINT))
 
+EXPLANATIONS_DIR = Path(__file__).resolve().parent
+if str(EXPLANATIONS_DIR) not in sys.path:
+    sys.path.insert(0, str(EXPLANATIONS_DIR))
+
 SCRIPTS_DIR = PROJECT_ROOT_HINT / 'src/scripts'
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
@@ -711,6 +715,20 @@ def image_rows_are_complete(auc_table_rows: list[dict], image_no: int, methods: 
 def image_outputs_are_complete(path_results_img: Path, image_no: int, methods: list[str], args) -> bool:
     if not (path_results_img / f"{image_no}_predictions.json").exists():
         return False
+    if getattr(args, 'explain_all', False):
+        from all_methods import comparison_signature
+        marker = path_results_img / f'{image_no}_all_complete.json'
+        if not marker.is_file():
+            return False
+        try:
+            saved = json.loads(marker.read_text())
+            if saved.get('signature') != comparison_signature(args):
+                return False
+            if not all((path_results_img / name).is_file() for name in saved['artifacts']):
+                return False
+        except (ValueError, KeyError, TypeError):
+            return False
+
     if getattr(args, 'show_gt', False) and not all(
             (path_results_img / f'{image_no}_gt{suffix}').is_file() for suffix in ['.npy', '.png', '.json']):
         return False
@@ -1347,6 +1365,7 @@ def build_xai_results_webpage(xai_results_root: Path, evaluation_dir: Path | Non
     {auc_results_table(item['image_id'])}
   </details>
   <figure><figcaption>XAI results</figcaption>{image_tag(item['xai_path'], item['image_id'] + ' XAI results')}</figure>
+  {('<figure style="overflow-x:auto"><figcaption>All-method comparison</figcaption>' + image_tag(item['xai_path'].parent / f"{item['folder_id']}_all_methods.png", 'All-method comparison') + '</figure>') if (item['xai_path'].parent / f"{item['folder_id']}_all_methods.png").is_file() else ''}
   {('<figure><figcaption>Ground truth for explained class</figcaption>' + image_tag(Path(pred['ground_truth']['preview_path']), 'Class ground truth') + '</figure>') if pred.get('ground_truth', {}).get('preview_path') else ''}
   <figure><figcaption>AUC curves</figcaption>{image_tag(item['auc_path'], item['image_id'] + ' AUC curves')}</figure>
   <figure><figcaption>Faithfulness curves</figcaption>{image_tag(item['faithfulness_curves_path'], item['image_id'] + ' Faithfulness curves')}</figure>
@@ -1500,6 +1519,9 @@ def prepare_inputs(project_root, config, args):
 
 
 def run(args):
+    if getattr(args, "explain_all", False):
+        from all_methods import validate
+        validate(args)
     global METHOD_ORDER
     project_root = find_project_root()
     config = load_config(project_root, args.config)
@@ -1658,6 +1680,8 @@ def run(args):
             top_k_classes = utx.get_top_k_classes(results, model.names, k=top_classes_n)
             path_results_img = path_results / str(image_no)
             path_results_img.mkdir(parents=True, exist_ok=True)
+            if getattr(args, 'explain_all', False):
+                (path_results_img / f'{image_no}_all_complete.json').unlink(missing_ok=True)
 
             predict_masked = make_predict_yolo_masked(
                 model,
@@ -1694,6 +1718,7 @@ def run(args):
             first_iteration_breakdown["save_predictions"] += time.time() - timing_start
 
             partitions, partition_capped, shap_values, auc_records = {}, {}, {}, []
+            comparison_tree, bpt_labels = None, None
             timing_start = time.time()
             partition_results = uts2.load_json_partitions(str(masks_base_path), image_id, verbose=False)
             first_iteration_breakdown["load_partition_json"] += time.time() - timing_start
@@ -1710,6 +1735,7 @@ def run(args):
                     methods_iter.set_postfix_str(method)
                 if method == "BPT":
                     bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"])
+                    comparison_tree = bptree
                     from experiment_common import bpt_partition_labels
                     _, sam_labels = uts2.load_refine_partitions(
                         input_data["image_to_explain"], str(masks_base_path), image_id, partition_type="compact")
@@ -1776,6 +1802,40 @@ def run(args):
                     }
                 )
 
+            comparison_status = {method: {'status': 'complete'} for method in shap_values}
+            if getattr(args, 'explain_all', False):
+                from types import SimpleNamespace
+                from all_methods import compute_extra, best_iou
+                from experiment_common import write_json
+                comparison_args = SimpleNamespace(**vars(args))
+                comparison_args.model_batch_size = args.eval_batch_size
+                scoring_adapter = SimpleNamespace(predict_batch=lambda images: predict_yolo_batch(
+                    model, images, num_classes=yolo_class_count(model), aggregate=args.class_aggregation))
+                if comparison_tree is None:
+                    comparison_tree = shap_bpt.build_bpt_from_image(input_data['image_to_explain'])
+                comparison_explainer = shap_bpt.Explainer(
+                    predict_masked, input_data['image_to_explain'], num_explained_classes=None,
+                    explained_class_ids=[predicted_cls], verbose=False)
+                for method, values, info, elapsed in compute_extra(
+                        SimpleNamespace(), comparison_args, scoring_adapter, input_data['image_to_explain'],
+                        input_data['background_image_set'], comparison_explainer, comparison_tree, predicted_cls):
+                    comparison_status[method] = info
+                    if values is None:
+                        print(f'{method}: {info["status"]}: {info.get("reason", "")}')
+                        continue
+                    shap_values[method] = values
+                    auc_records.append({'label': method, 'shap_values': values[0],
+                                        'time_partition': None, 'time_exp': elapsed})
+                    if args.save_plots and args.save_heatmaps:
+                        utx.plot_single_attributions(values, str(path_results_img), f'{method}_{image_no}.png',
+                                                     save_plot=True, destroy_fig=True)
+                for method, values in shap_values.items():
+                    result = best_iou(values[0], input_data.get('ground_truth'))
+                    if result:
+                        result.pop('mask')
+                        comparison_status[method].update(result)
+                write_json(path_results_img / f'{image_no}_method_status.json', comparison_status)
+                np.savez_compressed(path_results_img / f'{image_no}_attributions.npz', **shap_values)
             auc_results = []
             if args.compute_auc:
                 timing_start = time.time()
@@ -1833,6 +1893,21 @@ def run(args):
                                  partition_capped['SAM_c'], shap_values, prediction,
                                  path_results_img / f'{image_id}_xai_results.png',
                                  input_data.get('ground_truth'), bpt_labels, auc_results)
+                if getattr(args, 'explain_all', False):
+                    from all_methods import comparison_plot
+                    comparison_plot(SimpleNamespace(plt=plt), input_data['image_to_explain'],
+                                    shap_values, prediction, path_results_img / f'{image_no}_all_methods.png',
+                                    input_data.get('ground_truth'), comparison_status)
+
+            if getattr(args, 'explain_all', False):
+                from all_methods import comparison_signature
+                artifacts = [f'{image_no}_method_status.json', f'{image_no}_attributions.npz']
+                if args.save_plots and not args.heatmaps_only:
+                    artifacts.append(f'{image_no}_all_methods.png')
+                if args.save_plots and args.save_heatmaps:
+                    artifacts += [f'{method}_{image_no}.png' for method in shap_values]
+                write_json(path_results_img / f'{image_no}_all_complete.json',
+                           {'signature': comparison_signature(args), 'artifacts': artifacts})
 
         except Exception as exc:
             failure = {"image_id": image_id, "error": repr(exc), "traceback": traceback.format_exc()}
@@ -1952,6 +2027,8 @@ def parse_args():
                          help="Do not save per-method attribution heatmap PNGs.")
     parser.add_argument("--no-html", dest="build_html", action="store_false")
     parser.set_defaults(compute_auc=True, save_plots=True, save_heatmaps=True, build_html=True, budget_suffix=True, resume=True)
+    from all_methods import add_arguments
+    add_arguments(parser)
     return parser.parse_args()
 
 

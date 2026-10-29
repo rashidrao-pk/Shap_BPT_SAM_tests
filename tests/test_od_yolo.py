@@ -186,6 +186,21 @@ class ODYoloTest(unittest.TestCase):
         (self.root / 'gt/1_gt.png').unlink()
         self.assertFalse(od.image_outputs_are_complete(self.root / 'gt', 1, [], args))
 
+    def test_all_method_resume_checks_settings_and_artifacts(self):
+        from all_methods import comparison_signature
+        args = self.args('--explain_all', '--no-plots')
+        folder = self.root / 'comparison'
+        folder.mkdir()
+        (folder / '1_predictions.json').write_text('{}')
+        self.assertFalse(od.image_outputs_are_complete(folder, 1, [], args))
+        (folder / '1_method_status.json').write_text('{}')
+        marker = folder / '1_all_complete.json'
+        marker.write_text(json.dumps({'signature': comparison_signature(args),
+                                      'artifacts': ['1_method_status.json']}))
+        self.assertTrue(od.image_outputs_are_complete(folder, 1, [], args))
+        args.gradient_samples += 1
+        self.assertFalse(od.image_outputs_are_complete(folder, 1, [], args))
+
     def test_gt_panel_does_not_replace_explanation_panel(self):
         import matplotlib
         matplotlib.use('Agg')

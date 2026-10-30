@@ -177,3 +177,32 @@ loading and aggregate reports. Total run time includes startup and reports.
 The same details are saved as `timing_summary.json` in the explanation and
 evaluation folders. Only newly computed images enter the timing average; skipped
 images are counted separately. No additional CLI flag is required.
+
+### Check explanation progress
+
+From the repository root on EPITO:
+
+```bash
+python src/scripts/check_experiment_progress.py \
+  --results-root results/explanations --html-report --show-pending 0
+```
+
+This scans every runner, partition folder, background/budget and CelebA attribute.
+It reports completed/expected images, pending, partial and failed images, average
+image time and estimated time remaining. Counts use the run's selected image IDs
+(including `--limit`/`--gt-only`), not the whole dataset. Pending includes partial
+and failed images; partial means an output directory exists but completion is
+not verified, not proof that a process is currently running.
+
+Completion markers and their declared artifacts are authoritative, so
+`--no-heatmaps`, `--no-auc` and explicitly unsupported methods do not cause false
+pending counts. CSV diagnostics are retained for older experiments. ETA uses
+measured image wall times when available, otherwise saved method times; it is an
+estimate and excludes earlier partition generation. No timing data means `n/a`.
+
+Results are saved under `results/explanations/experiment_progress/` as CSV and
+HTML. Use `--show-pending 20` for image details. To refresh every 30 seconds:
+
+```bash
+watch -n 30 'python src/scripts/check_experiment_progress.py --results-root results/explanations --show-pending 0'
+```

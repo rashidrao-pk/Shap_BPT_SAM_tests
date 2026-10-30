@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Check completion progress for saved XAI experiment result folders.
+"""Check completion progress for all saved dataset XAI experiment folders.
 
 The checker scans result folders such as ``xai_results_E1_1_4`` and reports:
 
@@ -45,7 +45,7 @@ def normalize_image_id(value) -> str:
     if text.endswith(".0"):
         text = text[:-2]
     text = Path(text).stem
-    return text.zfill(12)
+    return text.zfill(12) if text.isdigit() else text
 
 
 def latest_file(folder: Path, pattern: str, exclude=()) -> Path | None:
@@ -60,7 +60,7 @@ def read_json(path: Path) -> dict:
         return {}
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+    except (OSError, ValueError):
         return {}
 
 
@@ -94,7 +94,8 @@ def resolve_results_root(project_root: Path, args) -> Path:
     config = load_config(project_root, args.config)
     if config:
         return output_path(config, 'explanations', project_root)
-    return project_root / 'outputs/results'
+    current = project_root / 'results/explanations'
+    return current if current.is_dir() else project_root / 'outputs/results'
 
 
 def resolve_masks_base_path(project_root: Path, args) -> Path | None:
@@ -114,8 +115,8 @@ def expected_image_ids_from_masks(masks_base_path: Path | None) -> set[str]:
     if masks_base_path is None or not masks_base_path.exists():
         return set()
     image_ids = set()
-    for path in masks_base_path.glob("*.npy"):
-        match = re.match(r"(\d+)_", path.name)
+    for path in masks_base_path.glob('*.npy'):
+        match = re.match(r'(.+)_(?:sam|compact|refined|boosted|filled|boosted_filled)$', path.stem)
         if match:
             image_ids.add(normalize_image_id(match.group(1)))
     return image_ids
@@ -125,14 +126,12 @@ def expected_image_ids_for_experiment(results_dir: Path, global_expected: set[st
     selected = read_json(results_dir / 'run_info.json').get('image_ids')
     if selected:
         return {normalize_image_id(value) for value in selected}
-    if global_expected:
-        return set(global_expected)
     summary_path = results_dir / "partition_summary.csv"
     if summary_path.exists():
         df = pd.read_csv(summary_path)
         if "image_id" in df.columns:
             return {normalize_image_id(value) for value in df["image_id"].dropna().unique()}
-    return set()
+    return set(global_expected)
 
 
 def resolve_auc_csv(results_dir: Path) -> Path | None:
@@ -146,7 +145,10 @@ def load_auc_table(results_dir: Path) -> tuple[Path | None, pd.DataFrame]:
     auc_csv = resolve_auc_csv(results_dir)
     if auc_csv is None:
         return None, pd.DataFrame()
-    df = pd.read_csv(auc_csv)
+    try:
+        df = pd.read_csv(auc_csv)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        df = pd.DataFrame()  # A running writer may temporarily expose an empty CSV.
     return auc_csv, df
 
 
@@ -200,7 +202,7 @@ def estimate_time_progress(results_dir: Path, auc_csv: Path | None, completed_im
             "estimated_time_required": "0s",
         }
 
-    auc_df = pd.read_csv(auc_csv)
+    _, auc_df = load_auc_table(results_dir)
     if auc_df.empty:
         taken = 0.0
         completed_count = len(completed_images)
@@ -217,9 +219,8 @@ def estimate_time_progress(results_dir: Path, auc_csv: Path | None, completed_im
 
         per_image = auc_df.groupby("image_id_str", dropna=False)[["time_exp", "time_eval"]].sum()
         per_image["auc_time_sec"] = per_image["time_exp"] + per_image["time_eval"]
-        partition_times = load_partition_time_by_image(results_dir)
-        per_image["partition_time_sec"] = [partition_times.get(str(image_id), 0.0) for image_id in per_image.index]
-        per_image["total_time_sec"] = per_image["auc_time_sec"] + per_image["partition_time_sec"]
+        # Partition generation happened before XAI; do not add it to the XAI ETA.
+        per_image["total_time_sec"] = per_image["auc_time_sec"]
         taken = float(per_image["total_time_sec"].sum())
         completed_set = set(completed_images)
         completed_per_image = per_image.loc[[idx for idx in per_image.index if idx in completed_set]]
@@ -262,14 +263,39 @@ def existing_image_dir(results_dir: Path, image_id: str) -> Path | None:
     return None
 
 
+def completion_manifest(results_dir: Path, image_id: str):
+    folder = existing_image_dir(results_dir, image_id)
+    if folder is None:
+        return None, None
+    candidates = sorted(folder.glob('*_complete.json'))
+    # YOLO's all-method marker takes precedence over an older ordinary marker.
+    candidates.sort(key=lambda path: not path.name.endswith('_all_complete.json'))
+    for path in candidates:
+        stem = path.name.removesuffix('_all_complete.json') if path.name.endswith('_all_complete.json') else path.name.removesuffix('_complete.json')
+        if normalize_image_id(stem) == normalize_image_id(image_id):
+            return read_json(path), folder
+    return None, folder
+
+
 def output_status_for_image(results_dir: Path, image_id: str, methods: list[str], require_plots: bool) -> tuple[bool, list[str]]:
     folder = existing_image_dir(results_dir, image_id)
     if folder is None:
         return False, ["image folder"]
 
-    manifest = read_json(folder / f'{image_id}_complete.json')
-    if manifest:
-        missing = [name for name in manifest.get('artifacts', []) if not (folder / name).is_file()]
+    manifest, _ = completion_manifest(results_dir, image_id)
+    if manifest is not None:
+        artifacts = manifest.get('artifacts', [])
+        missing = [name for name in artifacts if not (folder / name).is_file()]
+        if not artifacts:
+            missing.append('completion artifact list')
+        for name in artifacts:
+            if name.endswith('_method_status.json'):
+                status = read_json(folder / name)
+                absent = set(methods) - set(status)
+                missing.extend(f'{method} method status' for method in sorted(absent))
+        signature = read_json(results_dir / 'run_info.json').get('signature')
+        if signature and manifest.get('signature') != signature:
+            missing.append('completion marker for current run settings')
         if require_plots:
             for pattern in ['*_xai_results.png', 'auc_results_*.png', 'faithfulness_curves_*.png']:
                 if not any(folder.glob(pattern)):
@@ -321,15 +347,19 @@ def summarize_experiment(results_dir: Path, expected_ids: set[str], methods: lis
     image_ids = set(expected_ids) if expected_ids else ids_seen
 
     complete_images = []
+    partial_images = 0
     partial_rows = []
     for image_id in sorted(image_ids):
         csv_methods = csv_rows_by_image.get(image_id, set())
         csv_ok = image_id in csv_complete
         output_ok, missing_outputs = output_status_for_image(results_dir, image_id, methods, require_plots)
-        complete = csv_ok and output_ok
+        manifest, _ = completion_manifest(results_dir, image_id)
+        complete = output_ok if manifest is not None else csv_ok and output_ok
         if complete:
             complete_images.append(image_id)
         else:
+            if existing_image_dir(results_dir, image_id) is not None:
+                partial_images += 1
             partial_rows.append(
                 {
                     "experiment": experiment_name,
@@ -345,18 +375,56 @@ def summarize_experiment(results_dir: Path, expected_ids: set[str], methods: lis
     completed = len(complete_images)
     pending = max(0, total - completed)
     time_progress = estimate_time_progress(results_dir, auc_csv, complete_images, pending)
+    timings = {normalize_image_id(row['image_id']): float(row['total_time_sec'])
+               for row in read_json(results_dir / 'timing_summary.json').get('images', [])}
+    for image_id in complete_images:
+        manifest, _ = completion_manifest(results_dir, image_id)
+        if manifest:
+            seconds = manifest.get('total_time_sec', manifest.get('timing', {}).get('total_time_sec'))
+            if seconds is not None:
+                timings[image_id] = float(seconds)
+    measured = [timings[image_id] for image_id in complete_images if image_id in timings]
+    if measured:
+        average = sum(measured)/len(measured)
+        time_progress.update(time_taken_until_now_sec=sum(measured),
+                             time_taken_until_now=format_duration(sum(measured)),
+                             avg_time_per_completed_image_sec=average,
+                             avg_time_per_completed_image=format_duration(average),
+                             estimated_time_required_sec=average*pending,
+                             estimated_time_required=format_duration(average*pending))
+    elif auc_csv is None or not csv_rows_by_image:
+        time_progress.update(time_taken_until_now='n/a', avg_time_per_completed_image='n/a',
+                             estimated_time_required='n/a')
+    failed_ids = set()
+    for filename in ['failures.json', 'full_image_set_failures.json']:
+        path = results_dir / filename
+        if path.is_file():
+            try:
+                failed_ids.update(normalize_image_id(row['image_id']) for row in json.loads(path.read_text()))
+            except (ValueError, KeyError, TypeError):
+                pass
+    failed_ids &= image_ids - set(complete_images)
+    runner = run_info.get('runner') or next((part.name for part in results_dir.parents
+                                            if part.name.startswith(('OD_', 'OC_', 'COD_'))), experiment_name)
+    partition = Path(run_info.get('masks_base_path', '')).name
+
     summary = {
-        "experiment": experiment_name,
+        "experiment": runner,
+        "partition": partition,
+        "attribute": run_info.get("settings", {}).get("attribute") or (results_dir.parent.name if runner == "OC_CelebA" else ""),
         "folder": str(results_dir),
         "model": run_info.get("model", run_info.get("model_group", "")),
         "bg_type": run_info.get("background_replacement_values", run_info.get("bg_type", "")),
         "max_evals": run_info.get("max_evals", ""),
         "methods_expected": len(methods),
+        "timed_images": len(measured),
         "expected_images": total,
         "csv_images_seen": len(csv_rows_by_image),
         "csv_images_complete": len(csv_complete),
         "completed_images": completed,
         "pending_images": pending,
+        "partial_images": partial_images,
+        "failed_images": len(failed_ids),
         "completion_percent": round(100.0 * completed / total, 2) if total else 0.0,
         "status": "complete" if total and pending == 0 else "partial",
         **time_progress,
@@ -368,6 +436,8 @@ def summarize_experiment(results_dir: Path, expected_ids: set[str], methods: lis
 def order_summary_columns(summary_df: pd.DataFrame) -> pd.DataFrame:
     preferred = [
         "experiment",
+        "partition",
+        "attribute",
         "model",
         "bg_type",
         "max_evals",
@@ -377,6 +447,8 @@ def order_summary_columns(summary_df: pd.DataFrame) -> pd.DataFrame:
         "csv_images_complete",
         "completed_images",
         "pending_images",
+        "partial_images",
+        "failed_images",
         "completion_percent",
         "status",
         "time_taken_until_now",
@@ -511,19 +583,9 @@ def run(args):
     summary_df = order_summary_columns(summary_df)
 
     display_cols = [
-        "experiment",
-        "model",
-        "bg_type",
-        "max_evals",
-        "expected_images",
-        "csv_images_complete",
-        "completed_images",
-        "pending_images",
-        "completion_percent",
-        "status",
-        "time_taken_until_now",
-        "estimated_time_required",
-        "avg_time_per_completed_image",
+        'experiment', 'partition', 'attribute', 'bg_type', 'max_evals',
+        'completed_images', 'expected_images', 'pending_images', 'partial_images',
+        'failed_images', 'completion_percent', 'avg_time_per_completed_image', 'estimated_time_required',
     ]
     print("\nExperiment progress:")
     print(summary_df[display_cols].to_string(index=False))
@@ -553,7 +615,7 @@ def run(args):
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default=None, help="Config name from src/configs or path to YAML. Used to infer results and masks paths.")
-    parser.add_argument("--results-root", default=None, help="Folder containing xai_results* experiment folders.")
+    parser.add_argument("--results-root", default=None, help="Explanation root; scans run_info.json recursively for all dataset runners.")
     parser.add_argument("--experiments", nargs="*", default=None, help="Experiment folder names or absolute paths to check.")
     parser.add_argument("--masks-base-path", default=None, help="Folder containing saved partition .npy files. Used to infer expected image count.")
     parser.add_argument("--output-dir", default=None, help="Where to save progress CSVs. Default: results root.")

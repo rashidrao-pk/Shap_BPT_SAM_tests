@@ -88,6 +88,13 @@ python src/scripts/explanations/OD_DETR.py \
 python src/scripts/explanations/OD_yolo.py \
   --config MSCOCO_epito --show-gt --limit 1 \
   --explain_all --no-heatmaps --no-resume
+
+python src/scripts/explanations/OC_CelebA.py \
+  --config CelebAHQ_epito \
+  --attribute Brown_Hair \
+  --show-gt --limit 1 \
+  --explain_all --no-heatmaps --no-resume
+
 ```
 
 Unsupported methods remain explicitly labelled; their absence is not a failed

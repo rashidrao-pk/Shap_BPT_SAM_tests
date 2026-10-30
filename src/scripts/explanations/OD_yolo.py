@@ -1614,6 +1614,7 @@ def run(args):
             "kernel_shap_batch_size": kernel_shap_batch_size,
             "num_explained_classes": args.num_explained_classes,
             "methods": METHOD_ORDER,
+            "image_ids": inputs["image_ids"],
             "show_gt": args.show_gt,
             "method_labels": {method: METHOD_LABELS.get(method, method) for method in METHOD_ORDER},
             "config": args.config,

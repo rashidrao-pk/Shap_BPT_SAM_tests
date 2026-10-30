@@ -1,5 +1,21 @@
 ## MS-COCO
 
+### SAM-1
+
+```bash
+
+python src/scripts/generate_coco_partitions.py \
+  --config MSCOCO_epito-sam1 \
+  --model sam1 \
+  --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" \
+  --sam1-variant vit_b \
+  --device cuda \
+  --max-regions 62 \
+  --generate_at_least_n_masks 200 \
+  --save-partitions sam compact refined \
+  --limit 1000
+```
+
 ### SAM-2
 
 ### Large Model

@@ -476,6 +476,7 @@ def build_report(runtime, run_dir, evaluation_dir, rows, summaries, save_plots, 
 
 
 def run(kind, args, adapter=None):
+    run_started = time.perf_counter()
     inputs = prepare_inputs(kind, args)
     print(json.dumps({key: jsonable(value) for key, value in inputs.items() if key not in {'records', 'config'}}, indent=2))
     print('Images:', ', '.join(record['image_id'] for record in inputs['records']))
@@ -502,8 +503,11 @@ def run(kind, args, adapter=None):
         else:
             pending.append(record)
     print(f'Pending: {len(pending)}; complete: {len(prior)}; device: {device}')
+    model_load_sec = 0.0
     if pending and adapter is None:
+        model_started = time.perf_counter()
         adapter = load_adapter(kind, args, device)
+        model_load_sec = time.perf_counter() - model_started
     write_json(run_dir / 'run_info.json', {'runner': kind, 'model': args.model, 'signature': signature,
                'methods': inputs['methods'], 'config': args.config, 'masks_base_path': str(inputs['partition_dir']),
                'image_ids': [record['image_id'] for record in inputs['records']],
@@ -514,6 +518,7 @@ def run(kind, args, adapter=None):
     rows = [row for manifest in prior for row in manifest['rows']]
     summaries = [manifest['prediction'] for manifest in prior]
     failures = []
+    image_timings = []
     from PIL import Image
     for record in runtime.tqdm(pending, desc=kind, ascii=True, dynamic_ncols=True):
         image_id = record['image_id']
@@ -663,9 +668,14 @@ def run(kind, args, adapter=None):
                     artifacts += [f'auc_results_{image_id}.png', f'faithfulness_curves_{image_id}.png']
             if args.show_gt:
                 artifacts += [f'{image_id}_gt{extension}' for extension in ['.npy', '.png', '.json', '_labels.npz']]
+            image_timing = {'image_id': image_id, 'total_time_sec': time.perf_counter() - started,
+                            'explanation_time_sec': sum(float(row['time_exp']) for row in image_rows),
+                            'evaluation_time_sec': sum(float(row['time_eval']) for row in image_rows)}
             manifest = {'signature': signature, 'input_stamp': input_stamp(record), 'artifacts': artifacts,
-                        'rows': image_rows, 'prediction': prediction, 'total_time_sec': time.perf_counter() - started}
+                        'rows': image_rows, 'prediction': prediction, 'total_time_sec': image_timing['total_time_sec'],
+                        'timing': image_timing}
             write_json(marker, manifest)  # Completion marker is always written last.
+            image_timings.append(image_timing)
             rows.extend(image_rows)
             summaries.append(prediction)
             runtime.pd.DataFrame(rows).to_csv(run_dir / 'auc_results_all_images_current_run.csv', index=False)
@@ -680,6 +690,9 @@ def run(kind, args, adapter=None):
     write_json(run_dir / 'failures.json', failures)
     build_report(runtime, run_dir, evaluations, rows, summaries, args.save_plots, args.build_html)
     print(f'Explanations: {run_dir}\nEvaluations: {evaluations}')
+    from run_timing import report_timing
+    timing = report_timing(run_dir, evaluations, image_timings, model_load_sec,
+                           time.perf_counter() - run_started, skipped=len(prior), failed=len(failures))
     if failures:
         raise RuntimeError(f'{len(failures)} images failed; see {run_dir / "failures.json"}')
-    return {'completed': len(summaries), 'rows': rows, 'run_dir': run_dir, 'evaluation_dir': evaluations}
+    return {'completed': len(summaries), 'rows': rows, 'run_dir': run_dir, 'evaluation_dir': evaluations, 'timing': timing}

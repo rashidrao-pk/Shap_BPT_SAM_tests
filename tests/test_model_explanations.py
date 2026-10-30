@@ -153,6 +153,13 @@ class ModelExplanationTest(unittest.TestCase):
             result = common.run('OC_ResNet', args, adapter=SmallAdapter())
             self.assertEqual(result['completed'], 1)
             self.assertEqual([row['method'] for row in result['rows']], common.METHODS)
+            timing = result['timing']
+            self.assertEqual(timing['computed_images'], 1)
+            self.assertEqual(timing['images'][0]['image_id'], image_id)
+            self.assertGreater(timing['images'][0]['evaluation_time_sec'], 0)
+            self.assertGreaterEqual(timing['images'][0]['total_time_sec'],
+                                    timing['images'][0]['explanation_time_sec'] + timing['images'][0]['evaluation_time_sec'])
+            self.assertEqual(json.loads((result['run_dir'] / 'timing_summary.json').read_text()), timing)
             for row in result['rows']:
                 self.assertTrue(np.isfinite(row['auc_ins']))
                 self.assertTrue(np.isfinite(row['auc_del']))
@@ -169,6 +176,8 @@ class ModelExplanationTest(unittest.TestCase):
                 resumed = common.run('OC_ResNet', args)
             self.assertEqual(resumed['completed'], 1)
             self.assertEqual(len(resumed['rows']), 3)
+            self.assertEqual(resumed['timing']['computed_images'], 0)
+            self.assertEqual(resumed['timing']['skipped_images'], 1)
             args.target_class = 1
             with self.assertRaisesRegex(ValueError, 'settings/inputs changed'):
                 common.run('OC_ResNet', args)

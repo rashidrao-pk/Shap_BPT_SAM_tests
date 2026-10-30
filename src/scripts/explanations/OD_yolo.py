@@ -1524,6 +1524,7 @@ def prepare_inputs(project_root, config, args):
 
 
 def run(args):
+    run_started = time.perf_counter()
     if getattr(args, "explain_all", False):
         from all_methods import validate
         validate(args)
@@ -1556,7 +1557,9 @@ def run(args):
     device = select_device(args.device or config.get("device", "auto"))
     checkpoint_dir = resolve_checkpoint_dir(project_root, args.checkpoint_dir)
     yolo_source = resolve_yolo_source(project_root, args.model, args.weights, checkpoint_dir=str(checkpoint_dir))
+    model_started = time.perf_counter()
     model = YOLO(yolo_source)
+    model_load_sec = time.perf_counter() - model_started
     class_names = model.names
     print(f"Project root: {project_root}")
     print(f"Device: {device}")
@@ -1635,9 +1638,11 @@ def run(args):
     skipped_images = 0
     top_classes_n = 5
     iteration_durations = []
+    image_timings = []
     method_progress = args.verbose_level in {"medium", "high"}
     for iteration_index, image_id in enumerate(tqdm(image_ids, desc="Full image-set XAI", position=0, dynamic_ncols=True), start=1):
         iteration_start = time.time()
+        image_started = time.perf_counter()
         first_iteration_breakdown = {
             "load_image_and_target": 0.0,
             "segmentation_lookup": 0.0,
@@ -1927,6 +1932,11 @@ def run(args):
                 write_json(path_results_img / f'{image_no}_all_complete.json',
                            {'signature': comparison_signature(args), 'artifacts': artifacts})
 
+            image_timings.append({'image_id': image_id,
+                                  'total_time_sec': time.perf_counter() - image_started,
+                                  'explanation_time_sec': sum(float(row['time_exp']) for row in auc_records),
+                                  'evaluation_time_sec': sum(float(row.get('time_eval', 0)) for row in auc_results)})
+
         except Exception as exc:
             failure = {"image_id": image_id, "error": repr(exc), "traceback": traceback.format_exc()}
             failures.append(failure)
@@ -1998,6 +2008,9 @@ def run(args):
     print(f"Computed images this run: {len(image_ids) - len(failures) - skipped_images}")
     print(f"Skipped complete images: {skipped_images}")
     print(f"Failures: {len(failures)}")
+    from run_timing import report_timing
+    report_timing(path_results, path_evaluations, image_timings, model_load_sec,
+                  time.perf_counter() - run_started, skipped=skipped_images, failed=len(failures))
 
 
 def parse_args():

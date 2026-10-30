@@ -167,3 +167,13 @@ support](ALL_METHODS.md). The comparison includes GT-IoU panels when GT is avail
 Saved image panels retain their borders while hiding x/y ticks. Empty grid slots
 are hidden. This applies to compact XAI, all-method comparisons, GT and partition
 previews, and legacy experiment plots.
+
+### Run timing
+
+Every explanation runner prints a timing summary at the end: per-image wall time,
+explanation time, AUC/faithfulness time, model-loading time, and total run time.
+Image time includes GT, BPT construction and per-image output, but excludes model
+loading and aggregate reports. Total run time includes startup and reports.
+The same details are saved as `timing_summary.json` in the explanation and
+evaluation folders. Only newly computed images enter the timing average; skipped
+images are counted separately. No additional CLI flag is required.

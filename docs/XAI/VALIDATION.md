@@ -34,12 +34,12 @@ contribution; multi-region maps use the existing weighted Kernel SHAP solver.
 
 Updated all-method routing was exercised with cached pretrained weights on CPU:
 
-| Dataset runner | Completed | Explicitly unsupported |
-| --- | --- | --- |
-| ImageNet / OC_ViT | 12 of 13 | LRP |
-| CAMO / COD_ViT | 12 of 13 | LRP |
-| MS-COCO / OD_DETR | 8 of 13 | All five gradient methods |
-| MS-COCO / OD_yolo | 8 of 13 | All five gradient methods |
+| Dataset runner    | Completed | Explicitly unsupported    |
+| ----------------- | --------- | ------------------------- |
+| ImageNet / OC_ViT | 12 of 13  | LRP                       |
+| CAMO / COD_ViT    | 12 of 13  | LRP                       |
+| MS-COCO / OD_DETR | 8 of 13   | All five gradient methods |
+| MS-COCO / OD_yolo | 8 of 13   | All five gradient methods |
 
 Every case had a positive target score, nonzero finite attribution maps, matched
 synthetic GT, valid combined PNGs and an HTML report. Checked the exact method
@@ -69,21 +69,25 @@ Run one image with the requested default 500/1000 budgets. These commands omit
 AUC for the initial check; remove `--no-auc` for a complete evaluation.
 
 ```bash
+python src/scripts/explanations/OC_ResNet.py \
+  --config ImageNet_epito --show-gt --gt-only --limit 1 \
+  --explain_all --no-heatmaps --no-resume
+
 python src/scripts/explanations/OC_ViT.py \
   --config ImageNet_epito --show-gt --gt-only --limit 1 \
-  --explain_all --no-heatmaps --no-auc --no-resume
+  --explain_all --no-heatmaps --no-resume
 
 python src/scripts/explanations/COD_ViT.py \
   --config CAMO_epito --show-gt --limit 1 \
-  --explain_all --no-heatmaps --no-auc --no-resume
+  --explain_all --no-heatmaps --no-resume
 
 python src/scripts/explanations/OD_DETR.py \
   --config MSCOCO_epito --show-gt --limit 1 \
-  --explain_all --no-heatmaps --no-auc --no-resume
+  --explain_all --no-heatmaps --no-resume
 
 python src/scripts/explanations/OD_yolo.py \
   --config MSCOCO_epito --show-gt --limit 1 \
-  --explain_all --no-heatmaps --no-auc --no-resume
+  --explain_all --no-heatmaps --no-resume
 ```
 
 Unsupported methods remain explicitly labelled; their absence is not a failed

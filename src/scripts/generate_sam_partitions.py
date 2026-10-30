@@ -27,7 +27,7 @@ def parse_args():
     p.add_argument("--image", required=True, type=Path)
     p.add_argument("--device", choices=["auto", "cpu", "mps", "cuda"], default="auto")
     p.add_argument("--max-regions", type=int, default=62)
-    p.add_argument("--strategy", choices=["refined", "raw_overwrite"], default="refined")
+    p.add_argument("--strategy", choices=["refined", "raw_overwrite", "compact"], default="refined")
     p.add_argument("--output-dir", type=Path, default=Path("results/partitions/sam2"))
     p.add_argument("--checkpoint", type=Path, default=None)
     p.add_argument("--sam2-config", default=None,
@@ -172,6 +172,7 @@ def generate_at_least_n_masks(image, generator, min_masks=400, max_steps=3,
     history = []
     try:
         for attempt in range(1, max_steps + 1):
+            #generation and timing
             start = time.perf_counter()
             annotations = generator.generate(image)
             elapsed = time.perf_counter() - start
@@ -180,14 +181,19 @@ def generate_at_least_n_masks(image, generator, min_masks=400, max_steps=3,
                 'stability_score_thresh': generator.stability_score_thresh,
                 'n_masks': len(annotations), 'time_sam': elapsed,
             })
+
             print(f'[mask tuning] step={attempt}/{max_steps} '
                   f'iou={generator.pred_iou_thresh:.2f} '
                   f'stability={generator.stability_score_thresh:.2f} '
                   f'masks={len(annotations)}/{min_masks} seconds={elapsed:.3f}', flush=True)
+
+            # Check if we have enough masks
             if len(annotations) >= min_masks:
                 break
+            # Lower thresholds to generate more masks, but never below the minimums.
             iou = max(min_pred_iou_thresh, generator.pred_iou_thresh - step)
             stability = max(min_stability_score_thresh, generator.stability_score_thresh - step)
+            
             # Never increase an already lower user-specified threshold.
             iou = min(generator.pred_iou_thresh, iou)
             stability = min(generator.stability_score_thresh, stability)
@@ -340,11 +346,102 @@ def save_plot(image, partitions, target, title):
     axs[2].imshow(overlay.astype(np.uint8))
     axs[2].set_title("Partition boundaries")
     for ax in axs:
-        ax.set_xticks([])
-        ax.set_yticks([])
+        ax.set_axis_off()
     fig.tight_layout()
     fig.savefig(target, dpi=180, bbox_inches="tight")
     plt.close(fig)
+
+def select_masks_by_unpicked_area(masks, predicted_ious, n_masks_to_select):
+    """
+    Iteratively selects masks using the following score:
+
+        score = unpicked_area * predicted_iou
+
+    At each iteration, recalculates the scores of the remaining masks
+    and selects the one with the highest score.
+
+    Stops the selection process when:
+    - n_masks_to_select masks have been selected;
+    - no masks remain;
+    - no remaining mask adds any new pixels.
+
+    Returns the selected masks in the order they were selected.
+    """
+
+    masks = np.asarray(masks, dtype=bool)
+    predicted_ious = np.asarray(predicted_ious, dtype=np.float32)
+
+    if masks.ndim != 3:
+        raise ValueError("masks deve avere forma (N, H, W)")
+
+    n, h, w = masks.shape
+
+    if predicted_ious.shape != (n,):
+        raise ValueError("Serve un predicted_iou per ogni maschera")
+
+    if n_masks_to_select < 1:
+        raise ValueError("n_masks_to_select deve essere >= 1")
+
+    if n == 0:
+        return masks.copy()
+
+    picked_pixels = np.zeros((h, w), dtype=bool)
+
+    remaining_indices = list(range(n))
+    selected_indices = []
+
+    max_selections = min(n_masks_to_select, n)
+
+    for _ in range(max_selections):
+
+        best_index = None
+        best_score = -1.0
+        best_unpicked_area = 0
+
+        # Ricalcola lo score di tutte le maschere disponibili
+        for idx in remaining_indices:
+
+            unpicked_mask = masks[idx] & (~picked_pixels)
+
+            unpicked_area = int(
+                np.count_nonzero(unpicked_mask)
+            )
+
+            score = (
+                unpicked_area * float(predicted_ious[idx])
+            )
+
+            if score > best_score:
+                best_index = idx
+                best_score = score
+                best_unpicked_area = unpicked_area
+
+        # Nessuna maschera aggiunge nuovi pixel
+        if best_index is None or best_unpicked_area == 0:
+            break
+
+        # Salva la maschera migliore
+        selected_indices.append(best_index)
+
+        # Aggiorna la copertura
+        picked_pixels |= masks[best_index]
+
+        # Rimuove la maschera selezionata dalle candidate
+        remaining_indices.remove(best_index)
+
+    return masks[selected_indices]
+
+def compact_partitions(masks, predicted_ious, max_regions):
+    selected_masks = select_masks_by_unpicked_area(
+        masks,
+        predicted_ious,
+        n_masks_to_select=max_regions
+    )
+
+    partitions = raw_overwrite(selected_masks)
+
+    return partitions.astype(np.uint16)
+
 
 
 def main():
@@ -355,20 +452,67 @@ def main():
     out = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
     stem = args.image.stem
+    predicted_ious = None
     if args.raw_masks:
         with np.load(args.raw_masks, allow_pickle=False) as loaded:
             masks = loaded["masks"].astype(bool)
+
+            if "predicted_ious" in loaded:
+                predicted_ious = loaded["predicted_ious"].astype(np.float32)
+
         inference_seconds, device, checkpoint = None, "cached", None
+    elif args.strategy == "compact":
+            (
+                masks,
+                inference_seconds,
+                device,
+                checkpoint,
+                history,
+                annotations
+            ) = infer_masks(
+                image,
+                args,
+                return_annotations=True
+            )
+
+            predicted_ious = np.asarray(
+                [ann["predicted_iou"] for ann in annotations],
+                dtype=np.float32
+            )
     else:
-        masks, inference_seconds, device, checkpoint = infer_masks(image, args)
+        masks, inference_seconds, device, checkpoint = infer_masks(
+            image,
+            args
+        )
+    if args.strategy == "compact" and predicted_ious is None:
+        raise ValueError(
+            "The compact strategy requires predicted_ious, "
+            "but they are missing from the loaded raw masks file."
+        )
+
     if masks.ndim != 3 or masks.shape[1:] != image.shape[:2]:
         raise ValueError(f"Expected masks [N,{image.shape[0]},{image.shape[1]}], got {masks.shape}")
     masks_path = out / f"{stem}_{args.model}_raw_masks.npz"
-    np.savez_compressed(masks_path, masks=masks)
+
+    if predicted_ious is not None:
+        np.savez_compressed(
+            masks_path,
+            masks=masks,
+            predicted_ious=predicted_ious
+        )
+    else:
+        np.savez_compressed(
+            masks_path,
+            masks=masks
+        )
+
     raw_union = np.any(masks, axis=0) if len(masks) else np.zeros(image.shape[:2], dtype=bool)
     t0 = time.perf_counter()
     if args.strategy == "refined":
         partitions = refined_partitions(masks, args.min_region_pixels, args.max_regions)
+    elif args.strategy == "compact":
+        
+        partitions = compact_partitions(masks, predicted_ious, args.max_regions)
     else:
         partitions = raw_overwrite(masks)
         partitions = enforce_region_budget(partitions, args.max_regions).astype(np.uint16)

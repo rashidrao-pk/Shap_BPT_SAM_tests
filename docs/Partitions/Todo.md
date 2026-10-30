@@ -1,1 +1,1 @@
-[ ] change function raw_overwrite for [src\scripts\generate_sam_partitions.py](src\scripts\generate_sam_partitions.py)
+1. [x] change function raw_overwrite for [src\scripts\generate_sam_partitions.py](src\scripts\generate_sam_partitions.py)

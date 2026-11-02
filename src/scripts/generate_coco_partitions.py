@@ -316,7 +316,12 @@ def _run(args, progress_stream):
             'model': args.model, 'checkpoint': checkpoint,
             'device': device, 'n_sam_masks': len(masks),
             'effective_points_per_batch': getattr(loaded[0], 'points_per_batch', None),
-            'n_refined_instances': len(np.unique(refined)),
+            
+            'n_refined_instances': (
+                int(len(np.unique(maps['refined'])))
+                if 'refined' in maps else None
+            ),
+            
             'mask_tuning_history': tuning_history,
             'mask_target_met': len(masks) >= mask_target if mask_target is not None else None,
             'time_sam': seconds, 'time_refined': refinement_seconds,

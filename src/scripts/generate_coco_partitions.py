@@ -135,8 +135,13 @@ def partition_folder_name(data, args):
         if variant is None:
             raise ValueError('Cannot determine SAM2 model size from checkpoint/config')
     target = getattr(args, 'generate_at_least_n_masks', None)
-    return f'{dataset}_{args.model}_{variant}_{args.max_regions}_refined_{target if target is not None else "singlepass"}'
+    stages = "-".join(sorted(set(args.save_partitions)))
 
+    return (
+        f'{dataset}_{args.model}_{variant}_'
+        f'{args.max_regions}_{stages}_'
+        f'{target if target is not None else "singlepass"}'
+    )
 
 def generation_settings(args):
     settings = {key: str(value) if isinstance(value, Path) else value
@@ -248,17 +253,55 @@ def _run(args, progress_stream):
                 image, args, loaded, return_history=True)
         else:
             masks, seconds, device, checkpoint = sam.infer_masks(image, args, loaded)
+        
         refinement_start = time.perf_counter()
-        raw = sam.enforce_region_budget(sam.raw_overwrite(masks), args.max_regions)
-        refined = sam.refined_partitions(masks, args.min_region_pixels, args.max_regions)
+
+        maps = {}
+
+        if 'sam' in stages:
+            maps['sam'] = sam.enforce_region_budget(
+                sam.raw_overwrite(masks),
+                args.max_regions
+            )
+
+        if 'refined' in stages:
+            maps['refined'] = sam.refined_partitions(
+                masks,
+                args.min_region_pixels,
+                args.max_regions
+            )
+
         refinement_seconds = time.perf_counter() - refinement_start
-        maps = {'sam': raw, 'refined': refined}
+
+        
         notebook_metadata = {}
-        if extra_stages:
+
+        # Compact usa la nuova implementazione di generate_sam_partitions.py
+        if 'compact' in stages:
+            predicted_ious = np.asarray(
+                [ann["predicted_iou"] for ann in annotations],
+                dtype=np.float32
+            )
+
+            maps["compact"] = sam.compact_partitions(
+                masks,
+                predicted_ious,
+                args.max_regions
+            )
+
+        # Le altre strategie continuano a usare la pipeline notebook
+        notebook_stages = extra_stages - {'compact'}
+
+        if notebook_stages:
             extra_maps, notebook_metadata = notebook_stage_maps(
-                annotations, image.shape[:2], extra_stages,
-                getattr(args, 'select_count', 400), getattr(args, 'fill_max_distance', 3))
+                annotations,
+                image.shape[:2],
+                notebook_stages,
+                getattr(args, 'select_count', 400),
+                getattr(args, 'fill_max_distance', 3)
+            )
             maps.update(extra_maps)
+
         saved_paths = {}
         for name in stages:
             labels = maps[name]

@@ -1524,6 +1524,8 @@ def prepare_inputs(project_root, config, args):
 
 
 def run(args):
+    from all_methods import apply_budget_selection
+    apply_budget_selection(args, 'OD_yolo')
     run_started = time.perf_counter()
     if getattr(args, "explain_all", False):
         from all_methods import validate
@@ -2035,7 +2037,7 @@ def parse_args():
     parser.add_argument("--output-dir", default=None, help="Override output base; bg_<background>_B<max-evals> is created inside it.")
     parser.add_argument("--exp-no", default=None, help="Override experiment number, e.g. E1_1_4.")
     parser.add_argument("--no-budget-suffix", dest="budget_suffix", action="store_false", help="Omit budget suffix from experiment metadata (does not change output paths).")
-    parser.add_argument("--max-evals", type=int, default=500)
+    parser.add_argument("--max-evals", "--budget", type=int, default=500)
     parser.add_argument("--limit", type=int, default=None, help="Limit number of images for a smoke test.")
     parser.add_argument("--image-ids", nargs="*", default=None, help="Optional explicit image ids.")
     parser.add_argument("--bg-type", default="noise", 

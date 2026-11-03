@@ -159,8 +159,8 @@ Use `--no-resume` to regenerate previously saved figures.
 
 ### Optional all-method comparison
 
-Use `--explain_all` for BPT, BPT+SAM_c and SAM_c+KernelSHAP at budgets 500 and
-1000, LIME-1000 (250 requested SLIC segments for MS-COCO; 100 otherwise),
+Use `--explain_all` for BPT, BPT+SAM_c and SAM_c+KernelSHAP at one selected
+budget (`--budget N` or `--budget-selection selection.json`), LIME-1000 (250 requested SLIC segments for MS-COCO; 100 otherwise),
 Shap-AA-1000, LRP, GradCAM, IDG, GradExp and GradShap. See [commands, dependencies, budgets, and architecture
 support](ALL_METHODS.md). The comparison includes GT-IoU panels when GT is available.
 
@@ -226,3 +226,18 @@ records `requested_points` and `evaluated_points`. `--auc-batch-size` only contr
 evaluation batch size, not curve resolution. The current YOLO runner uses the
 requested count without additional fixed 500/2000-point sweeps. Remove `--no-auc`
 if present to enable AUC, and use `--no-resume` to recompute old results.
+
+### Single budget selected by ablation
+
+Use a few examples to select a common budget before the main experiments:
+
+```bash
+python src/scripts/explanations/budget_ablation.py \
+  --runner OC_ResNet --config ImageNet_epito \
+  --show-gt --gt-only --limit 5 --bg-type black
+```
+
+The pilot separates calibration and held-out examples and compares candidate
+budgets against a higher-budget reference. See [budget ablation](BUDGET_ABLATION.md)
+for the dataset/model matrix, common selection command and application to main
+runs. No budget is claimed as a universal minimum.

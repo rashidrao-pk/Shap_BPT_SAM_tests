@@ -40,7 +40,7 @@ an experiment:
 python -c "import numpy, cv2, torch, torchvision, captum, shap; print(numpy.__version__, cv2.__version__, torch.__version__, torchvision.__version__, captum.__version__, shap.__version__)"
 ```
 
-The 2×3 figure shows the three partition-based methods at the highest budget. `<image-id>_all_methods.png` adds a wide
+The 2×3 figure shows the three partition-based methods at the selected budget. `<image-id>_all_methods.png` adds a wide
 heatmap strip and, when GT has foreground, a second row of GT overlap panels.
 There is no standalone GT column; GT appears as boundaries on the attribution maps.
 The shared HTML report lets you scroll the wide comparison horizontally.
@@ -53,9 +53,9 @@ In `--explain_all` mode the complete method list is:
 
 | Method | Default setting | Meaning |
 | --- | --- | --- |
-| BPT-500/1000 | `--partition-budgets 500 1000` | BPT evaluation budgets |
-| BPT+SAM_c-500/1000 | Same budgets | BPT initialized with saved SAM_c regions |
-| SAM_c+KernelSHAP-500/1000 | Same budgets | Kernel SHAP coalition samples on saved SAM_c regions |
+| BPT-N | `--budget N` | One selected BPT evaluation budget |
+| BPT+SAM_c-N | Same selected budget | BPT initialized with saved SAM_c regions |
+| SAM_c+KernelSHAP-N | Same selected budget | Kernel SHAP coalition samples on saved SAM_c regions |
 | LIME-1000 | `--lime-budgets 1000` | 1000 perturbation samples per background |
 | Shap-AA-1000 | `--aa-budget 1000` | Axis-aligned hierarchical SHAP |
 | LRP | Captum epsilon propagation | ResNet-50 logit relevance |
@@ -64,11 +64,12 @@ In `--explain_all` mode the complete method list is:
 | GradExp | `--gradient-samples 20` | SHAP GradientExplainer expected gradients |
 | GradShap | `--gradient-samples 20` | Captum GradientShap, noise standard deviation 0.0001 |
 
-`--partition-budgets` (alias `--bpt-budgets`) controls all three partition-based
-methods. In all-method mode `--max-evals` and `--kernel-shap-samples` do not
-replace those explicit budgets. No extra unbudgeted copies are computed. The
-compact 2×3 plot uses the highest partition budget; the wide figure shows all
-methods. Without `--explain_all`, the original three-method behavior is unchanged.
+Normal experiments use one `--budget N` (alias `--max-evals N`) for all three
+partition-based methods. Select it with the separate
+[small budget ablation](BUDGET_ABLATION.md), then pass `--budget-selection` to each
+runner. Explicit `--partition-budgets` manual sweeps remain available but are no
+longer the default. Without `--explain_all`, the original three-method behavior
+is unchanged.
 
 LIME requests **250 SLIC segments for MS-COCO** and **100 for every other dataset**.
 Use `--lime-segments N` to override. SLIC is approximate; the requested and actual
@@ -92,7 +93,7 @@ intervals. It does not copy the upstream empty-interval indexing issue.
 
 ## Architecture support
 
-- **OC_CelebA:** all 13 methods with the E5 CelebModel checkpoint; raw attribute
+- **OC_CelebA:** all comparison methods with the E5 CelebModel checkpoint; raw attribute
   logits, direct resize, and GradCAM at `unit8.conv`. See [CelebA setup](CELEBA.md).
 - **OC_ResNet:** all listed methods, including LRP with explicit residual addition
   modules on a separate model copy. The copy's logits are checked against the

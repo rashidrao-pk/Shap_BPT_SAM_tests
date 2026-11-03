@@ -8,6 +8,7 @@ import copy
 import importlib.util
 import time
 import textwrap
+from pathlib import Path
 from types import MethodType
 
 import numpy as np
@@ -16,8 +17,10 @@ import numpy as np
 def add_arguments(parser):
     parser.add_argument('--explain_all', '--explain-all', action='store_true',
                         help='Compare budgeted BPT, BPT+SAM_c, SAM_c+KernelSHAP, LIME, AA and gradient methods')
-    parser.add_argument('--bpt-budgets', '--partition-budgets', nargs='+', type=int, default=[500, 1000],
-                        help='Budgets for BPT, BPT+SAM_c and SAM_c+KernelSHAP')
+    parser.add_argument('--bpt-budgets', '--partition-budgets', nargs='+', type=int, default=None,
+                        help='Explicit manual sweep override; default is one --budget for all three methods')
+    parser.add_argument('--budget-selection', type=Path,
+                        help='Validated selection.json from the separate budget ablation')
     parser.add_argument('--lime-budgets', nargs='+', type=int, default=[1000],
                         help='LIME perturbation samples, not superpixel counts')
     parser.add_argument('--aa-budget', type=int, default=1000)
@@ -28,9 +31,42 @@ def add_arguments(parser):
     parser.add_argument('--explanation-seed', type=int, default=0)
 
 
+def partition_budgets(args):
+    return list(dict.fromkeys(args.bpt_budgets or [args.max_evals]))
+
+
+def apply_budget_selection(args, runner=None):
+    path = getattr(args, 'budget_selection', None)
+    if path is None:
+        return
+    import json
+    from config_paths import resolve_path
+    path = resolve_path(path)
+    selection = json.loads(path.read_text())
+    budget = selection.get('selected_budget')
+    if selection.get('status') != 'validated' or not isinstance(budget, int) or isinstance(budget, bool) or budget < 2:
+        raise ValueError('The ablation did not validate a budget; inspect selection.json instead of applying it')
+    if args.bpt_budgets is not None:
+        raise ValueError('Use --budget-selection without a separate --partition-budgets override')
+    if set(selection.get('methods', [])) != {'BPT', 'BPT+SAM_c', 'SAM_c+KernelSHAP'}:
+        raise ValueError('The common budget must be validated for all three partition-based methods')
+    if args.compute_auc and selection.get('auc_points') != args.auc_num_samples:
+        raise ValueError('Use the AUC point count validated by the pilot')
+    scopes = selection.get('scopes', [])
+    attribute = (args.attribute or ('Brown_Hair' if args.target_class is None else f'class_{args.target_class}')) if runner == 'OC_CelebA' else None
+    if runner and not any(scope.get('runner') == runner and scope.get('background') == args.bg_type
+                          and (runner != 'OC_CelebA' or scope.get('attribute') == attribute) for scope in scopes):
+        raise ValueError('This runner/background/attribute was not validated by the budget pilot; collect its pilot first')
+    if getattr(args, 'kernel_shap_samples', None) not in {None, budget}:
+        raise ValueError('--kernel-shap-samples conflicts with the selected common budget')
+    args.max_evals = budget
+    args.budget_selection = path
+
+
 def validate(args):
     for name in ['bpt_budgets', 'lime_budgets']:
-        if not getattr(args, name) or any(value < 2 for value in getattr(args, name)):
+        values = partition_budgets(args) if name == 'bpt_budgets' else getattr(args, name)
+        if not values or any(value < 2 for value in values):
             raise ValueError(f'{name} must contain budgets of at least 2')
     for name in ['gradient_samples', 'attribution_batch_size']:
         if getattr(args, name) < 1:
@@ -47,13 +83,13 @@ def validate(args):
 
 def method_names(args):
     return ([f'{method}-{budget}' for method in ['BPT', 'BPT+SAM_c', 'SAM_c+KernelSHAP']
-             for budget in dict.fromkeys(args.bpt_budgets)] +
+             for budget in partition_budgets(args)] +
             [f'LIME-{budget}' for budget in dict.fromkeys(args.lime_budgets)] +
             [f'Shap-AA-{args.aa_budget}', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'])
 
 
 def grid_methods(args):
-    budget = max(args.bpt_budgets)
+    budget = max(partition_budgets(args))
     return [f'{method}-{budget}' for method in ['BPT', 'BPT+SAM_c', 'SAM_c+KernelSHAP']]
 
 

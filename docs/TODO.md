@@ -15,4 +15,4 @@ TODO plan
 
 - [] Add more points (200) in AUC
 - [] Background Replacement Values as 5 (Black, White, Noise, Blurr)
-- [] Single Budget Selection based on Ablation
+- [ ] Single Budget Selection based on Ablation — pilot/selection workflow implemented; run real-data EPITO pilots before choosing the minimum

@@ -33,8 +33,10 @@ python src/scripts/explanations/OC_CelebA.py \
   --explain_all --no-heatmaps --no-auc --no-resume
 ```
 
-This runs BPT, BPT+SAM_c and SAM_c+KernelSHAP at 500 and 1000; LIME-1000 with
+This runs BPT, BPT+SAM_c and SAM_c+KernelSHAP at one budget; LIME-1000 with
 100 requested SLIC segments; Shap-AA-1000; and all five gradient baselines.
+Select the common budget with [the separate pilot](BUDGET_ABLATION.md), then pass
+`--budget-selection` to apply its validated result.
 **LRP and GradCAM are supported for this CNN.** The GradCAM target is `unit8.conv`,
 as in the notebook. The default background is gray. Remove `--no-auc` to add
 faithfulness evaluation, and remove `--limit 1` after inspecting the first result.
@@ -101,7 +103,7 @@ GT column in the all-method figure.
 ## Validation
 
 The published checkpoint was downloaded and loaded strictly against the notebook
-architecture. A CPU all-method smoke run completed **13/13 methods** with reduced
+architecture. An earlier explicit two-budget CPU smoke run completed **13/13 methods** with reduced
 budgets for Brown_Hair and Smiling on a bundled astronaut image, synthetic
 hair/mouth GT, and quadrant partitions.
 Artifacts are under `results/celeba_xai_smoke/`; they are execution fixtures,

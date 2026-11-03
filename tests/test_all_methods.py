@@ -27,6 +27,9 @@ class AllMethodsTest(unittest.TestCase):
     def test_requested_default_matrix_and_budget_routing(self):
         from unittest.mock import Mock, patch
         args = common.create_parser('OC_ResNet').parse_args(['--explain_all'])
+        self.assertEqual(allx.method_names(args), ['BPT-1000', 'BPT+SAM_c-1000',
+            'SAM_c+KernelSHAP-1000', 'LIME-1000', 'Shap-AA-1000', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'])
+        args.bpt_budgets = [500, 1000]  # Explicit legacy/manual sweep remains available.
         expected = ['BPT-500', 'BPT-1000', 'BPT+SAM_c-500', 'BPT+SAM_c-1000',
                     'SAM_c+KernelSHAP-500', 'SAM_c+KernelSHAP-1000', 'LIME-1000',
                     'Shap-AA-1000', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap']

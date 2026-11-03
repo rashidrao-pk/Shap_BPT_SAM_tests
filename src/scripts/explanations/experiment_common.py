@@ -40,8 +40,8 @@ def create_parser(kind):
     parser.add_argument('--weights', default='DEFAULT', help='Torchvision weights enum name, or none')
     parser.add_argument('--class-names', type=Path, help='JSON class names for a custom classifier')
     parser.add_argument('--local-files-only', action='store_true', help='Load HF DETR from cache only')
-    parser.add_argument('--max-evals', type=int, default=1000,
-                         help='Maximum number of SAM_c region evaluations per image')
+    parser.add_argument('--max-evals', '--budget', type=int, default=1000,
+                         help='Single budget for the three partition-based methods unless explicitly overridden')
     parser.add_argument('--kernel-shap-samples', type=int)
     parser.add_argument('--eval-batch-size', type=int, default=16)
     parser.add_argument('--kernel-shap-batch-size', type=int)
@@ -94,6 +94,8 @@ def normalize_id(value, data):
 
 
 def prepare_inputs(kind, args):
+    from all_methods import apply_budget_selection
+    apply_budget_selection(args, kind)
     if args.explain_all:
         from all_methods import validate
         validate(args)
@@ -304,7 +306,7 @@ def run_signature(kind, args, config=None):
             settings.pop(option, None)
     if settings.get('save_heatmaps', True):
         settings.pop('save_heatmaps', None)  # Preserve signatures from before this option existed.
-    for option in ['attribute', 'attribute_file']:
+    for option in ['attribute', 'attribute_file', 'budget_selection']:
         if settings.get(option) is None:
             settings.pop(option, None)
     if settings.get('gt_class') is None:

@@ -65,7 +65,8 @@ is still an ImageNet classifier, not a camouflage-trained segmentation model.
 
 ## First checks on EPITO data
 
-Run one image with the requested default 500/1000 budgets. These commands omit
+Run one image at a single budget. For a budget supported by pilot evidence, add
+`--budget-selection` using the [ablation workflow](BUDGET_ABLATION.md). These commands omit
 AUC for the initial check; remove `--no-auc` for a complete evaluation.
 
 ```bash
@@ -100,3 +101,16 @@ python src/scripts/explanations/OC_CelebA.py \
 Unsupported methods remain explicitly labelled; their absence is not a failed
 installation. Use the saved method-status JSON to check requested/actual LIME
 regions and method budgets, and inspect the GT boundaries in the combined plots.
+
+## Separate budget-ablation validation
+
+The new pilot was executed with cached pretrained ResNet and YOLO weights on
+three distinct bundled photos with synthetic quadrant partitions, candidate
+budgets 4/8, reference 16, two repeats and three AUC points. Both pilots and
+the combined report correctly returned `no_acceptable_budget`; no production
+budget was inferred from these fixtures. Reports are in
+`results/budget_ablation_smoke/`. Unit tests cover smallest-candidate selection,
+reference failures, missing rows, disjoint/reproducible splits, rejection rather
+than escalation on held-out failure, production scope checks, single-budget
+application and resumable pilot artifacts. Main experiments now default to one
+partition budget per method rather than a two-budget comparison.

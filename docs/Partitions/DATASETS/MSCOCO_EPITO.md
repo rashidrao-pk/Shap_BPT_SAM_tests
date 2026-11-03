@@ -12,7 +12,7 @@ python src/scripts/generate_coco_partitions.py \
   --device cuda \
   --max-regions 62 \
   --generate_at_least_n_masks 200 \
-  --save-partitions sam compact refined \
+  --save-partitions sam compact \
   --limit 1000
 ```
 
@@ -29,6 +29,6 @@ python src/scripts/generate_coco_partitions.py \
   --device cuda \
   --max-regions 62 \
   --generate_at_least_n_masks 200 \
-  --save-partitions sam compact refined \
+  --save-partitions sam compact \
   --limit 1000
 ```

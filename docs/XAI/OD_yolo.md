@@ -55,7 +55,7 @@ python src/scripts/explanations/OD_yolo.py \
   --auc-batch-size 8 \
   --verbose-level medium \
   --model yolo11s \
-  --bg-type noise \
+  --bg-type full \
   --class-aggregation sum \
   --no-heatmaps
 ```

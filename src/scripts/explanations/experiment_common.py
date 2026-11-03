@@ -48,7 +48,8 @@ def create_parser(kind):
     parser.add_argument('--model-batch-size', '--resnet-batch-size', '--vit-batch-size', '--detr-batch-size',
                         type=int, default=8, help='Maximum images in one model forward pass')
     parser.add_argument('--auc-batch-size', type=int, default=8)
-    parser.add_argument('--auc_num_samples', '--auc-num-samples', type=int, default=101)
+    parser.add_argument('--auc_num_samples', '--auc-num-samples', type=int, default=200,
+                         help='Requested points per insertion/deletion curve; repeated masks are deduplicated')
     parser.add_argument('--bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'], 
                         default='gray' if kind == 'OC_CelebA' else 'black', help='Background replacement for masked pixels')
     parser.add_argument('--class-aggregation', choices=['sum', 'max'], default='sum')
@@ -346,6 +347,11 @@ def evaluate(runtime, method, values, predict, target, f_s, f_0, args, explanati
         result['auc_' + direction] = runtime.utx.saliency_to_auc(
             predict, heatmap, f_s, f_0, target, batch_size=args.auc_batch_size,
             method=direction, num_samples=args.auc_num_samples)
+    result.update(auc_requested_points=args.auc_num_samples,
+                  auc_ins_points=len(result['auc_ins']['xs']), auc_del_points=len(result['auc_del']['xs']))
+    if args.verbose_level != 'low':
+        print(f"{method} AUC points: requested={args.auc_num_samples}; "
+              f"insertion={result['auc_ins_points']}, deletion={result['auc_del_points']}", flush=True)
     result.update(runtime.utx.compute_extra_faithfulness_metrics(
         predict, heatmap, f_s, f_0, target, batch_size=args.auc_batch_size, sensitivity_seed=0))
     result['time_eval'] = time.perf_counter() - start
@@ -482,6 +488,7 @@ def run(kind, args, adapter=None):
     print('Images:', ', '.join(record['image_id'] for record in inputs['records']))
     if args.dry_run:
         return inputs
+    print(f'AUC: {args.auc_num_samples} requested points per curve' if args.compute_auc else 'AUC: disabled')
     runtime = load_runtime()
     if args.torch_threads:
         runtime.torch.set_num_threads(args.torch_threads)

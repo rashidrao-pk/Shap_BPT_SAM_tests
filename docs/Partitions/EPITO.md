@@ -9,6 +9,7 @@ Update the code on EPITO before running these commands, including the new
 
 ```bash
 ssh epito-mercurio
+cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
 srun -p epito --gres=gpu:a100:1 -J "ShapBPT" --time=06:00:00 --pty bash
 source /beegfs/home/mrashid/pt_312_sam/bin/activate
 export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages

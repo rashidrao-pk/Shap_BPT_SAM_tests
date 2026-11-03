@@ -206,3 +206,23 @@ HTML. Use `--show-pending 20` for image details. To refresh every 30 seconds:
 ```bash
 watch -n 30 'python src/scripts/check_experiment_progress.py --results-root results/explanations --show-pending 0'
 ```
+
+### AUC curve points
+
+AUC insertion/deletion curves request **200 points per curve by default**. Change
+the count with either `--auc-num-samples N` or `--auc_num_samples N`:
+
+```bash
+python src/scripts/explanations/OC_ResNet.py \
+  --config ImageNet_epito --show-gt --gt-only --limit 1 \
+  --explain_all --no-heatmaps --no-resume --auc-num-samples 200
+```
+
+The count includes the endpoint thresholds. Repeated masks are deduplicated, so
+region-based/tied maps can produce fewer distinct evaluations. Plot titles show
+the requested count and each legend entry shows the actual `n`. Metrics save
+`auc_requested_points`, `auc_ins_points` and `auc_del_points`; each curve also
+records `requested_points` and `evaluated_points`. `--auc-batch-size` only controls
+evaluation batch size, not curve resolution. The current YOLO runner uses the
+requested count without additional fixed 500/2000-point sweeps. Remove `--no-auc`
+if present to enable AUC, and use `--no-resume` to recompute old results.

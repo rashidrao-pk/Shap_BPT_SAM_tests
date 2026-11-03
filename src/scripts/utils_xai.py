@@ -868,11 +868,13 @@ def build_all_images_html_report(results_root, output_html=None, title="ShapBPT 
 
 
 ############## EVALUATION FUNCTIONS ##############
-def saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=4, method='del', num_samples=101, 
+def saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=4, method='del', num_samples=200,
                     rule='trapezoid'):
     assert isinstance(heatmap, np.ndarray)
     assert len(heatmap.shape)==2 and np.issubdtype(heatmap.dtype, np.floating)
 
+    if num_samples < 2:
+        raise ValueError('AUC requires at least 2 requested points')
     xs, ys, ms, masks, qs = [], [], [], [], []
     for i, value in enumerate(np.linspace(start=1.0, stop=0.0, num=num_samples)):
         if method=='del':
@@ -974,7 +976,8 @@ def saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=4, method='
         auc_adj += abs(delta_x * y_adj_mid)
         auc_adjr += abs(delta_x * y_adjr_mid)
 
-    return {'xs':xs, 'ms':ms, 'qs':qs, 
+    return {'xs':xs, 'ms':ms, 'qs':qs,
+            'requested_points': int(num_samples), 'evaluated_points': len(xs),
             'f_0':f_0, 'f_S':f_S, 'flipped':flipped, 
             'score_delta_denominator':score_delta_denominator,
             'ys':ys, 'ysr':ys_rescaled,
@@ -1736,7 +1739,7 @@ def compute_extra_faithfulness_metrics(
 
 
 def compute_auc_results(shap_values, nu, f_S, f_0, predicted_cls, batch_size=4,
-                        auc_class_index=0, num_samples=101, verbose=False):
+                        auc_class_index=0, num_samples=200, verbose=False, extra_samples=(500, 2000)):
     auc_results = []
 
     for exp_code, exp_data in _iter_shap_value_items(shap_values):
@@ -1746,12 +1749,12 @@ def compute_auc_results(shap_values, nu, f_S, f_0, predicted_cls, batch_size=4,
         auc_del_100 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='del',num_samples=num_samples)
         auc_ins_100 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='ins',num_samples=num_samples)
 
-        auc_del_500 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='del',num_samples=500)
-        auc_ins_500 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='ins',num_samples=500)
-
-        auc_del_2000 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='del',num_samples=2000)
-        auc_ins_2000 = utx.saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size, method='ins',num_samples=2000)
-
+        extra_curves = {}
+        for count in extra_samples:
+            for direction in ['del', 'ins']:
+                extra_curves[f'auc_{direction}_{count}'] = utx.saliency_to_auc(
+                    nu, heatmap, f_S, f_0, predicted_cls, batch_size=batch_size,
+                    method=direction, num_samples=count)
 
         extra_metrics = compute_extra_faithfulness_metrics(
             nu,
@@ -1768,10 +1771,10 @@ def compute_auc_results(shap_values, nu, f_S, f_0, predicted_cls, batch_size=4,
             'label': str(exp_code),
             'auc_del': auc_del_100,
             'auc_ins': auc_ins_100,
-            'auc_del_500': auc_del_500,
-            'auc_ins_500': auc_ins_500,
-            'auc_del_2000': auc_del_2000,
-            'auc_ins_2000': auc_ins_2000,
+            **extra_curves,
+            'auc_requested_points': num_samples,
+            'auc_ins_points': len(auc_ins_100['xs']),
+            'auc_del_points': len(auc_del_100['xs']),
             'time_eval': time_eval,
             **extra_metrics,
         }
@@ -1826,13 +1829,16 @@ def plot_auc_results(auc_results,path_results_img, figsize=(11, 4), fill_alpha=0
                 color=color,
                 lw=2.4 if is_best else 1.4,
                 alpha=0.95 if is_best else 0.75,
-                label=f"{star}{result['label']} {score:.4f}",
+                label=f"{star}{result['label']} {score:.4f} (n={len(auc['xs'])})",
             )
             ax.fill_between(auc['xs'], auc['y_clipr'], color=color, alpha=fill_alpha)
 
         ax.axhline(1.0, ls='--', c='grey', zorder=0)
         ax.axhline(0.0, c='lightgrey', zorder=0)
-        ax.set_title(title, fontsize=16)
+        requested = sorted({result[auc_key]['requested_points'] for result in auc_results
+                            if 'requested_points' in result[auc_key]})
+        count_label = ', '.join(str(value) for value in requested)
+        ax.set_title(title + (f' — requested {count_label} points' if requested else ''), fontsize=14)
         ax.set_xlabel('Fraction of Pixels Removed/Inserted')
         ax.grid(alpha=0.25)
         ax.legend(borderpad=0.2, labelspacing=0.1, loc=legend_loc, fontsize=8)
@@ -1960,6 +1966,9 @@ def auc_results_to_rows(auc_results, image_no=None, f_S=None, f_0=None,
             'method': result.get('label', result.get('exp_code', 'unknown')),
             'auc_ins': float(result['auc_ins']['auc_clipr']),
             'auc_del': float(result['auc_del']['auc_clipr']),
+            'auc_requested_points': result['auc_ins'].get('requested_points'),
+            'auc_ins_points': len(result['auc_ins']['xs']),
+            'auc_del_points': len(result['auc_del']['xs']),
             'time_exp': result['time_exp'],
             'time_eval': result['time_eval'],
         }

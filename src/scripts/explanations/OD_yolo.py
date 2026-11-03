@@ -1540,6 +1540,7 @@ def run(args):
     print(json.dumps({key: value for key, value in inputs.items()}, indent=2, default=str))
     if args.dry_run:
         return inputs
+    print(f"AUC: {args.auc_num_samples} requested points per curve" if args.compute_auc else "AUC: disabled")
     load_runtime_dependencies()
     scripts_dir = project_root / "src" / "scripts"
     if str(scripts_dir) not in sys.path:
@@ -1869,6 +1870,7 @@ def run(args):
                     predicted_cls,
                     batch_size=args.auc_batch_size,
                     num_samples=args.auc_num_samples,
+                    extra_samples=(),
                     verbose=args.verbose_level == "high",
                 )
                 first_iteration_breakdown["auc_compute"] += time.time() - timing_start
@@ -2043,7 +2045,8 @@ def parse_args():
     parser.add_argument("--num-explained-classes", type=int, default=4)
     parser.add_argument("--eval-batch-size", type=int, default=16)
     parser.add_argument("--auc-batch-size", type=int, default=4)
-    parser.add_argument("--auc_num_samples", type=int, default=101)
+    parser.add_argument("--auc_num_samples", "--auc-num-samples", type=int, default=200,
+                        help="Requested points per AUC curve; repeated masks are deduplicated")
     parser.add_argument("--kernel-shap-samples", type=int, default=None, help="Number of region coalitions for SAM_c_kernelshap. Default: --max-evals.")
     parser.add_argument("--kernel-shap-batch-size", type=int, default=None, help="Prediction batch size for SAM_c_kernelshap. Default: --eval-batch-size.")
     parser.add_argument("--verbose", action="store_true")

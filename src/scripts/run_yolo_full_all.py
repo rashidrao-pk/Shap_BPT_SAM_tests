@@ -1775,7 +1775,8 @@ def parse_args():
     parser.add_argument("--num-explained-classes", type=int, default=4)
     parser.add_argument("--eval-batch-size", type=int, default=16)
     parser.add_argument("--auc-batch-size", type=int, default=4)
-    parser.add_argument("--auc_num_samples", type=int, default=101)
+    parser.add_argument("--auc_num_samples", "--auc-num-samples", type=int, default=200,
+                        help="Requested points per AUC curve; repeated masks are deduplicated")
     parser.add_argument("--kernel-shap-samples", type=int, default=None, help="Number of region coalitions for sam_kernelshap. Default: --max-evals.")
     parser.add_argument("--kernel-shap-batch-size", type=int, default=None, help="Prediction batch size for sam_kernelshap. Default: --eval-batch-size.")
     parser.add_argument("--verbose", action="store_true")

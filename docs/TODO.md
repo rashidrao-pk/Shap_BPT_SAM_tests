@@ -10,3 +10,9 @@ TODO plan
 - [x] Evaluation metrics: - keep AUC+-, Stability: Top-10 Jaccard only
 - [ ] Across Experiment analysis:
 - [ ] Normalize AUC numbers to keep comparable
+
+### XAI part
+
+- [] Add more points (200) in AUC
+- [] Background Replacement Values as 5 (Black, White, Noise, Blurr)
+- [] Single Budget Selection based on Ablation

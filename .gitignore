@@ -97,3 +97,12 @@ results/**
 logs
 logs/
 logs/**
+
+outputs
+outputs/
+outputs/**
+
+
+src/checkpoints
+
+src/checkpoints/**

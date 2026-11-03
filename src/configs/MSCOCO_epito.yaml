@@ -20,7 +20,7 @@ data:
   annotation_file: "/beegfs/home/mrashid/datasets/MS_COCO/annotations/annotations_trainval2017/annotations/instances_val2017.json"
 
   # XAI input folder: match the folder printed by partition generation.
-  mask_dir_final: "MSCOCO_sam2_large_62_refined_200"
+  mask_dir_final: "MSCOCO_sam1_vit_b_62_compact-sam_200"
 
 evaluation:
   methods: [BPT, refined]

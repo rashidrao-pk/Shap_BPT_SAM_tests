@@ -1,5 +1,7 @@
 # BUSI explanations
 
+One-time downloads: [BUSI setup](../Partitions/DATASETS/BUSI_SETUP.md).
+
 First [generate partitions](../Partitions/DATASETS/BUSI.md) and [download SigLIP](../Partitions/MODELS/SigLIP_BUSI.md). Ensure `data.mask_dir_final` matches your generated folder.
 
 ```bash

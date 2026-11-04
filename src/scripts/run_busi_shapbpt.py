@@ -33,21 +33,49 @@ def discover_cases(root: Path):
     return cases
 
 
-def download_assets(data_root: Path, model_root: Path):
-    from huggingface_hub import snapshot_download
-    import kagglehub
+def download_dataset(data_root: Path):
+    """Download/validate BUSI with the standard library; no notebook dependencies."""
+    import urllib.request
+    import zipfile
     data_root.mkdir(parents=True, exist_ok=True)
+    if discover_cases(data_root):
+        print("[dataset] existing images found; skipping dataset download", flush=True)
+        return
+    archive = data_root / "BUSI_kaggle.zip"
+    if not archive.is_file():
+        temporary = archive.with_suffix(".zip.part")
+        print("[download] BUSI Kaggle mirror", flush=True)
+        urllib.request.urlretrieve(
+            f"https://www.kaggle.com/api/v1/datasets/download/{DATASET}", temporary)
+        if not zipfile.is_zipfile(temporary):
+            raise RuntimeError(
+                f"Download is not a ZIP: {temporary}. Kaggle may require browser login. "
+                "Download the archive from the Kaggle website, extract it under --dataset, and retry.")
+        temporary.replace(archive)
+    if not zipfile.is_zipfile(archive):
+        raise RuntimeError(f"Invalid ZIP: {archive}; replace it with a valid BUSI archive")
+    with zipfile.ZipFile(archive) as zipped:
+        damaged = zipped.testzip()
+        if damaged:
+            raise RuntimeError(f"Damaged ZIP member: {damaged}; download the archive again")
+        for member in zipped.infolist():
+            destination = (data_root / member.filename).resolve()
+            if not destination.is_relative_to(data_root.resolve()):
+                raise RuntimeError(f"Unsafe ZIP path: {member.filename}")
+        zipped.extractall(data_root)
+
+
+def download_assets(data_root: Path, model_root: Path):
+    download_dataset(data_root)
+    cases = discover_cases(data_root)
+    if not cases:
+        raise RuntimeError("No BUSI images found. Check dataset layout.")
+    from huggingface_hub import snapshot_download
     model_root.mkdir(parents=True, exist_ok=True)
-    print("[download] BUSI Kaggle mirror", flush=True)
-    location = kagglehub.dataset_download(DATASET, output_dir=str(data_root))
-    print("[dataset]", location)
     print("[download] pretrained SigLIP checkpoint", flush=True)
     snapshot_download(MODEL, local_dir=str(model_root), allow_patterns=["*.json", "*.safetensors", "*.bin", "*.txt"])
     print("[model]", model_root)
-    cases = discover_cases(data_root)
     print("[cases]", len(cases), "by class", {c: sum(x["class"] == c for x in cases) for c in CLASSES})
-    if not cases:
-        raise RuntimeError("No BUSI images found. Check dataset layout.")
     return cases
 
 

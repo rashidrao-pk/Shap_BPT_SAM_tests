@@ -17,7 +17,7 @@ Activate an allocated NVIDIA A100 compute node (not `mercurio-login`) and the kn
 cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
 source /beegfs/home/mrashid/pt_312_sam/bin/activate
 unset PYTHONPATH
-python -m pip install 'transformers>=4.57,<5' 'huggingface_hub>=0.34,<3' kagglehub 'safetensors>=0.4' PyYAML
+python -m pip install 'transformers>=4.57,<5' 'huggingface_hub>=0.34,<3' 'safetensors>=0.4' PyYAML
 python -c 'import numpy,torch,torchvision,transformers; print(numpy.__version__, torch.__version__, torch.cuda.is_available())'
 ```
 
@@ -30,7 +30,9 @@ python src/scripts/run_busi_shapbpt.py download
 python src/scripts/run_busi_shapbpt.py inventory
 ```
 
-The download saves the BUSI images to `/beegfs/home/mrashid/datasets/BUSI` (using Kagglehub's `output_dir`) and the frozen pretrained Hugging Face model to `checkpoints/busi_siglip`. Datasets and checkpoints are **not** committed to Git.
+The download saves the BUSI images to `/beegfs/home/mrashid/datasets/BUSI` (using Python’s standard library and a validated Kaggle ZIP) and the frozen pretrained Hugging Face model to `checkpoints/busi_siglip`. Datasets and checkpoints are **not** committed to Git.
+
+Downloads do not import `kagglehub`, IPython, or `psutil`. Existing dataset images are reused. If the endpoint returns a login/security page instead of ZIP data, the command stops before extraction; download through the Kaggle website and extract under `--dataset`, then retry. Model download still uses `huggingface_hub`.
 
 ## Run two ultrasound images through all stages
 

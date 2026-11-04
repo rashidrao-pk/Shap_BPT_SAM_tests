@@ -46,15 +46,15 @@ import importlib.abc, runpy, sys, types
 from pathlib import Path
 class BlockScientific(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
-        if fullname.split('.')[0] in {'numpy', 'PIL', 'torch', 'transformers', 'matplotlib', 'scipy'}:
+        if fullname.split('.')[0] in {'numpy', 'PIL', 'torch', 'transformers', 'matplotlib', 'scipy', 'kagglehub', 'IPython', 'psutil'}:
             raise AssertionError('Unexpected inference dependency: ' + fullname)
 sys.meta_path.insert(0, BlockScientific())
-def dataset_download(dataset, output_dir):
-    folder = Path(output_dir) / 'benign'
-    folder.mkdir(parents=True, exist_ok=True)
-    (folder / 'benign (1).png').touch()
-    return output_dir
-sys.modules['kagglehub'] = types.SimpleNamespace(dataset_download=dataset_download)
+import urllib.request, zipfile
+def fake_retrieve(url, destination):
+    with zipfile.ZipFile(destination, 'w') as archive:
+        archive.writestr('Dataset_BUSI_with_GT/benign/benign (1).png', b'fixture')
+    return destination, None
+urllib.request.urlretrieve = fake_retrieve
 sys.modules['huggingface_hub'] = types.SimpleNamespace(snapshot_download=lambda *a, **k: None)
 script, folder = sys.argv[1:]
 sys.argv = [script, 'download', '--dataset', folder + '/data', '--model-dir', folder + '/model']
@@ -64,3 +64,23 @@ runpy.run_path(script, run_name='__main__')
                             text=True, capture_output=True)
     assert result.returncode == 0, result.stdout + result.stderr
     assert '[cases] 1' in result.stdout
+
+
+def test_dataset_rejects_html_response(tmp_path, monkeypatch):
+    import urllib.request
+    import pytest
+    def retrieve(url, destination):
+        Path(destination).write_text('<html>Sign in</html>')
+    monkeypatch.setattr(urllib.request, 'urlretrieve', retrieve)
+    with pytest.raises(RuntimeError, match='not a ZIP'):
+        mod.download_dataset(tmp_path)
+    assert not (tmp_path / 'BUSI_kaggle.zip').exists()
+
+
+def test_existing_dataset_skips_network(tmp_path, monkeypatch):
+    import urllib.request
+    folder = tmp_path / 'benign'
+    folder.mkdir()
+    (folder / 'benign (1).png').touch()
+    monkeypatch.setattr(urllib.request, 'urlretrieve', lambda *a: (_ for _ in ()).throw(AssertionError('network')))
+    mod.download_dataset(tmp_path)

@@ -107,7 +107,7 @@ def inspect_folder(folder, expected_ids, dataset, methods=None):
                     raise ValueError('Expected metadata object')
                 stages = methods or list(record.get('saved_partitions') or {})
                 if not stages:
-                    stages = record.get('generation_settings', {}).get('save_partitions') or ['sam', 'refined']
+                    stages = record.get('generation_settings', {}).get('save_partitions') or ['sam', 'compact']
                 if not isinstance(stages, list) or not all(isinstance(stage, str) for stage in stages):
                     raise ValueError('Invalid saved stages')
                 if all(f'{image_id}_{stage}.npy' in files for stage in stages):

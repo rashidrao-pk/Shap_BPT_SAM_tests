@@ -1,7 +1,7 @@
 # EPITO: CelebA-HQ partitions
 
 Use your existing SAM environment and GPU allocation from
-[EPITO.md](EPITO.md#1-start-a-gpu-session). Sync the new script and
+[EPITO.md](../EPITO.md#1-start-a-gpu-session). Sync the new script and
 `src/configs/CelebAHQ_epito.yaml` to EPITO, together with the shared generation
 scripts if they are not up to date.
 
@@ -21,7 +21,60 @@ Images are processed in sorted relative-path order, not numeric filename order.
 python src/scripts/generate_celebahq_partitions.py --limit 2 --dry-run
 ```
 
-## Generate two images with SAM2.1 Large
+## Generate partitions with SAM1 (ViT-B)
+
+From the repository root, activate your existing environment in a GPU allocation:
+
+```bash
+source /beegfs/home/mrashid/pt_312_sam/bin/activate
+```
+
+If the checkpoint is not already present, download it once from the
+[official SAM repository](https://github.com/facebookresearch/segment-anything#model-checkpoints):
+
+```bash
+mkdir -p checkpoints/sam1
+curl -L --fail \
+  https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth \
+  -o checkpoints/sam1/sam_vit_b_01ec64.pth
+```
+
+Generate two images first:
+
+```bash
+python src/scripts/generate_celebahq_partitions.py \
+  --config CelebAHQ_epito \
+  --model sam1 --sam1-variant vit_b \
+  --checkpoint checkpoints/sam1/sam_vit_b_01ec64.pth \
+  --device cuda --max-regions 62 \
+  --generate_at_least_n_masks 50 \
+  --save-partitions sam compact \
+  --limit 2
+```
+
+Remove `--limit 2` for the full dataset. Add `--dry-run` to inspect the work without
+loading SAM. Resume with identical settings; completed images are skipped.
+
+SAM1 outputs and log:
+
+```text
+/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam1_vit_b_62_compact-refined-sam_50/
+/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam1_vit_b_62_compact-refined-sam_50.log
+```
+
+Before previewing or explaining these partitions, change this field in
+`src/configs/CelebAHQ_epito.yaml`:
+
+```yaml
+data:
+  mask_dir_final: CelebAHQ_sam1_vit_b_62_compact-refined-sam_50
+```
+
+Keep the other config fields. `compact` is required by the XAI runners, which
+continue to call it SAM_c. For ViT-L or ViT-H, use the matching `--sam1-variant`
+and checkpoint from the official repository.
+
+## Generate two images with SAM2.1 Tiny
 
 ```bash
 export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
@@ -29,19 +82,20 @@ python src/scripts/generate_celebahq_partitions.py \
   --config CelebAHQ_epito \
   --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
   --device cuda \
   --max-regions 62 \
   --generate_at_least_n_masks 50 \
-  --save-partitions sam compact refined \
+  --save-partitions sam compact \
   --limit 2
 ```
 
 Remove `--limit 2` for the full dataset. Resume with the same command; completed
-images with matching settings are skipped. Default outputs and log are:
+images with matching settings are skipped. For the SAM2 command above, outputs and log are:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_large_62_refined_200/
-/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_large_62_refined_200.log
+/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_tiny_62_compact-sam_50/
+/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_tiny_62_compact-sam_50.log
 ```
 
 The terminal shows text tqdm; the log records mask counts, saved stage names,
@@ -49,11 +103,11 @@ label counts, and timing. Each image has a `*_results.json` with exact saved pat
 
 Select only the stages you need with `--save-partitions`. Without that option,
 only `sam` and `refined` are saved. These two stages are capped to 62 labels;
-notebook stages retain their original behavior. The raw mask target of 200 is
-a bounded threshold search, not a guarantee. See [stage details](EPITO.md#choose-which-partition-stages-to-save).
+notebook stages retain their original behavior. The raw mask target of 50 is
+a bounded threshold search, not a guarantee. See [stage details](../EPITO.md#choose-which-partition-stages-to-save).
 
 For Tiny, use `sam2.1_hiera_tiny.pt` with `sam2.1_hiera_t.yaml`, and set
-`data.mask_dir_final` to `CelebAHQ_sam2_tiny_62_refined_200` before previewing.
+`data.mask_dir_final` to `CelebAHQ_sam2_tiny_62_compact-sam_50` before previewing.
 
 ## Preview saved partitions
 
@@ -61,13 +115,14 @@ For Tiny, use `sam2.1_hiera_tiny.pt` with `sam2.1_hiera_t.yaml`, and set
 python src/scripts/view_partitions.py \
   --config CelebAHQ_epito \
   --limit 5 \
-  --methods sam compact boosted filled boosted_filled refined
+  --methods sam compact
 ```
 
 For one image, replace `--limit 5` with `--image-id 0` (or another actual filename
 stem). Use only stages that were saved. Previews and statistics JSON files are
 written under `output.evaluations` in
-`previews/CelebAHQ_sam2_large_62_refined_200/`. No GPU is needed for viewing.
+`previews/CelebAHQ_sam2_tiny_62_compact-sam_50/`. No GPU is needed for viewing.
 
-This prepares partition maps only; it does not add CelebA-HQ support to the COCO
-XAI runner or assign semantic face-part names to the generated labels.
+Generated labels are regions, not semantic face-part names. For attribute
+explanations, use [OC_CelebA](../../XAI/CELEBA.md) after selecting the generated
+partition folder in the config.

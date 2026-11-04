@@ -3,7 +3,7 @@
 From the repository root, with Python and PyYAML available:
 
 ```bash
-python src/scripts/check_partition_progress.py --limit 500
+python src/scripts/check_partition_progress.py --limit 1000
 ```
 
 This checks MS-COCO, ImageNet, CelebA-HQ, and CAMO using their EPITO configs.

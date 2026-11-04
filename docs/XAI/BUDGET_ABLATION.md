@@ -20,14 +20,14 @@ python src/scripts/explanations/budget_ablation.py \
 
 The same script supports:
 
-| Runner | Config | Additional options |
-| --- | --- | --- |
-| OC_ResNet | ImageNet_epito | `--show-gt --gt-only` |
-| OC_ViT | ImageNet_epito | `--show-gt --gt-only` |
-| COD_ViT | CAMO_epito | `--show-gt` |
-| OD_DETR | MSCOCO_epito | `--show-gt` |
-| OD_yolo | MSCOCO_epito | `--show-gt`; optional `--checkpoint src/checkpoints/yolo11s.pt` |
-| OC_CelebA | CelebAHQ_epito | `--show-gt --attribute Brown_Hair` |
+| Runner    | Config         | Additional options                                              |
+| --------- | -------------- | --------------------------------------------------------------- |
+| OC_ResNet | ImageNet_epito | `--show-gt --gt-only`                                           |
+| OC_ViT    | ImageNet_epito | `--show-gt --gt-only`                                           |
+| COD_ViT   | CAMO_epito     | `--show-gt`                                                     |
+| OD_DETR   | MSCOCO_epito   | `--show-gt`                                                     |
+| OD_yolo   | MSCOCO_epito   | `--show-gt`; optional `--checkpoint src/checkpoints/yolo11s.pt` |
+| OC_CelebA | CelebAHQ_epito | `--show-gt --attribute Brown_Hair`                              |
 
 Keep budgets, repeats, criteria and AUC resolution the same in all pilots. Use
 `--bg-type black` explicitly if you want that background throughout. Other
@@ -68,11 +68,11 @@ CelebA adds its attribute before `pilot/`. Open `budget_report.html`:
 Default **empirical tolerances**, configurable before running:
 
 | Check versus the repeat-mean high-budget reference | Requirement |
-| --- | --- |
-| Signed-map Spearman rank agreement | ≥ 0.95 |
-| Tie-aware top-10% absolute-attribution Jaccard | ≥ 0.90 |
-| Relative L1 attribution error | ≤ 0.10 |
-| Insertion and deletion AUC differences | each ≤ 0.01 |
+| -------------------------------------------------- | ----------- |
+| Signed-map Spearman rank agreement                 | ≥ 0.95      |
+| Tie-aware top-10% absolute-attribution Jaccard     | ≥ 0.90      |
+| Relative L1 attribution error                      | ≤ 0.10      |
+| Insertion and deletion AUC differences             | each ≤ 0.01 |
 
 Every repeat must pass. By default every image must pass, separately for each
 method and pilot scope. A candidate must also pass at **all larger tested

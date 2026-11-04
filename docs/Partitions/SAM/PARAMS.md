@@ -2,6 +2,8 @@
 
 ## SAM-2
 
+- Foloowing Parameters are tuned for Lorenzo's Thesis:
+
 ```text
 params = {
     "points_per_side": 32,
@@ -23,7 +25,7 @@ params = {
     "min_mask_region_area": 0,
 
     "output_mode": "binary_mask",
-    
+
     "use_m2m": True,
     "multimask_output": True,
     }

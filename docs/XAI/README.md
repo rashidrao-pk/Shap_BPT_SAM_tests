@@ -241,3 +241,5 @@ The pilot separates calibration and held-out examples and compares candidate
 budgets against a higher-budget reference. See [budget ablation](BUDGET_ABLATION.md)
 for the dataset/model matrix, common selection command and application to main
 runs. No budget is claimed as a universal minimum.
+
+BUSI breast ultrasound: see [BUSI SigLIP explanations](BUSI.md) for predicted-class explanations and lesion contours.

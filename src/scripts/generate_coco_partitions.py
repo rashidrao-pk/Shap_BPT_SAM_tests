@@ -80,6 +80,11 @@ def parse_args():
 
 def collect_images(data):
     """Read COCO records or scan an image directory without decoding images."""
+    if data.get("name", "").lower() == "busi":
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from src.medical.datasets import discover_images
+        return discover_images(data["image_dir"])
     if data.get('input_format', 'coco') == 'directory':
         image_dir = Path(data['image_dir'])
         if not image_dir.is_dir():

@@ -267,6 +267,15 @@ def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_
                        annotation_ids=used, category_ids=ids, scope='selected_class' if gt_class else 'all_instances')
     settings, root = validate_config(config)
     format_name = settings['format'].lower()
+    if format_name == 'busi':
+        from src.medical.datasets import lesion_mask
+        path = Path(image_path)
+        path.resolve().relative_to(root.resolve())
+        mask, paths = lesion_mask(path)
+        status = ('matched' if mask.any() else 'annotated empty lesion mask') if paths else 'annotation not available'
+        return _result(mask.astype(np.uint16), image_shape, 'BUSI lesion', paths, status,
+                       scope='lesion_region', dataset_class=path.parent.name,
+                       predicted_class=predicted_class)
     if format_name in {'binary', 'camo'}:
         if gt_class not in {None, 'all', 'foreground'}:
             raise ValueError('CAMO GT is binary; use --gt-class foreground')

@@ -127,6 +127,9 @@ class DetrAdapter:
 
 
 def load_adapter(kind, args, device):
+    if kind == 'OC_BUSI':
+        from src.medical.classifier import BusiAdapter
+        return BusiAdapter(args, device)
     if kind == 'OC_CelebA':
         from celeba_model import CelebaAdapter
         return CelebaAdapter(args, device)

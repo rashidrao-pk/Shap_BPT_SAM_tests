@@ -21,25 +21,7 @@ Images are processed in sorted relative-path order, not numeric filename order.
 python src/scripts/generate_celebahq_partitions.py --limit 2 --dry-run
 ```
 
-## Generate partitions with SAM1 (ViT-B)
-
-From the repository root, activate your existing environment in a GPU allocation:
-
-```bash
-source /beegfs/home/mrashid/pt_312_sam/bin/activate
-```
-
-If the checkpoint is not already present, download it once from the
-[official SAM repository](https://github.com/facebookresearch/segment-anything#model-checkpoints):
-
-```bash
-mkdir -p checkpoints/sam1
-curl -L --fail \
-  https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth \
-  -o checkpoints/sam1/sam_vit_b_01ec64.pth
-```
-
-Generate two images first:
+## SAM1 (ViT-B)
 
 ```bash
 python src/scripts/generate_celebahq_partitions.py \
@@ -52,29 +34,7 @@ python src/scripts/generate_celebahq_partitions.py \
   --limit 2
 ```
 
-Remove `--limit 2` for the full dataset. Add `--dry-run` to inspect the work without
-loading SAM. Resume with identical settings; completed images are skipped.
-
-SAM1 outputs and log:
-
-```text
-/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam1_vit_b_62_compact-refined-sam_50/
-/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam1_vit_b_62_compact-refined-sam_50.log
-```
-
-Before previewing or explaining these partitions, change this field in
-`src/configs/CelebAHQ_epito.yaml`:
-
-```yaml
-data:
-  mask_dir_final: CelebAHQ_sam1_vit_b_62_compact-refined-sam_50
-```
-
-Keep the other config fields. `compact` is required by the XAI runners, which
-continue to call it SAM_c. For ViT-L or ViT-H, use the matching `--sam1-variant`
-and checkpoint from the official repository.
-
-## Generate two images with SAM2.1 Tiny
+## SAM2.1 Tiny
 
 ```bash
 export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2

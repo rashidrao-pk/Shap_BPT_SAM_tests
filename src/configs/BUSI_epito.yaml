@@ -1,0 +1,14 @@
+# Root must contain benign/, malignant/, normal/ and their *_mask*.png files.
+device: cuda
+data:
+  name: BUSI
+  input_format: directory
+  image_dir: /beegfs/home/mrashid/datasets/BUSI
+  mask_dir_final: BUSI_sam2_tiny_62_compact-refined-sam_50
+  ground_truth:
+    format: busi
+    root: /beegfs/home/mrashid/datasets/BUSI
+output:
+  partitions: /beegfs/home/mrashid/datasets/SAM_BPT
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/evaluations

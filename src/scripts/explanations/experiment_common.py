@@ -22,9 +22,9 @@ from config_paths import load_path_config, output_path, partition_path, resolve_
 from model_adapters import load_adapter
 
 METHODS = ['BPT', 'SAM_c', 'SAM_c_kernelshap']
-DEFAULT_CONFIGS = {'OD_DETR': 'MSCOCO_epito', 'OC_ResNet': 'ImageNet_epito',
+DEFAULT_CONFIGS = {'OC_BUSI': 'BUSI_epito', 'OD_DETR': 'MSCOCO_epito', 'OC_ResNet': 'ImageNet_epito',
                    'OC_ViT': 'ImageNet_epito', 'COD_ViT': 'CAMO_epito', 'OC_CelebA': 'CelebAHQ_epito'}
-MODEL_NAMES = {'OD_DETR': 'facebook/detr-resnet-50', 'OC_ResNet': 'resnet50',
+MODEL_NAMES = {'OC_BUSI': 'ghostsas001/busi-breast-ultrasound-siglip', 'OD_DETR': 'facebook/detr-resnet-50', 'OC_ResNet': 'resnet50',
                'OC_ViT': 'vit_b_16', 'COD_ViT': 'vit_b_16', 'OC_CelebA': 'celeba_cnn'}
 
 
@@ -101,7 +101,7 @@ def prepare_inputs(kind, args):
         validate(args)
     config = load_path_config(args.config)
     data = config['data']
-    expected = 'mscoco' if kind == 'OD_DETR' else 'camo' if kind == 'COD_ViT' else 'celebahq' if kind == 'OC_CelebA' else 'imagenet'
+    expected = 'mscoco' if kind == 'OD_DETR' else 'camo' if kind == 'COD_ViT' else 'celebahq' if kind == 'OC_CelebA' else 'busi' if kind == 'OC_BUSI' else 'imagenet'
     if data.get('name', '').replace('_', '').lower() != expected:
         raise ValueError(f'{kind} requires the {expected} dataset config')
     if args.gt_only and (not args.show_gt or expected != 'imagenet'):
@@ -130,6 +130,9 @@ def prepare_inputs(kind, args):
         annotation_file = resolve_path(data['annotation_file'])
         items = json.loads(annotation_file.read_text())['images']
         images = {f"{int(item['id']):012d}": image_dir / item['file_name'] for item in items}
+    elif expected == 'busi':
+        from src.medical.datasets import discover_images
+        images = {item['id']: image_dir / item['file_name'] for item in discover_images(image_dir)}
     else:
         extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp'}
         images = {}
@@ -648,6 +651,18 @@ def run(kind, args, adapter=None):
                         statuses[method].update(result)
                         next(row for row in image_rows if row['method'] == method).update(result)
                 write_json(folder / f'{image_id}_method_status.json', statuses)
+            if kind == 'OC_BUSI' and ground_truth is not None:
+                from src.medical.evaluation import pointing_accuracy
+                from all_methods import best_iou
+                for method, values in attributions.items():
+                    localization = {'pointing_accuracy': pointing_accuracy(values[0], ground_truth['mask'])}
+                    diagnostic = best_iou(values[0], ground_truth)
+                    if diagnostic:
+                        diagnostic.pop('mask')
+                        localization.update(diagnostic)
+                    for row in [*image_rows, *auc_results]:
+                        if row.get('method') == method:
+                            row.update(localization)
             np.savez_compressed(folder / f'{image_id}_attributions.npz', **attributions)
             write_json(folder / f'{image_id}_metrics.json', auc_results if args.compute_auc else image_rows)
             if args.save_plots:

@@ -5,7 +5,7 @@ data:
   input_format: directory
   image_dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/CelebAMask-HQ/CelebAMask-HQ/CelebA-HQ-img
   # Preview input: match this to the folder produced by your generation command.
-  mask_dir_final: CelebAHQ_sam2_tiny_62_refined_50
+  mask_dir_final: CelebAHQ_sam1_vit_b_62_compact-sam_50
 
   ground_truth:
     format: celebamask_hq
@@ -14,6 +14,7 @@ data:
 # Download once with python src/scripts/download_celeba_checkpoint.py
 model:
   checkpoint: src/checkpoints/celeba_model.pth
+
 
 output:
   partitions: /beegfs/home/mrashid/datasets/SAM_BPT

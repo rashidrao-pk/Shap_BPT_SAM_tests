@@ -4,7 +4,7 @@ data:
   name: CAMO
   input_format: directory
   image_dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/CAMO-V.1.0/Images/Train
-  mask_dir_final: CAMO_sam2_tiny_62_refined_50
+  mask_dir_final: CAMO_sam2_tiny_62_compact-sam_50
 
   ground_truth:
     format: binary

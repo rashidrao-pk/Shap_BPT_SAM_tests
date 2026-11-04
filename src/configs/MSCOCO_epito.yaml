@@ -25,7 +25,7 @@ data:
 evaluation:
   methods: [BPT, refined]
   limit: 2
-  bg-type: "noise"
+  bg-type: "full"
   max-evals: 500
   eval-batch-size: 2048
   auc-batch-size: 1024

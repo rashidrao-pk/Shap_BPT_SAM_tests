@@ -13,8 +13,6 @@ import sys
 import time
 from pathlib import Path
 
-import numpy as np
-from PIL import Image, ImageFilter
 
 CLASSES = ("benign", "malignant", "normal")
 DATASET = "aryashah2k/breast-ultrasound-images-dataset"
@@ -68,6 +66,7 @@ def load_classifier(model_root: Path, device: str):
 
 def score_images(images, model, preprocessing, device, target_idx, batch_size):
     """Return target-class logits and probabilities for PIL RGB images."""
+    import numpy as np
     import torch
     logits_out, probs_out = [], []
     with torch.inference_mode():
@@ -80,6 +79,7 @@ def score_images(images, model, preprocessing, device, target_idx, batch_size):
 
 
 def load_and_validate_tree(path: Path, labels: np.ndarray):
+    import numpy as np
     tree = json.loads(path.read_text())
     nodes = {int(n["id"]): n for n in tree["nodes"]}
     root = int(tree["root"])
@@ -117,6 +117,8 @@ def random_hierarchical_order(nodes, root, rng):
 
 
 def mask_coalition(image: Image.Image, labels: np.ndarray, retained: set[int], baseline: Image.Image):
+    import numpy as np
+    from PIL import Image, ImageFilter
     orig = np.asarray(image.convert("RGB"))
     bg = np.asarray(baseline.convert("RGB"))
     keep = np.isin(labels, list(retained))
@@ -125,6 +127,7 @@ def mask_coalition(image: Image.Image, labels: np.ndarray, retained: set[int], b
 
 def estimate_owen(image, labels, nodes, root, leaves, model, prep, device, target, batch, budget, baseline, seed):
     """Hierarchical random-permutation marginal estimator. Budget counts model evaluations."""
+    import numpy as np
     n = len(leaves)
     samples = max(1, budget // (n + 1))
     rng = np.random.default_rng(seed)
@@ -149,6 +152,7 @@ def estimate_owen(image, labels, nodes, root, leaves, model, prep, device, targe
 
 def evaluate_curves(image, labels, heat, model, prep, device, target, batch, baseline, steps=21):
     """Insertion/deletion of whole leaves ranked by attribution, scored by probability."""
+    import numpy as np
     unique = np.unique(labels)
     strengths = [(float(heat[labels == lab].mean()), int(lab)) for lab in unique]
     order = [lab for _, lab in sorted(strengths, reverse=True)]
@@ -164,6 +168,8 @@ def evaluate_curves(image, labels, heat, model, prep, device, target, batch, bas
 
 
 def union_ground_truth(mask_paths, shape):
+    import numpy as np
+    from PIL import Image, ImageFilter
     if not mask_paths:
         return None
     gt = np.zeros(shape, dtype=bool)
@@ -176,6 +182,7 @@ def union_ground_truth(mask_paths, shape):
 
 
 def localization(heat, gt):
+    import numpy as np
     if gt is None or not gt.any():
         return {"pointing": None, "top_area_iou": None}
     # Positive evidence only. The top |GT| pixels are selected for size-matched IoU.
@@ -192,6 +199,7 @@ def localization(heat, gt):
 
 
 def save_fig(image, labels, heat, gt, path):
+    import numpy as np
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -219,6 +227,8 @@ def save_fig(image, labels, heat, gt, path):
 
 
 def process_one(case, args, model, prep, id2label):
+    import numpy as np
+    from PIL import Image, ImageFilter
     image_path = Path(case["image"])
     image = Image.open(image_path).convert("L").convert("RGB")
     # Unique stem avoids benign (1) / malignant (1) collisions.
@@ -273,6 +283,7 @@ def model_predict_all(image, model, prep, device):
 
 
 def model_softmax(z):
+    import numpy as np
     z = np.asarray(z, dtype=np.float64); q = np.exp(z-z.max()); return q/q.sum()
 
 

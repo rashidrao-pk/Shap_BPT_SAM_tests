@@ -61,3 +61,28 @@ To scale up use `--limit 10` etc. Expect significant time for SAM inference and 
 3. Grayscale scans are represented as RGB triplets for SAM and the SigLIP classifier.
 4. The chosen classifier output is a **classification** decision, not a diagnosis; explanations do not establish clinical relevance.
 5. For formal Owen-value benchmarking, connect the exact published estimator from the original ShapBPT implementation. This package provides an explicit, auditable tree-consistent Monte Carlo estimator.
+
+## Download fails while importing NumPy
+
+`download` and `inventory` do not need NumPy, Pillow, or PyTorch from this script. Update `src/scripts/run_busi_shapbpt.py` to the version with imports inside the computation functions, then rerun the download command.
+
+A missing `numpy.core._multiarray_umath` indicates a separate compiled NumPy installation problem; the final source-directory message does not establish that you are running from a NumPy source tree. See [NumPy troubleshooting](https://numpy.org/doc/stable/user/troubleshooting-importerror.html).
+
+Before repairing the environment, check architecture on the login node and allocated GPU node:
+
+```bash
+uname -m
+python -c 'import sys, platform; print(sys.executable); print(platform.machine()); print(sys.version)'
+```
+
+If their CPU architectures differ, install binary packages and run inference on the compute architecture for which the environment is intended. Do not replace ARM packages with login-node x86 wheels in the same environment.
+
+On the matching compute node, reinstall only NumPy using that environment's interpreter:
+
+```bash
+unset PYTHONPATH
+python -m pip install --force-reinstall --no-cache-dir --only-binary=:all: --no-deps 'numpy==1.26.4'
+python -c 'import numpy; print(numpy.__version__, numpy.__file__)'
+```
+
+This repairs NumPy only; it does not reconcile other packages' version requirements. Run `python -m pip check` afterward to identify any remaining conflicts.

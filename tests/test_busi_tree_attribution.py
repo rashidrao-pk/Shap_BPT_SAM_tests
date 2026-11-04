@@ -35,3 +35,32 @@ def test_discover_cases_excludes_masks(tmp_path):
     (sub / 'benign (1)_mask_1.png').touch()
     cases = mod.discover_cases(tmp_path)
     assert len(cases) == 1 and len(cases[0]['masks']) == 2
+
+
+def test_download_does_not_import_inference_dependencies(tmp_path):
+    """Execute the real CLI with network clients stubbed and scientific imports blocked."""
+    import subprocess
+    import sys
+    harness = '''
+import importlib.abc, runpy, sys, types
+from pathlib import Path
+class BlockScientific(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] in {'numpy', 'PIL', 'torch', 'transformers', 'matplotlib', 'scipy'}:
+            raise AssertionError('Unexpected inference dependency: ' + fullname)
+sys.meta_path.insert(0, BlockScientific())
+def dataset_download(dataset, output_dir):
+    folder = Path(output_dir) / 'benign'
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / 'benign (1).png').touch()
+    return output_dir
+sys.modules['kagglehub'] = types.SimpleNamespace(dataset_download=dataset_download)
+sys.modules['huggingface_hub'] = types.SimpleNamespace(snapshot_download=lambda *a, **k: None)
+script, folder = sys.argv[1:]
+sys.argv = [script, 'download', '--dataset', folder + '/data', '--model-dir', folder + '/model']
+runpy.run_path(script, run_name='__main__')
+'''
+    result = subprocess.run([sys.executable, '-c', harness, str(SCRIPT), str(tmp_path)],
+                            text=True, capture_output=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert '[cases] 1' in result.stdout

@@ -9,16 +9,16 @@ The result is the **smallest tested budget passing the declared checks**, not pr
 Both folders must contain completed metadata and `*_compact.npy` maps. Make separate configs so both variants can be run without editing a config while another experiment uses it:
 
 ```bash
-cp src/configs/MSCOCO_epito.yaml src/configs/MSCOCO_sam1_epito.yaml
+cp src/configs/MSCOCO_epito.yaml src/configs/MSCOCO_epito_sam1.yaml
 cp src/configs/MSCOCO_epito.yaml src/configs/MSCOCO_sam2_epito.yaml
 ```
 
 Edit only `data.mask_dir_final` in the copies to match your completed folders:
 
-| Config | `data.mask_dir_final` from the existing EPITO runs |
-| --- | --- |
-| `MSCOCO_sam1_epito` | `MSCOCO_sam1_vit_b_62_compact-sam_200` |
-| `MSCOCO_sam2_epito` | `MSCOCO_sam2_large_62_compact-sam_200` |
+| Config              | `data.mask_dir_final` from the existing EPITO runs |
+| ------------------- | -------------------------------------------------- |
+| `MSCOCO_epito_sam1` | `MSCOCO_sam1_vit_b_62_compact-sam_200`             |
+| `MSCOCO_sam2_epito` | `MSCOCO_sam2_large_62_compact-sam_200`             |
 
 Keep the COCO image/annotation paths and output roots the same. If your folder names differ, use those names instead. The ablation reads saved compact maps; it does not generate partitions.
 
@@ -28,7 +28,7 @@ Run inside your allocated EPITO GPU session with `pt_312_sam` activated. Have th
 
 ```bash
 python -u src/scripts/explanations/budget_ablation.py \
-  --runner OD_yolo --model yolo11s --config MSCOCO_sam1_epito \
+  --runner OD_yolo --model yolo11s --config MSCOCO_epito_sam1 \
   --show-gt --limit 5 --bg-type black --class-aggregation sum \
   --budgets 100 200 500 1000 2000 --reference-budget 4000 \
   --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
@@ -47,7 +47,7 @@ Keep budgets, repeats, seed, background, scoring, and AUC resolution identical. 
 
 ```bash
 python -u src/scripts/explanations/budget_ablation.py \
-  --runner OD_yolo --model yolo11s --config MSCOCO_sam1_epito \
+  --runner OD_yolo --model yolo11s --config MSCOCO_epito_sam1 \
   --show-gt --limit 5 --bg-type black --class-aggregation sum \
   --budgets 100 200 500 1000 2000 --reference-budget 4000 \
   --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
@@ -69,7 +69,7 @@ python -u src/scripts/explanations/budget_ablation.py \
 
 ```bash
 python -u src/scripts/explanations/budget_ablation.py \
-  --runner OD_DETR --model facebook/detr-resnet-50 --config MSCOCO_sam1_epito \
+  --runner OD_DETR --model facebook/detr-resnet-50 --config MSCOCO_epito_sam1 \
   --show-gt --limit 5 --bg-type black --class-aggregation sum \
   --budgets 100 200 500 1000 2000 --reference-budget 4000 \
   --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
@@ -101,7 +101,7 @@ For a six-hour batch allocation, prefix the same arguments with:
 
 ```bash
 sbatch src/hpc/run_xai.sbatch src/scripts/explanations/budget_ablation.py \
-  --runner OD_yolo --model yolo11s --config MSCOCO_sam1_epito \
+  --runner OD_yolo --model yolo11s --config MSCOCO_epito_sam1 \
   --show-gt --limit 5 --bg-type black --class-aggregation sum \
   --budgets 100 200 500 1000 2000 --reference-budget 4000 \
   --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
@@ -129,11 +129,11 @@ Open `budget_report.html`. The directory also contains:
 Default empirical tolerances, declared before running:
 
 | Check against the repeat-mean high-budget reference | Requirement |
-| --- | --- |
-| Signed-map Spearman rank agreement | ≥ 0.95 |
-| Tie-aware top-10% absolute-attribution Jaccard | ≥ 0.90 |
-| Relative L1 attribution error | ≤ 0.10 |
-| Insertion and deletion AUC difference | each ≤ 0.01 |
+| --------------------------------------------------- | ----------- |
+| Signed-map Spearman rank agreement                  | ≥ 0.95      |
+| Tie-aware top-10% absolute-attribution Jaccard      | ≥ 0.90      |
+| Relative L1 attribution error                       | ≤ 0.10      |
+| Insertion and deletion AUC difference               | each ≤ 0.01 |
 
 Every repeat and, by default, every image must pass separately for each method/scope. A candidate must also pass at all larger tested budgets, avoiding a choice based on an isolated lucky result. Constant or unstable references are rejected. Budget 4000 is an approximate reference, not exact Shapley ground truth. AUC requests 200 points; repeated masks can reduce the number of evaluated points.
 
@@ -173,7 +173,7 @@ For YOLO, for example:
 
 ```bash
 python -u src/scripts/explanations/OD_yolo.py \
-  --config MSCOCO_sam1_epito --model yolo11s --show-gt \
+  --config MSCOCO_epito_sam1 --model yolo11s --show-gt \
   --explain_all --bg-type black --class-aggregation sum --no-heatmaps \
   --auc-num-samples 200 \
   --budget-selection results/evaluations/budget_ablation/mscoco_common/selection.json
@@ -183,7 +183,7 @@ For DETR:
 
 ```bash
 python -u src/scripts/explanations/OD_DETR.py \
-  --config MSCOCO_sam1_epito --model facebook/detr-resnet-50 --show-gt \
+  --config MSCOCO_epito_sam1 --model facebook/detr-resnet-50 --show-gt \
   --explain_all --bg-type black --class-aggregation sum --no-heatmaps \
   --auc-num-samples 200 \
   --budget-selection results/evaluations/budget_ablation/mscoco_common/selection.json
@@ -194,3 +194,5 @@ Repeat with `MSCOCO_sam2_epito` for SAM2. Do not add a conflicting `--budget`, `
 This selection covers the tested **MS-COCO detectors and partition variants**. To claim a common budget across other datasets, also collect their pilots and include them when combining. Report final quality on independent images, excluding pilot calibration and validation images. Do not retune criteria on held-out failures and then call the reused hold-out independent validation.
 
 References for metric/method definitions: [Spearman correlation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.spearmanr.html), [Kernel SHAP sampling](https://shap.readthedocs.io/en/latest/generated/shap.KernelExplainer.html). The tolerances above are project criteria, not thresholds prescribed by these sources.
+
+To measure whether 200 AUC points improve evaluation enough over 100, use the separate [saved-map AUC point comparison](AUC_POINTS_ABLATION.md). Keep its resolution fixed while collecting a budget-selection study.

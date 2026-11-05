@@ -251,3 +251,5 @@ PartImageNet: [download, partitions, and ResNet50 explanations](PARTIMAGENET.md)
 Batch commands for every dataset/model, including ImageNet VGG16: [EPITO sbatch guide](EPITO_SBATCH/README.md).
 
 Direct Python commands for all datasets/models: [interactive EPITO guide](EPITO_INTERACTIVE/README.md).
+
+AUC precision/runtime: [paired 100 vs 200 point comparison](AUC_POINTS_ABLATION.md), reusing saved explanation maps.

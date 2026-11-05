@@ -1,8 +1,10 @@
 # XAI budget ablation with full background replacement
 
+**Current execution scope: MS-COCO with YOLO only, using SAM1 and SAM2.** DETR and the other datasets are deferred. The original all-dataset manifest is preserved; `manifest_yolo_mscoco.json` selects the two active pilots and reuses their existing caches. Read `report_yolo_mscoco/conclusion.md` for this study's recommendation, which applies only to these YOLO setups.
+
 Vary only the explanation budget: **100, 200, 500, 1000, 2000**, against a **4000** reference. Use `--bg-type full` for every run. This averages predictions over black, gray, white, blurred and noise replacements. AUC resolution stays fixed at 200; it is not swept.
 
-The frozen study covers BPT, BPT+SAM_c and SAM_c+KernelSHAP with SAM1 and SAM2 partitions, across available ImageNet classifiers, COCO detectors, CAMO, CelebA Brown_Hair, BUSI SigLIP and PartImageNet ResNet. Each dataset contributes 20 shared images: 12 calibration and 8 held out. Targets are fixed per image/model. This scope does not cover other CelebA attributes or arbitrary future datasets.
+The original frozen design covers BPT, BPT+SAM_c and SAM_c+KernelSHAP with SAM1 and SAM2 partitions, across available ImageNet classifiers, COCO detectors, CAMO, CelebA Brown_Hair, BUSI SigLIP and PartImageNet ResNet. Only the two YOLO pilots are currently scheduled. Each dataset contributes 20 shared images: 12 calibration and 8 held out. Targets are fixed per image/model. This scope does not cover other CelebA attributes or arbitrary future datasets.
 
 ## Statistical decision
 
@@ -25,6 +27,16 @@ Choose the smallest calibration budget whose upper bounds are below every margin
 This establishes empirical mean convergence toward an approximation, not attribution correctness or a universal minimum. ShapBPT repeats check deterministic reproducibility; KernelSHAP references use independent seeds.
 
 ## Run on EPITO
+
+The existing study has already been prepared. For the current YOLO-only scope, after its running job and any continuation have stopped, resume with:
+
+```bash
+sbatch --export=ALL,STUDY_MANIFEST=manifest_yolo_mscoco.json \
+  results/evaluations/budget_full_20261105_v1/study.sbatch \
+  "$PWD/results/evaluations/budget_full_20261105_v1"
+```
+
+The `active_manifest.txt` pointer also makes this scope the study batch script's default. Do not launch the original all-dataset manifest while this run is active.
 
 From the repository, freeze the inputs and protocol before inference:
 

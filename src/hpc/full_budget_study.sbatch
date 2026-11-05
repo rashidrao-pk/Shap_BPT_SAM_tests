@@ -16,6 +16,10 @@ source /beegfs/home/mrashid/pt_312_sam/bin/activate
 unset PYTHONPATH
 export PYTHONUNBUFFERED=1
 STUDY_HOME=$1
+if [[ -z ${STUDY_MANIFEST:-} && -f "$STUDY_HOME/active_manifest.txt" ]]; then
+    STUDY_MANIFEST=$(cat "$STUDY_HOME/active_manifest.txt")
+fi
+STUDY_MANIFEST=${STUDY_MANIFEST:-manifest.json}
 STUDY_ALLOCATION=${STUDY_ALLOCATION:-1}
 STUDY_MAX_ALLOCATIONS=${STUDY_MAX_ALLOCATIONS:-40}
 continuation_queued=0
@@ -31,7 +35,7 @@ queue_continuation() {
     fi
 }
 trap queue_continuation USR1
-python "$STUDY_HOME/driver.py" "$STUDY_HOME/manifest.json" &
+python "$STUDY_HOME/driver.py" "$STUDY_HOME/$STUDY_MANIFEST" &
 controller_pid=$!
 # A scheduler warning interrupts wait; keep waiting for the existing controller.
 while true; do

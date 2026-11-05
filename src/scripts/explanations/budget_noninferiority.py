@@ -92,9 +92,11 @@ def analyze(studies, protocol):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('study_root', type=Path)
+    parser.add_argument('--manifest', default='manifest.json', help='Frozen task manifest to analyze')
+    parser.add_argument('--report-dir', default='report', help='Separate report folder for this scope')
     args = parser.parse_args()
     home = args.study_root.resolve()
-    manifest = json.loads((home/'manifest.json').read_text())
+    manifest = json.loads((home/args.manifest).read_text())
     studies, pending = [], []
     for task in manifest['tasks']:
         if task['type'] != 'budget':
@@ -104,7 +106,7 @@ def main():
             pending.append(task['id'])
         else:
             studies.append(load_study(folder))
-    report = home/'report'; report.mkdir(exist_ok=True)
+    report = home/args.report_dir; report.mkdir(parents=True, exist_ok=True)
     if pending:
         result = {'status': 'incomplete', 'completed': len(studies), 'pending': pending, 'selected_budget': None}
         conclusion = f"Budget ablation is incomplete: {len(studies)}/{len(manifest['tasks'])} pilots finished. No recommendation yet."

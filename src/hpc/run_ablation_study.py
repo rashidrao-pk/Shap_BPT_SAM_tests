@@ -109,7 +109,8 @@ def main():
     if failures:
         raise SystemExit(1)
     if manifest.get('postprocess'):
-        subprocess.run([sys.executable, str(code / manifest['postprocess']), str(home)],
+        subprocess.run([sys.executable, str(code / manifest['postprocess']), str(home),
+                        *manifest.get('postprocess_args', [])],
                        cwd=code, check=True)
 
 

@@ -52,7 +52,7 @@ def create_parser(kind):
     parser.add_argument('--auc_num_samples', '--auc-num-samples', type=int, default=200,
                          help='Requested points per insertion/deletion curve; repeated masks are deduplicated')
     parser.add_argument('--bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'], 
-                        default='gray' if kind == 'OC_CelebA' else 'black', help='Background replacement for masked pixels')
+                        default='full', help='Background replacement for masked pixels (default: full)')
     parser.add_argument('--class-aggregation', choices=['sum', 'max'], default='sum')
     parser.add_argument('--threshold', type=float, default=0.0,
                         help='DETR scoring threshold (default: 0 for continuous masked scores)')

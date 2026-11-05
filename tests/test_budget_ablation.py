@@ -71,7 +71,7 @@ class BudgetAblationTest(unittest.TestCase):
     def test_single_budget_application_and_scope(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'selection.json';path.write_text(json.dumps(select_budget([self.study()])))
-            args=common.create_parser('OC_ResNet').parse_args(['--explain_all','--budget-selection',str(path)])
+            args=common.create_parser('OC_ResNet').parse_args(['--explain_all','--bg-type','black','--budget-selection',str(path)])
             apply_budget_selection(args,'OC_ResNet')
             self.assertEqual(args.max_evals,200)
             self.assertEqual(method_names(args)[:3],['BPT-200','BPT+SAM_c-200','SAM_c+KernelSHAP-200'])

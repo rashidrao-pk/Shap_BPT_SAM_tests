@@ -24,7 +24,7 @@ python src/scripts/run_yolo_full.py \
   --auc-batch-size 1024 \
   --verbose-level medium \
   --model yolo11s \
-  --bg-type noise \
+  --bg-type full \
   --class-aggregation sum
 ```
 
@@ -38,7 +38,7 @@ python src/scripts/run_yolo_full.py \
   --auc-batch-size 1024 \
   --verbose-level medium \
   --model yolo11s \
-  --bg-type noise \
+  --bg-type full \
   --class-aggregation sum \
   --auc_num_samples 200
 ```
@@ -61,7 +61,7 @@ python src/scripts/run_resnet_full.py \
   --config MSCOCO_epito \
   --limit 2 \
   --verbose-level medium \
-  --bg-type noise \
+  --bg-type full \
   --eval-batch-size 512 \
   --auc-batch-size 256 \
   --resnet-batch-size 512
@@ -72,7 +72,7 @@ python src/scripts/run_resnet_full.py \
 python src/scripts/run_resnet_full.py \
   --config MSCOCO_epito \
   --verbose-level medium \
-  --bg-type noise \
+  --bg-type full \
   --eval-batch-size 2048 \
   --auc-batch-size 1024 \
   --resnet-batch-size 2048
@@ -91,7 +91,7 @@ python src/scripts/run_vit_full.py \
   --config MSCOCO_epito \
   --limit 2 \
   --verbose-level medium \
-  --bg-type noise \
+  --bg-type full \
   --eval-batch-size 512 \
   --auc-batch-size 256 \
   --vit-batch-size 512
@@ -107,7 +107,7 @@ xai_results_E3_1
 python src/scripts/run_vit_full.py \
   --config MSCOCO_epito \
   --verbose-level medium \
-  --bg-type noise \
+  --bg-type full \
   --eval-batch-size 2048 \
   --auc-batch-size 1024 \
   --vit-batch-size 2048
@@ -137,7 +137,7 @@ python src/scripts/run_detr_full.py \
   --limit 2 \
   --max-evals 50 \
   --verbose-level medium \
-  --bg-type noise \
+  --bg-type full \
   --threshold 0.3 \
   --detr-batch-size 4 \
   --eval-batch-size 16 \
@@ -155,7 +155,7 @@ python src/scripts/run_detr_full.py \
   --config MSCOCO_epito \
   --max-evals 500 \
   --verbose-level medium \
-  --bg-type noise \
+  --bg-type full \
   --threshold 0.3 \
   --detr-batch-size 64 \
   --eval-batch-size 64 \

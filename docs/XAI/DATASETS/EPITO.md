@@ -50,7 +50,7 @@ python src/scripts/explanations/OD_yolo.py \
   --auc-batch-size 8 \
   --verbose-level medium \
   --model yolo11s \
-  --bg-type noise \
+  --bg-type full \
   --class-aggregation sum
 ```
 
@@ -67,5 +67,5 @@ settings, see [the experiment matrix](../README_exp_epito.md).
 
 Results are saved under `output.explanations` as
 `OD_yolo/<mask_dir_final>/bg_<background>_B<max-evals>/`.
-For example, `--bg-type black --max-evals 500` uses `bg_black_B500`.
+For example, `--bg-type full --max-evals 500` uses `bg_full_B500`.
 Use `exit` when finished to release the GPU allocation.

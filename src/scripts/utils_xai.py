@@ -1181,7 +1181,7 @@ def load_image(fname,im_size=None,bg_type='full'):
     return image_to_explain,image_to_explain_preproc,background_image_set,background_tensors
 
 
-def load_image_to_explain(fname,bg_type='gray', load_gt=True):
+def load_image_to_explain(fname,bg_type='full', load_gt=True):
     # global predicted_fS, predicted_f0, predicted_cls, sorted_classes, f_S, f_0,sorted_probs
     # global model_type,pretrained_model_type
 

@@ -27,8 +27,8 @@ For black background and budget 500, OD_yolo uses:
 
 ```text
 <output.partitions>/MSCOCO_sam2_large_62_refined_200/
-<output.explanations>/OD_yolo/MSCOCO_sam2_large_62_refined_200/bg_black_B500/139/
-<output.evaluations>/OD_yolo/MSCOCO_sam2_large_62_refined_200/bg_black_B500/xai_results_report.html
+<output.explanations>/OD_yolo/MSCOCO_sam2_large_62_refined_200/bg_full_B500/139/
+<output.evaluations>/OD_yolo/MSCOCO_sam2_large_62_refined_200/bg_full_B500/xai_results_report.html
 <output.evaluations>/previews/MSCOCO_sam2_large_62_refined_200/000000000139.png
 ```
 
@@ -46,9 +46,9 @@ before starting a new EPITO process; an already-running job keeps its loaded pat
 ```bash
 python src/scripts/view_partitions.py --config MSCOCO_epito --image-id 139
 python src/scripts/check_partition_progress.py --limit 1000
-python src/scripts/explanations/OD_yolo.py --config MSCOCO_epito --bg-type black --max-evals 500 --limit 2 --dry-run
+python src/scripts/explanations/OD_yolo.py --config MSCOCO_epito --bg-type full --max-evals 500 --limit 2 --dry-run
 python src/scripts/check_experiment_progress.py --config MSCOCO_epito
-python src/scripts/summarize_results.py --config MSCOCO_epito --bg-type black --max-evals 500
+python src/scripts/summarize_results.py --config MSCOCO_epito --bg-type full --max-evals 500
 python src/scripts/compare_experiments.py --config MSCOCO_epito
 ```
 

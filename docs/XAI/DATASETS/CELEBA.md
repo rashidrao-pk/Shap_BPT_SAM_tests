@@ -38,7 +38,7 @@ This runs BPT, BPT+SAM_c and SAM_c+KernelSHAP at one budget; LIME-1000 with
 Select the common budget with [the separate pilot](BUDGET_ABLATION.md), then pass
 `--budget-selection` to apply its validated result.
 **LRP and GradCAM are supported for this CNN.** The GradCAM target is `unit8.conv`,
-as in the notebook. The default background is gray. Remove `--no-auc` to add
+as in the notebook. The default background is `full`. Remove `--no-auc` to add
 faithfulness evaluation, and remove `--limit 1` after inspecting the first result.
 Without `--explain_all`, the existing three-method workflow is used.
 
@@ -62,8 +62,8 @@ suptitle, since it may differ from the selected attribute.
 Outputs keep attributes separate:
 
 ```text
-results/explanations/OC_CelebA/<partition-folder>/Brown_Hair/bg_gray_B1000/<image-id>/
-results/evaluations/OC_CelebA/<partition-folder>/Brown_Hair/bg_gray_B1000/
+results/explanations/OC_CelebA/<partition-folder>/Brown_Hair/bg_full_B1000/<image-id>/
+results/evaluations/OC_CelebA/<partition-folder>/Brown_Hair/bg_full_B1000/
 ```
 
 ## Model and ground-truth matching

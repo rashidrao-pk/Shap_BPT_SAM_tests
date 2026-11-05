@@ -425,7 +425,7 @@ def normalize_image_id(value) -> str:
     return text.zfill(12)
 
 
-def load_image(fname: str | Path, device: torch.device, bg_type: str = "noise", im_size=None):
+def load_image(fname: str | Path, device: torch.device, bg_type: str = "full", im_size=None):
     img_bgr = cv2.imread(str(fname))
     if img_bgr is None:
         raise FileNotFoundError(f"Could not read image: {fname}")

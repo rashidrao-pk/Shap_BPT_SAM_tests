@@ -109,3 +109,6 @@ output:
   save_predictions: true
   save_metrics: true
   save_config: true
+
+evaluation:
+  bg-type: "full"

@@ -40,7 +40,7 @@ python -u src/scripts/run_busi_shapbpt.py run \
 
 This mode reads existing compact partitions, so SAM checkpoint flags are unnecessary. To generate partitions first, use the dataset partition generator. The original command without `--explain_all` retains its separate hierarchical SAM/BPT pipeline and generation settings.
 
-All-method mode creates config snapshots under `results/busi/all_methods_configs/` without changing your original config. Explanations and evaluations follow the source config's `output.explanations` and `output.evaluations`, under runner `OC_BUSI`, separated by partition folder/background/budget. `--bg-type` defaults to black in all-method mode and can be set to gray, blurred, or another shared background.
+All-method mode creates config snapshots under `results/busi/all_methods_configs/` without changing your original config. Explanations and evaluations follow the source config's `output.explanations` and `output.evaluations`, under runner `OC_BUSI`, separated by partition folder/background/budget. `--bg-type` defaults to `full` in all-method mode, averaging black, gray, white, blurred and noise replacements.
 
 ## Plots, GT, AUC, and resume
 

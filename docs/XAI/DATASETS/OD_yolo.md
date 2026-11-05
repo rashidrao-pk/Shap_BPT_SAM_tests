@@ -96,7 +96,7 @@ OD_yolo/<mask_dir_final>/bg_<background>_B<max-evals>/
 For example, black background and budget 500 save to:
 
 ```text
-OD_yolo/MSCOCO_sam2_large_62_refined_200/bg_black_B500/139/000000000139_xai_results.png
+OD_yolo/MSCOCO_sam2_large_62_refined_200/bg_full_B500/139/000000000139_xai_results.png
 ```
 
 There are no extra method, YOLO-model, or experiment-ID folders. The selected

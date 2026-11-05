@@ -156,8 +156,19 @@ def mask_coalition(image: Image.Image, labels: np.ndarray, retained: set[int], b
     return Image.fromarray(np.where(keep[..., None], orig, bg).astype(np.uint8), "RGB")
 
 
+def score_coalitions(image, labels, retained_sets, baseline, model, prep, device, target, batch):
+    """Average each coalition over its background replacements."""
+    import numpy as np
+    backgrounds = baseline if isinstance(baseline, (list, tuple)) else [baseline]
+    images = [mask_coalition(image, labels, retained, bg)
+              for retained in retained_sets for bg in backgrounds]
+    logits, probabilities = score_images(images, model, prep, device, target, batch)
+    return (logits.reshape(len(retained_sets), len(backgrounds)).mean(axis=1),
+            probabilities.reshape(len(retained_sets), len(backgrounds)).mean(axis=1))
+
+
 def estimate_owen(image, labels, nodes, root, leaves, model, prep, device, target, batch, budget, baseline, seed):
-    """Hierarchical random-permutation marginal estimator. Budget counts model evaluations."""
+    """Hierarchical random-permutation marginal estimator. Budget counts coalitions."""
     import numpy as np
     n = len(leaves)
     samples = max(1, budget // (n + 1))
@@ -167,18 +178,21 @@ def estimate_owen(image, labels, nodes, root, leaves, model, prep, device, targe
     for rep in range(samples):
         order = random_hierarchical_order(nodes, root, rng)
         retained = set()
-        coalitions = [mask_coalition(image, labels, retained, baseline)]
+        coalitions = [set(retained)]
         for leaf in order:
             retained.add(leaves[leaf])
-            coalitions.append(mask_coalition(image, labels, retained, baseline))
-        scores, _ = score_images(coalitions, model, prep, device, target, batch)
+            coalitions.append(set(retained))
+        scores, _ = score_coalitions(image, labels, coalitions, baseline, model, prep, device, target, batch)
         for i, leaf in enumerate(order):
             phi[leaf] += float(scores[i+1] - scores[i]) / samples
         print(f"[owen] permutation {rep+1}/{samples} | evaluations={(rep+1)*(n+1)}", flush=True)
     heat = np.zeros(labels.shape, dtype=np.float32)
     for leaf, lab in leaves.items():
         heat[labels == lab] = phi[leaf]
-    return heat, phi, {"model_evaluations": samples * (n + 1), "samples": samples, "seconds": time.perf_counter()-start}
+    count = len(baseline) if isinstance(baseline, (list, tuple)) else 1
+    return heat, phi, {"model_evaluations": samples * (n + 1) * count,
+                       "mask_evaluations": samples * (n + 1), "background_count": count,
+                       "samples": samples, "seconds": time.perf_counter()-start}
 
 
 def evaluate_curves(image, labels, heat, model, prep, device, target, batch, baseline, steps=21):
@@ -192,8 +206,8 @@ def evaluate_curves(image, labels, heat, model, prep, device, target, batch, bas
         images = []
         for k in np.linspace(0, len(order), steps).round().astype(int):
             present = set(order[:k]) if mode == "insertion" else set(order[k:])
-            images.append(mask_coalition(image, labels, present, baseline))
-        _, probs = score_images(images, model, prep, device, target, batch)
+            images.append(present)
+        _, probs = score_coalitions(image, labels, images, baseline, model, prep, device, target, batch)
         curves[mode] = {"probabilities": probs.tolist(), "auc": float(np.trapz(probs, dx=1/(steps-1)))}
     return curves
 
@@ -267,7 +281,7 @@ def case_signature(case, args):
     settings = {key: str(value) if isinstance(value, Path) else value
                 for key, value in vars(args).items()
                 if key not in {'command', 'limit', 'results', 'dataset', 'resume', 'explain_all', 'config',
-                               'partition_folder', 'show_gt', 'no_heatmaps', 'no_auc', 'auc_num_samples', 'bg_type'}}
+                               'partition_folder', 'show_gt', 'no_heatmaps', 'no_auc', 'auc_num_samples'}}
     paths = [Path(case['image']), *map(Path, case['masks']),
              *args.model_dir.glob('*.json'), *args.model_dir.glob('*.safetensors')]
     paths += [getattr(args, method + '_checkpoint') for method in args.sam]
@@ -330,7 +344,10 @@ def process_one(case, args, model, prep, id2label):
     label = id2label[pred]
     print(f"[case] {image_path.name} GT={case['class']} predicted={label}", flush=True)
     gt = union_ground_truth(case["masks"], (image.height, image.width))
-    baseline = Image.new("RGB", image.size, color=(127, 127, 127)) if args.baseline == "gray" else image.filter(ImageFilter.GaussianBlur(radius=16))
+    from explanations.experiment_common import backgrounds
+    mode = args.baseline or args.bg_type
+    mode = 'blurred' if mode == 'blur' else mode
+    baseline = [Image.fromarray(value) for value in backgrounds(np.asarray(image.convert('RGB')), mode)]
     metrics = {"image": str(image_path), "ground_truth_class": case["class"], "prediction": label, "target_index": pred, "probabilities": model_softmax(logits).tolist(), "methods": {}}
     for method in args.sam:
         directory = out / method
@@ -447,7 +464,8 @@ def main():
     parser.add_argument("--budget", type=int, default=504, help="minimum budget; rounded down to complete permutations")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--baseline", choices=["gray", "blur"], default="gray")
+    parser.add_argument("--baseline", choices=["gray", "blur", "full"], default=None,
+                        help="Optional legacy baseline override; defaults to --bg-type (full)")
     parser.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
     parser.add_argument("--sam1-checkpoint", type=Path, default=Path("checkpoints/sam1/sam_vit_b_01ec64.pth"))
     parser.add_argument("--sam2-checkpoint", type=Path, default=Path("checkpoints/third_party/sam2/checkpoints/sam2.1_hiera_tiny.pt"))
@@ -462,7 +480,7 @@ def main():
     parser.add_argument('--no-heatmaps', action='store_true')
     parser.add_argument('--no-auc', action='store_true')
     parser.add_argument('--auc-num-samples', type=int, default=200)
-    parser.add_argument('--bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'], default='black')
+    parser.add_argument('--bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'], default='full')
     args = parser.parse_args()
     if args.command in ("download", "all"):
         download_assets(args.dataset, args.model_dir)

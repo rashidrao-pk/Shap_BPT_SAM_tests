@@ -121,10 +121,10 @@ def main():
                 pilot_inputs.append({'path': str(path), 'sha256': digest(path)})
         for runner, model in [('OD_yolo', 'yolo11s'), ('OD_DETR', 'facebook/detr-resnet-50')]:
             output_root = home / 'budget'
-            output = output_root / runner / variant / 'bg_black' / 'mscoco_pilot'
+            output = output_root / runner / variant / 'bg_full' / 'mscoco_pilot'
             arguments = ['--runner', runner, '--model', model, '--config', str(config_path),
                 '--show-gt', '--limit', '5', '--image-ids', *pilot_ids,
-                '--bg-type', 'black', '--class-aggregation', 'sum',
+                '--bg-type', 'full', '--class-aggregation', 'sum',
                 '--budgets', '100', '200', '500', '1000', '2000', '--reference-budget', '4000',
                 '--repeats', '3', '--pilot-seed', '0', '--holdout-fraction', '0.4',
                 '--auc-num-samples', '200', '--study-name', 'mscoco_pilot', '--device', 'cuda',
@@ -141,7 +141,7 @@ def main():
         'budget_protocol': {'budgets': [100, 200, 500, 1000, 2000], 'reference_budget': 4000,
             'repeats': 3, 'auc_points': 200, 'eligible_common_images': len(common),
             'eligible_pool_selection_seed': 0, 'pilot_ids': pilot_ids, 'split_seed': 0,
-            'holdout_fraction': .4, 'background': 'black'},
+            'holdout_fraction': .4, 'background': 'full'},
         'auc_cases': cases, 'pilot_partition_inputs': pilot_inputs,
         'excluded_runs': excluded, 'frozen_code': code_files, 'tasks': tasks}
     (home / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')

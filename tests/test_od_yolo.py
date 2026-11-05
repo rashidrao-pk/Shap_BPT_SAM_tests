@@ -56,7 +56,7 @@ class ODYoloTest(unittest.TestCase):
         inputs = od.prepare_inputs(self.root, self.config, self.args())
         self.assertEqual(inputs['image_ids'], ['000000000001', '000000000002'])
         self.assertEqual(inputs['methods'], ['BPT', 'SAM_c', 'SAM_c_kernelshap'])
-        self.assertEqual(inputs['output_root'], self.root / 'output/OD_yolo' / self.folder.name / 'bg_noise_B500')
+        self.assertEqual(inputs['output_root'], self.root / 'output/OD_yolo' / self.folder.name / 'bg_full_B500')
 
     def test_background_budget_paths_and_override(self):
         inputs = od.prepare_inputs(self.root, self.config, self.args('--bg-type', 'black', '--max-evals', '500'))

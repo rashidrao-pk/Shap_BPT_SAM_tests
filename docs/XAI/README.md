@@ -5,6 +5,8 @@ For long EPITO jobs: [resume and Slurm instructions](RESUME_EPITO.md). Resume is
 All runners compare **BPT**, **BPT + SAM_c**, and **SAM_c + Kernel SHAP**.
 SAM_c reads the saved `*_compact.npy` partition maps.
 
+All runners default to **`--bg-type full`**, averaging black, gray, white, blurred and noise replacements. New results use `bg_full_B<budget>` folders.
+
 ## Before running
 
 Activate your EPITO GPU environment and work from the repository root. In the
@@ -29,13 +31,13 @@ inputs. Original ImageNet/CAMO filename stems are preserved.
 YOLO:
 
 ```bash
-python src/scripts/explanations/OD_yolo.py --config MSCOCO_epito --bg-type black --max-evals 50 --limit 2
+python src/scripts/explanations/OD_yolo.py --config MSCOCO_epito --bg-type full --max-evals 50 --limit 2
 ```
 
 DETR (default checkpoint: `facebook/detr-resnet-50`):
 
 ```bash
-python src/scripts/explanations/OD_DETR.py --config MSCOCO_epito --bg-type black --max-evals 50 --limit 2
+python src/scripts/explanations/OD_DETR.py --config MSCOCO_epito --bg-type full --max-evals 50 --limit 2
 ```
 
 Add `--show_gt` to either detector for the COCO segmentation of the explained
@@ -49,13 +51,13 @@ uses the maximum score per class. `--threshold` controls DETR score filtering
 ResNet-50:
 
 ```bash
-python src/scripts/explanations/OC_ResNet.py --config ImageNet_epito --bg-type black --max-evals 50 --limit 2
+python src/scripts/explanations/OC_ResNet.py --config ImageNet_epito --bg-type full --max-evals 50 --limit 2
 ```
 
 ViT-B/16:
 
 ```bash
-python src/scripts/explanations/OC_ViT.py --config ImageNet_epito --bg-type black --max-evals 50 --limit 2
+python src/scripts/explanations/OC_ViT.py --config ImageNet_epito --bg-type full --max-evals 50 --limit 2
 ```
 
 Both use torchvision's default pretrained ImageNet weights and preprocessing.
@@ -65,7 +67,7 @@ probability; these runs measure model faithfulness, not ImageNet label accuracy.
 ## CAMO: ViT explanations
 
 ```bash
-python src/scripts/explanations/COD_ViT.py --config CAMO_epito --bg-type black --max-evals 50 --limit 2
+python src/scripts/explanations/COD_ViT.py --config CAMO_epito --bg-type full --max-evals 50 --limit 2
 ```
 
 This uses the CAMO images/partitions and defaults to an ImageNet-trained ViT-B/16
@@ -105,8 +107,8 @@ for ImageNet and CAMO also accept `--show_gt`. See [GT formats and mapping](GROU
 Outputs follow the same layout for every runner:
 
 ```text
-<output.explanations>/<runner>/<partition-folder>/bg_black_B50/<image-id>/
-<output.evaluations>/<runner>/<partition-folder>/bg_black_B50/
+<output.explanations>/<runner>/<partition-folder>/bg_full_B50/<image-id>/
+<output.evaluations>/<runner>/<partition-folder>/bg_full_B50/
 ```
 
 Per-image outputs include predictions, three attribution maps (NPZ), optional
@@ -236,7 +238,7 @@ Use a few examples to select a common budget before the main experiments:
 ```bash
 python src/scripts/explanations/budget_ablation.py \
   --runner OC_ResNet --config ImageNet_epito \
-  --show-gt --gt-only --limit 5 --bg-type black
+  --show-gt --gt-only --limit 5 --bg-type full
 ```
 
 The pilot separates calibration and held-out examples and compares candidate

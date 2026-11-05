@@ -10,7 +10,7 @@ For example, inside an allocated GPU session:
 
 ```bash
 python -u src/scripts/explanations/compare_auc_points.py \
-  --run-dir results/explanations/OD_DETR/MSCOCO_sam1_vit_b_62_compact-sam_200/bg_black_B1000 \
+  --run-dir results/explanations/OD_DETR/MSCOCO_sam1_vit_b_62_compact-sam_200/bg_full_B1000 \
   --limit 3 \
   --methods BPT-1000 BPT+SAM_c-1000 SAM_c+KernelSHAP-1000 \
   --points 100 200 --reference-points 1000 --repeats 3 \

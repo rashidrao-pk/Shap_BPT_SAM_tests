@@ -45,7 +45,7 @@ def resolve_results_dir(project_root: Path, args) -> Path:
     config = load_config(project_root, args.config)
     path = output_path(config, 'explanations', project_root)
     if config.get('output', {}).get('explanations'):
-        background = args.bg_type or config.get('evaluation', {}).get('bg-type', 'noise')
+        background = args.bg_type or config.get('evaluation', {}).get('bg-type', 'full')
         path = path / 'OD_yolo' / config['data']['mask_dir_final'] / f'bg_{background}_B{args.max_evals}'
     else:
         path = path / 'xai_results' 

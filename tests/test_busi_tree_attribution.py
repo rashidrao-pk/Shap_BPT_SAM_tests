@@ -159,7 +159,26 @@ def test_explain_all_dispatches_to_shared_runner_for_selected_sam(tmp_path, monk
     kind, args = captured[0]
     assert kind == 'OC_BUSI' and args.explain_all and args.max_evals == 1000
     assert args.auc_num_samples == 200 and args.model_batch_size == 8
+    assert args.bg_type == 'full'
     assert args.show_gt and not args.save_heatmaps and args.resume
     written = yaml.safe_load(Path(args.config).read_text())
     assert written['data']['mask_dir_final'] == str(sam1)
     assert yaml.safe_load(config.read_text())['data']['mask_dir_final'] == sam2.name
+
+
+def test_legacy_coalitions_average_each_background(monkeypatch):
+    from PIL import Image
+    image = Image.fromarray(np.full((2, 2, 3), 100, dtype=np.uint8))
+    labels = np.array([[0, 0], [1, 1]])
+    baselines = [Image.fromarray(np.full((2, 2, 3), value, dtype=np.uint8)) for value in [0, 20, 40, 60, 80]]
+    captured = []
+    def score(images, *args):
+        captured.extend(images)
+        values = np.array([np.asarray(im).mean() for im in images])
+        return values, values/100
+    monkeypatch.setattr(mod, 'score_images', score)
+    scores, probabilities = mod.score_coalitions(image, labels, [set(), {0}, {0, 1}],
+                                                 baselines, None, None, 'cpu', 0, 8)
+    np.testing.assert_allclose(scores, [40, 70, 100])
+    np.testing.assert_allclose(probabilities, [.4, .7, 1.])
+    assert len(captured) == 15

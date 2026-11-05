@@ -23,7 +23,7 @@ data:
   mask_dir_final: "MSCOCO_sam1_vit_b_62_compact-sam_200"
 
 evaluation:
-  methods: [BPT, refined]
+  methods: [BPT, compact]
   limit: 2
   bg-type: "full"
   max-evals: 500

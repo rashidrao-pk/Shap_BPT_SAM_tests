@@ -14,6 +14,22 @@ data:
     variant: 50
     # Optional: categories_file (ImageNetS synsets) and class_index_file (classifier index -> synset).
 
+evaluation:
+  methods: [BPT, compact]
+  limit: 2
+  bg-type: "full"
+  max-evals: 500
+  eval-batch-size: 2048
+  auc-batch-size: 1024
+  auc_num_samples: 101
+
+  # Options:
+  #   black   : black background
+  #   gray    : gray background
+  #   white   : white background
+  #   blurred : blurred background
+  #  noise
+
 output:
   partitions: /beegfs/home/mrashid/datasets/SAM_BPT
   explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations

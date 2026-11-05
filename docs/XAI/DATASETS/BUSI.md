@@ -10,7 +10,7 @@ Set `data.mask_dir_final` in `BUSI_epito.yaml` to the desired SAM1 or SAM2 folde
 python -u src/scripts/explanations/OC_BUSI.py \
   --config BUSI_epito --checkpoint checkpoints/busi_siglip \
   --show-gt --limit 1 --explain_all --budget 1000 \
-  --no-heatmaps --auc-num-samples 200 --local-files-only
+  --no-heatmaps --auc-num-samples 200 --local-files-only --bg-type full
 ```
 
 Remove `--limit 1` to explain all completed partition images. The three partition methods share one budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. `--explain_all` also requests LIME-1000, Shap-AA-1000, LRP, GradCAM, IDG, GradExp, and GradShap. SigLIP GradCAM uses patch tokens without a CLS token; LRP remains explicitly unsupported and has no substitute attribution map. Optional methods require `requirements-xai-all.txt`.
@@ -25,7 +25,7 @@ The standalone command now accepts `--explain_all` and routes to the same shared
 python -u src/scripts/run_busi_shapbpt.py run \
   --config BUSI_epito --model-dir checkpoints/busi_siglip --limit 1 \
   --sam sam1 --regions 62 --budget 1000 --explain_all --batch-size 8 \
-  --show-gt --no-heatmaps --auc-num-samples 200
+  --show-gt --no-heatmaps --auc-num-samples 200 --bg-type full
 ```
 
 Use `--sam sam2` for SAM2 or `--sam sam1 sam2` for both. It prefers the configured folder when it matches the requested SAM model/region budget. Otherwise it looks for a single matching saved compact folder under `output.partitions`. If multiple folders match, select one explicitly:

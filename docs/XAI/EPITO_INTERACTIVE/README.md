@@ -26,17 +26,17 @@ nvidia-smi
 
 The commands below start with one image (`--limit 1`); BUSI also starts with one. Remove the limit from shared runners for all completed partition images, or set a larger value. Figures are saved to files; interactive here means live terminal output, not GUI plot windows.
 
-| Dataset                 | Task                                            | Model                    | Runner                |
-| ----------------------- | ----------------------------------------------- | ------------------------ | --------------------- |
-| ImageNet + ImageNetS GT | Object classification (OC)                      | ResNet50                 | `OC_ResNet.py`        |
-| ImageNet + ImageNetS GT | OC                                              | VGG16                    | `OC_VGG.py`           |
-| ImageNet + ImageNetS GT | OC                                              | ViT-B/16                 | `OC_ViT.py`           |
-| MS-COCO                 | Object detection (OD)                           | YOLO11s                  | `OD_yolo.py`          |
-| MS-COCO                 | OD                                              | DETR / ResNet50 backbone | `OD_DETR.py`          |
-| CAMO                    | Classification explanation on camouflage images | ViT-B/16                 | `COD_ViT.py`          |
-| CelebA-HQ               | Attribute classification                        | CelebModel CNN           | `OC_CelebA.py`        |
-| BUSI                    | Benign/malignant/normal classification          | SigLIP                   | `OC_BUSI.py` |
-| PartImageNet            | OC with part GT                                 | ResNet50                 | `OC_PartImageNet.py`  |
+| Dataset                 | Task                                            | Model                    | Runner               |
+| ----------------------- | ----------------------------------------------- | ------------------------ | -------------------- |
+| ImageNet + ImageNetS GT | Object classification (OC)                      | ResNet50                 | `OC_ResNet.py`       |
+| ImageNet + ImageNetS GT | OC                                              | VGG16                    | `OC_VGG.py`          |
+| ImageNet + ImageNetS GT | OC                                              | ViT-B/16                 | `OC_ViT.py`          |
+| MS-COCO                 | Object detection (OD)                           | YOLO11s                  | `OD_yolo.py`         |
+| MS-COCO                 | OD                                              | DETR / ResNet50 backbone | `OD_DETR.py`         |
+| CAMO                    | Classification explanation on camouflage images | ViT-B/16                 | `COD_ViT.py`         |
+| CelebA-HQ               | Attribute classification                        | CelebModel CNN           | `OC_CelebA.py`       |
+| BUSI                    | Benign/malignant/normal classification          | SigLIP                   | `OC_BUSI.py`         |
+| PartImageNet            | OC with part GT                                 | ResNet50                 | `OC_PartImageNet.py` |
 
 The available transformer **detector** is [DETR](https://huggingface.co/facebook/detr-resnet-50), which combines a ResNet50 backbone with a transformer. `OC_ViT.py` is a classifier, not an object detector. A ViT-backbone detector is not currently implemented.
 
@@ -129,7 +129,7 @@ Set `BUSI_epito.yaml` to the saved compact partition folder, then run the same s
 python -u src/scripts/explanations/OC_BUSI.py \
   --config BUSI_epito --checkpoint checkpoints/busi_siglip --show-gt \
   --limit 1 --explain_all --budget 1000 --no-heatmaps \
-  --auc-num-samples 200 --local-files-only
+  --auc-num-samples 200 --local-files-only --bg-type full
 ```
 
 Repeat with a SAM1 or SAM2 config copy to compare both partition sources. The existing `run_busi_shapbpt.py run --explain_all --sam sam1` command can also select saved partitions and dispatch to this shared runner. See [BUSI all-method instructions](../BUSI.md). SigLIP GradCAM is supported; transformer LRP is reported unsupported.

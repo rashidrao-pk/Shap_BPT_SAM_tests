@@ -268,3 +268,37 @@ runpy.run_path(script, run_name='__main__')
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn('0 / 1', result.stdout)
             self.assertIn('GT-only selection', result.stdout)
+
+    def test_hide_nested_busi_keeps_batch_sam_variants(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            images = root / 'images/benign'
+            images.mkdir(parents=True)
+            (images / 'benign (1).png').touch()
+            base = root / 'partitions'
+            names = ['BUSI_sam1_vit_b_62_compact-sam_50', 'BUSI_sam2_tiny_62_compact-sam_50']
+            for name in names:
+                folder = base / name
+                folder.mkdir(parents=True)
+                (folder / 'benign (1)_compact.npy').touch()
+                (folder / 'benign (1)_results.json').write_text(json.dumps({'saved_partitions': {'compact': 'path'}}))
+            nested = root / 'busi/benign_benign_(1)/sam1'
+            nested.mkdir(parents=True)
+            (nested / 'input_sam1_refined_62.npy').touch()
+            (nested / 'input_sam1_refined_62.json').write_text('{}')
+            config = root / 'config.yaml'
+            config.write_text(yaml.safe_dump({'data': {'name': 'BUSI', 'image_dir': str(images.parent),
+                'mask_dir_final': names[-1]}, 'output': {'partitions': str(base)}}))
+            script = Path(__file__).resolve().parents[1] / 'src/scripts/check_partition_progress.py'
+            arguments = [sys.executable, str(script), '--config', str(config),
+                         '--busi-results-root', str(root / 'busi'), '--gt-only', '--limit', '1000']
+            full = subprocess.run(arguments, text=True, capture_output=True)
+            hidden = subprocess.run([*arguments, '--no-busi-pipeline'], text=True, capture_output=True)
+            self.assertEqual(full.returncode, 0, full.stderr)
+            self.assertEqual(hidden.returncode, 0, hidden.stderr)
+            self.assertIn('busi/<case>/sam1', full.stdout)
+            self.assertNotIn('busi/<case>/sam1', hidden.stdout)
+            for name in names:
+                self.assertIn(name, hidden.stdout)
+            self.assertTrue((nested / 'input_sam1_refined_62.npy').is_file())

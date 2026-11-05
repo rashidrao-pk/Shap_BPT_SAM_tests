@@ -3,7 +3,6 @@
 ### SAM-1
 
 ```bash
-
 python src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito-sam1 \
   --model sam1 \
@@ -21,6 +20,7 @@ python src/scripts/generate_coco_partitions.py \
 ### Large Model
 
 ```bash
+export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
 python src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito \
   --model sam2 \

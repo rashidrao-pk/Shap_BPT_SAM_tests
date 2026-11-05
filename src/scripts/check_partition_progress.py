@@ -266,6 +266,8 @@ def main():
     parser.add_argument('--gt-only', '--gtonly', action='store_true',
                         help='ImageNet: count only inputs with configured ImageNetS GT before applying --limit; other datasets unchanged')
     parser.add_argument('--limit', type=int, help='Compare against first N inputs in generation order')
+    parser.add_argument('--no-busi-pipeline', action='store_true',
+                        help='Hide nested results/busi test partitions; retain all batch SAM variant folders')
     parser.add_argument('--busi-results-root', type=Path, default=ROOT / 'results/busi',
                         help='Also scan nested partitions from run_busi_shapbpt.py (default: results/busi)')
     parser.add_argument('--json', type=Path, help='Also write a JSON report')
@@ -275,7 +277,7 @@ def main():
     rows, errors = [], []
     for config in args.config:
         try:
-            rows.extend(check_dataset(config, args.methods, args.limit, args.configured_only, args.busi_results_root, args.gt_only))
+            rows.extend(check_dataset(config, args.methods, args.limit, args.configured_only, None if args.no_busi_pipeline else args.busi_results_root, args.gt_only))
         except (OSError, ValueError, KeyError, TypeError) as exc:
             errors.append({'config': config, 'error': str(exc)})
     print(f'{"Dataset":<12} {"Completed / Total":>19} {"Progress":>9} {"Partial":>8} '

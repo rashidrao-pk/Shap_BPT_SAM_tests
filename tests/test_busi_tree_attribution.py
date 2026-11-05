@@ -87,3 +87,48 @@ def test_existing_dataset_skips_network(tmp_path, monkeypatch):
     (folder / 'benign (1).png').touch()
     monkeypatch.setattr(urllib.request, 'urlretrieve', lambda *a: (_ for _ in ()).throw(AssertionError('network')))
     mod.download_dataset(tmp_path)
+
+
+def test_resume_after_interruption_skips_completed_images(tmp_path, monkeypatch):
+    import json
+    import sys
+    import pytest
+    data = tmp_path / 'data/benign'
+    data.mkdir(parents=True)
+    for name in ['benign (1).png', 'benign (2).png']:
+        (data / name).touch()
+    model = tmp_path / 'model'
+    model.mkdir()
+    (model / 'model.safetensors').touch()
+    checkpoint = tmp_path / 'sam.pt'
+    checkpoint.touch()
+    results = tmp_path / 'results'
+    argv = [str(SCRIPT), 'run', '--device', 'cpu', '--dataset', str(data.parent),
+            '--model-dir', str(model), '--sam', 'sam1', '--sam1-checkpoint', str(checkpoint),
+            '--results', str(results), '--limit', '2']
+    monkeypatch.setattr(sys, 'argv', argv)
+    monkeypatch.setattr(mod, 'load_classifier', lambda *a: (None, None, None))
+    calls = []
+    def process(case, args, *unused):
+        calls.append(Path(case['image']).name)
+        if len(calls) == 2:
+            raise KeyboardInterrupt('simulate wall-time interruption')
+        folder = mod.case_folder(case, args)
+        for artifact in mod.case_artifacts(args):
+            path = folder / artifact
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('{}' if artifact == 'metrics.json' else 'fixture')
+        return {}
+    monkeypatch.setattr(mod, 'process_one', process)
+    with pytest.raises(KeyboardInterrupt):
+        mod.main()
+    assert len(list(results.rglob('complete.json'))) == 1
+    mod.main()
+    assert calls == ['benign (1).png', 'benign (2).png', 'benign (2).png']
+    assert len(list(results.rglob('complete.json'))) == 2
+    monkeypatch.setattr(mod, 'load_classifier', lambda *a: (_ for _ in ()).throw(AssertionError('model loaded')))
+    mod.main()  # Entirely complete runs require no model load.
+    assert len(json.loads((results / 'summary.json').read_text())) == 2
+    monkeypatch.setattr(sys, 'argv', [*argv, '--budget', '1000'])
+    with pytest.raises(ValueError, match='settings/inputs changed'):
+        mod.main()

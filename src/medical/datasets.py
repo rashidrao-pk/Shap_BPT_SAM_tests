@@ -1,8 +1,6 @@
 """BUSI images and expert lesion masks (annotations are never model inputs)."""
 from pathlib import Path
 import re
-import numpy as np
-from PIL import Image
 
 MASK = re.compile(r"_mask(?:_\d+)?$", re.I)
 
@@ -25,6 +23,8 @@ def discover_images(root):
 
 def lesion_mask(image_path):
     """Union all numbered masks; preserve orientation and reject mismatched shapes."""
+    import numpy as np
+    from PIL import Image
     path = Path(image_path)
     with Image.open(path) as image:
         shape = (image.height, image.width)

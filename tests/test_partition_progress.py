@@ -95,3 +95,101 @@ class PartitionProgressTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class NewDatasetProgressTest(unittest.TestCase):
+    def test_new_datasets_are_default(self):
+        from check_partition_progress import DEFAULT_CONFIGS
+        self.assertIn('BUSI_epito', DEFAULT_CONFIGS)
+        self.assertIn('PartImageNet_epito', DEFAULT_CONFIGS)
+
+    def test_busi_excludes_ground_truth_and_counts_variants(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            images = root / 'images/benign'
+            images.mkdir(parents=True)
+            for name in ['benign (1).png', 'benign (1)_mask.png', 'benign (1)_mask_1.png', 'benign (2).png']:
+                (images / name).touch()
+            self.assertEqual(source_ids({'name': 'BUSI', 'image_dir': str(images.parent)}, 1000),
+                             {'benign (1)', 'benign (2)'})
+            base = root / 'partitions'
+            folder = base / 'BUSI_sam2_tiny_62_compact-refined-sam_50'
+            folder.mkdir(parents=True)
+            (folder / 'benign (1)_compact.npy').write_bytes(b'map')
+            (folder / 'benign (1)_results.json').write_text(json.dumps({
+                'saved_partitions': {'compact': 'path'}, 'total_time_sec': 12}))
+            config = root / 'config.yaml'
+            config.write_text(yaml.safe_dump({'data': {'name': 'BUSI', 'input_format': 'directory',
+                'image_dir': str(images.parent), 'mask_dir_final': folder.name},
+                'output': {'partitions': str(base)}}))
+            row = check_dataset(str(config), limit=1000)[0]
+            self.assertEqual((row['completed'], row['total'], row['remaining']), (1, 2, 1))
+            self.assertEqual(row['subset_generation_seconds'], 12)
+
+    def test_partimagenet_uses_selected_annotation_split(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            images = root / 'images/val'
+            images.mkdir(parents=True)
+            for name in ['n1_1.JPEG', 'n2_2.JPEG', 'unannotated.JPEG']:
+                (images / name).touch()
+            annotation = root / 'val.json'
+            annotation.write_text(json.dumps({'images': [
+                {'id': 7, 'file_name': 'n2_2.JPEG'}, {'id': 4, 'file_name': 'n1_1.JPEG'}]}))
+            data = {'name': 'PartImageNet', 'input_format': 'directory',
+                    'image_dir': str(images.parent), 'annotation_file': str(annotation)}
+            self.assertEqual(source_ids(data, 1), {'n1_1'})
+            self.assertEqual(source_ids(data, 1000), {'n1_1', 'n2_2'})
+
+    def test_nested_busi_partition_outputs_exclude_xai_storage(self):
+        from check_partition_progress import inspect_busi_pipeline
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            images = root / 'images/benign'
+            images.mkdir(parents=True)
+            for image_id in ['benign (1)', 'benign (2)']:
+                (images / (image_id + '.png')).touch()
+            results = root / 'results'
+            complete = results / 'benign_benign_(1)/sam1'
+            complete.mkdir(parents=True)
+            (complete / 'input_sam1_refined_62.npy').write_bytes(b'partition')
+            metadata = complete / 'input_sam1_refined_62.json'
+            metadata.write_text(json.dumps({'inference_seconds': 3.5, 'refinement_seconds': 1.5}))
+            (complete / 'attribution.npy').write_bytes(b'x' * 200)
+            partial = results / 'benign_benign_(2)/sam2'
+            partial.mkdir(parents=True)
+            (partial / 'input_sam2_masks.npz').write_bytes(b'raw')
+            rows = inspect_busi_pipeline(results, {'image_dir': str(images.parent)}, {'benign (1)', 'benign (2)'})
+            self.assertEqual(len(rows), 2)
+            self.assertEqual((rows[0]['completed'], rows[0]['total']), (1, 2))
+            self.assertEqual(rows[0]['subset_generation_seconds'], 5)
+            self.assertEqual(rows[0]['subset_bytes'], len(b'partition') + metadata.stat().st_size)
+            self.assertEqual((rows[1]['completed'], rows[1]['partial']), (0, 1))
+
+    def test_busi_summary_needs_no_scientific_imports(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            images = root / 'images/benign'
+            images.mkdir(parents=True)
+            (images / 'benign (1).png').touch()
+            (images / 'benign (1)_mask.png').touch()
+            config = root / 'config.yaml'
+            config.write_text(yaml.safe_dump({'data': {'name': 'BUSI', 'image_dir': str(images.parent),
+                'mask_dir_final': 'BUSI_test'}, 'output': {'partitions': str(root / 'partitions')}}))
+            harness = '''
+import importlib.abc, runpy, sys
+class Block(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] in {'numpy', 'PIL', 'torch'}:
+            raise AssertionError('Unexpected scientific import: ' + fullname)
+sys.meta_path.insert(0, Block())
+script, config = sys.argv[1:]
+sys.path.insert(0, str(__import__('pathlib').Path(script).parent))
+sys.argv = [script, '--config', config, '--configured-only', '--limit', '1000']
+runpy.run_path(script, run_name='__main__')
+'''
+            script = Path(__file__).resolve().parents[1] / 'src/scripts/check_partition_progress.py'
+            result = subprocess.run([sys.executable, '-c', harness, str(script), str(config)], text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 / 1', result.stdout)

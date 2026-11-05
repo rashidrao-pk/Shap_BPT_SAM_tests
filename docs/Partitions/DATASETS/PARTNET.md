@@ -42,3 +42,11 @@ python src/scripts/view_partitions.py \
 The config supplies image, partition, ground-truth, and preview output paths. `--gt-class` optionally selects an annotation category name or ID.
 
 Next: [PartImageNet XAI](../../XAI/PARTIMAGENET.md).
+
+## Check progress
+
+```bash
+python src/scripts/check_partition_progress.py --limit 1000
+```
+
+The default summary includes BUSI and PartImageNet. BUSI excludes annotation PNGs; PartImageNet follows the configured annotation split. Missing dataset/config paths are reported explicitly. BUSI totals stop at the available image count (780 for the full release), even with `--limit 1000`.

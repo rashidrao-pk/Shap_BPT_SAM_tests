@@ -46,7 +46,7 @@ class ConfigPathsTest(unittest.TestCase):
             images = root / 'images'
             images.mkdir()
             Image.fromarray(np.zeros((8, 10, 3), dtype=np.uint8)).save(images / '0.jpg')
-            name = 'CAMO_sam2_tiny_62_refined_singlepass'
+            name = 'CAMO_sam2_tiny_62_refined-sam_singlepass'
             config = {'data': {'name': 'CAMO', 'input_format': 'directory',
                                'image_dir': str(images), 'mask_dir_final': name},
                       'output': {'partitions': str(root / 'partitions'),

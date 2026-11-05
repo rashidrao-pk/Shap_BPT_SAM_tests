@@ -28,3 +28,20 @@ python src/scripts/view_partitions.py \
   --limit 2 \
   --methods sam compact
 ```
+
+## Check progress
+
+```bash
+python src/scripts/check_partition_progress.py --limit 1000
+```
+
+The default summary includes BUSI and PartImageNet. BUSI excludes annotation PNGs; PartImageNet follows the configured annotation split. Missing dataset/config paths are reported explicitly. BUSI totals stop at the available image count (780 for the full release), even with `--limit 1000`.
+
+Partitions from `run_busi_shapbpt.py` under `results/busi/<case>/sam1|sam2` are also included as separate rows when present. To inspect a custom location:
+
+```bash
+python src/scripts/check_partition_progress.py --config BUSI_epito \
+  --busi-results-root results/busi --limit 1000
+```
+
+Nested BUSI sizes include SAM `input_*` artifacts, excluding attribution maps and XAI plots. Recorded time is SAM inference plus refinement, excluding XAI time. `--configured-only` restricts the summary to the flat folder in `data.mask_dir_final`.

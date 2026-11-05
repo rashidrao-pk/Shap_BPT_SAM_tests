@@ -5,12 +5,14 @@ import json
 import math
 from pathlib import Path
 import re
+import sys
 
 import yaml
 from config_paths import output_path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_CONFIGS = ['MSCOCO_epito', 'ImageNet_epito', 'CelebAHQ_epito', 'CAMO_epito']
+DEFAULT_CONFIGS = ['MSCOCO_epito', 'ImageNet_epito', 'CelebAHQ_epito', 'CAMO_epito',
+                   'BUSI_epito', 'PartImageNet_epito']
 STAGES = ['boosted_filled', 'refined_filled', 'compact_selection', 'greedy_selection',
           'sam', 'refined', 'compact', 'boosted', 'filled', 'coverage']
 
@@ -34,7 +36,15 @@ def load_data(config_name):
 
 
 def source_ids(data, limit=None):
-    if data.get('input_format', 'coco') == 'directory':
+    if data.get('name', '').lower() == 'busi':
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from src.medical.datasets import discover_images
+        ids = [item['id'] for item in discover_images(rooted(data['image_dir']))]
+    elif data.get('name', '').lower() == 'partimagenet':
+        from partimagenet_data import collect_images
+        ids = [item['id'] for item in collect_images(data)]
+    elif data.get('input_format', 'coco') == 'directory':
         folder = rooted(data['image_dir'])
         if not folder.is_dir():
             raise FileNotFoundError(folder)
@@ -107,7 +117,9 @@ def inspect_folder(folder, expected_ids, dataset, methods=None):
                     raise ValueError('Expected metadata object')
                 stages = methods or list(record.get('saved_partitions') or {})
                 if not stages:
-                    stages = record.get('generation_settings', {}).get('save_partitions') or ['sam', 'compact']
+                    stages = record.get('generation_settings', {}).get('save_partitions')
+                    if not stages:
+                        stages = ['sam', 'compact'] if f'{image_id}_compact.npy' in files else ['sam', 'refined']
                 if not isinstance(stages, list) or not all(isinstance(stage, str) for stage in stages):
                     raise ValueError('Invalid saved stages')
                 if all(f'{image_id}_{stage}.npy' in files for stage in stages):
@@ -147,7 +159,71 @@ def inspect_folder(folder, expected_ids, dataset, methods=None):
             'status': 'present' if folder.is_dir() else 'not created'}
 
 
-def check_dataset(config_name, methods=None, limit=None, configured_only=False):
+def inspect_busi_pipeline(root, data, expected_ids, methods=None):
+    """Count SAM outputs from run_busi_shapbpt separately from its XAI artifacts."""
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from src.medical.datasets import discover_images
+    cases = {}
+    image_root = rooted(data['image_dir'])
+    for item in discover_images(image_root):
+        image = image_root / item['file_name']
+        cls = next((part.lower() for part in reversed(image.parts) if part.lower() in {'benign', 'malignant', 'normal'}), None)
+        if cls:
+            cases[f"{cls}_{image.stem.replace(' ', '_')}"] = item['id']
+    rows = []
+    for model in ['sam1', 'sam2']:
+        directories = sorted(path for path in root.glob(f'*/{model}') if path.is_dir())
+        if not directories:
+            continue
+        row = inspect_folder(root / '__unused__', expected_ids, 'BUSI', methods)
+        row.update(folder=str(root), display_folder=f'{root.name}/<case>/{model}',
+                   status='present', layout='busi_pipeline', model=model)
+        observed, complete = set(), set()
+        for directory in directories:
+            image_id = cases.get(directory.parent.name)
+            in_subset = image_id in expected_ids
+            files = [path for path in directory.glob(f'input_{model}_*') if path.is_file()]
+            size = sum(path.stat().st_size for path in files)
+            row['folder_bytes'] += size
+            if in_subset:
+                row['subset_bytes'] += size
+                if files:
+                    observed.add(image_id)
+            metadata = list(directory.glob(f'input_{model}_refined_*.json'))
+            if len(metadata) != 1:
+                if in_subset and len(metadata) > 1:
+                    row['invalid_metadata'] += 1
+                continue
+            try:
+                record = json.loads(metadata[0].read_text())
+                if not isinstance(record, dict):
+                    raise ValueError('Expected metadata object')
+                if not metadata[0].with_suffix('.npy').is_file() or (methods and set(methods) != {'refined'}):
+                    continue
+                row['folder_completed_images'] += 1
+                if in_subset:
+                    complete.add(image_id)
+                durations = [record.get('inference_seconds'), record.get('refinement_seconds')]
+                if all(isinstance(t, (int, float)) and not isinstance(t, bool) and math.isfinite(t) and t >= 0 for t in durations):
+                    row['folder_generation_seconds'] += sum(durations)
+                    row['folder_timed_images'] += 1
+                    if in_subset:
+                        row['subset_generation_seconds'] += sum(durations)
+                        row['subset_timed_images'] += 1
+            except (OSError, ValueError, TypeError):
+                if in_subset:
+                    row['invalid_metadata'] += 1
+        row.update(completed=len(complete), partial=len(observed - complete),
+                   remaining=len(expected_ids) - len(complete),
+                   percent=round(100 * len(complete) / len(expected_ids), 2) if expected_ids else 0,
+                   subset_missing_timings=len(complete) - row['subset_timed_images'],
+                   folder_missing_timings=row['folder_completed_images'] - row['folder_timed_images'])
+        rows.append(row)
+    return rows
+
+
+def check_dataset(config_name, methods=None, limit=None, configured_only=False, busi_results_root=None):
     config = load_config(config_name)
     data = config['data']
     expected = source_ids(data, limit)
@@ -157,7 +233,12 @@ def check_dataset(config_name, methods=None, limit=None, configured_only=False):
     if not configured_only and base.is_dir():
         prefix = re.sub(r'[^A-Za-z0-9-]', '', data['name']) + '_sam'
         folders.update(path for path in base.iterdir() if path.is_dir() and path.name.startswith(prefix))
-    return [inspect_folder(folder, expected, data['name'], methods) for folder in sorted(folders)]
+    rows = [inspect_folder(folder, expected, data['name'], methods) for folder in sorted(folders)]
+    if data['name'].lower() == 'busi' and not configured_only and busi_results_root is not None:
+        root = rooted(busi_results_root)
+        if root.is_dir():
+            rows.extend(inspect_busi_pipeline(root, data, expected, methods))
+    return rows
 
 
 def main():
@@ -167,6 +248,8 @@ def main():
                         help='Require these stages; default: stages recorded for each image')
     parser.add_argument('--configured-only', action='store_true', help='Check only data.mask_dir_final')
     parser.add_argument('--limit', type=int, help='Compare against first N inputs in generation order')
+    parser.add_argument('--busi-results-root', type=Path, default=ROOT / 'results/busi',
+                        help='Also scan nested partitions from run_busi_shapbpt.py (default: results/busi)')
     parser.add_argument('--json', type=Path, help='Also write a JSON report')
     args = parser.parse_args()
     if args.limit is not None and args.limit < 1:
@@ -174,7 +257,7 @@ def main():
     rows, errors = [], []
     for config in args.config:
         try:
-            rows.extend(check_dataset(config, args.methods, args.limit, args.configured_only))
+            rows.extend(check_dataset(config, args.methods, args.limit, args.configured_only, args.busi_results_root))
         except (OSError, ValueError, KeyError, TypeError) as exc:
             errors.append({'config': config, 'error': str(exc)})
     print(f'{"Dataset":<12} {"Completed / Total":>19} {"Progress":>9} {"Partial":>8} '
@@ -187,12 +270,14 @@ def main():
               f'{format_bytes(row["subset_bytes"]):>12} {format_bytes(row["folder_bytes"]):>12} '
               f'{format_duration(row["subset_generation_seconds"], row["subset_timed_images"]):>12} '
               f'{format_duration(row["folder_generation_seconds"], row["folder_timed_images"]):>12}  '
-              f'{Path(row["folder"]).name}')
+              f'{row.get("display_folder", Path(row["folder"]).name)}')
         if row['status'] != 'present' or row['invalid_metadata']:
             print(f'  {row["status"]}; invalid metadata: {row["invalid_metadata"]}')
         if row['subset_missing_timings'] or row['folder_missing_timings']:
             print(f'  Completed images missing timings: subset={row["subset_missing_timings"]}, '
                   f'folder={row["folder_missing_timings"]}')
+    if any(row.get('layout') == 'busi_pipeline' for row in rows):
+        print('BUSI nested rows: sizes include SAM input_* outputs only; time is inference + refinement, excluding XAI.')
     print('Size = logical file sizes; subset follows --limit, folder includes all files. '
           'Time = sum of recorded per-image generation times (HH:MM:SS), not Slurm wall time.')
     for error in errors:

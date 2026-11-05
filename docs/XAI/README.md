@@ -1,5 +1,7 @@
 # Run XAI experiments
 
+For long EPITO jobs: [resume and Slurm instructions](RESUME_EPITO.md). Resume is enabled by default; omit `--no-resume` to continue completed-image experiments.
+
 All runners compare **BPT**, **BPT + SAM_c**, and **SAM_c + Kernel SHAP**.
 SAM_c reads the saved `*_compact.npy` partition maps.
 

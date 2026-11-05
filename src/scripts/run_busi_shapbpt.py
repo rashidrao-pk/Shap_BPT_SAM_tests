@@ -257,6 +257,62 @@ def save_fig(image, labels, heat, gt, path):
     fig.tight_layout(); path.parent.mkdir(parents=True, exist_ok=True); fig.savefig(path, dpi=160); plt.close(fig)
 
 
+def case_folder(case, args):
+    name = f"{case['class']}_{Path(case['image']).stem.replace(' ', '_')}"
+    return args.results / name
+
+
+def case_signature(case, args):
+    import hashlib
+    settings = {key: str(value) if isinstance(value, Path) else value
+                for key, value in vars(args).items()
+                if key not in {'command', 'limit', 'results', 'dataset', 'resume'}}
+    paths = [Path(case['image']), *map(Path, case['masks']),
+             *args.model_dir.glob('*.json'), *args.model_dir.glob('*.safetensors')]
+    paths += [getattr(args, method + '_checkpoint') for method in args.sam]
+    stamps = [[str(path.resolve()), path.stat().st_size, path.stat().st_mtime_ns]
+              for path in sorted(set(paths))]
+    return hashlib.sha256(json.dumps({'settings': settings, 'files': stamps}, sort_keys=True).encode()).hexdigest()
+
+
+def case_artifacts(args):
+    artifacts = ['input.png', 'metrics.json']
+    for method in args.sam:
+        artifacts.extend(f'{method}/{name}' for name in [
+            f'input_{method}_refined_{args.regions}.npy', 'tree.json', 'attribution.npy', 'explanation.png'])
+    return artifacts
+
+
+def completed_case(case, args):
+    if not args.resume:
+        return None
+    folder = case_folder(case, args)
+    marker = folder / 'complete.json'
+    if not marker.is_file():
+        return None
+    try:
+        metadata = json.loads(marker.read_text())
+        if metadata['signature'] != case_signature(case, args):
+            raise ValueError('BUSI settings/inputs changed; choose a new --results directory or use --no-resume')
+        if metadata['artifacts'] != case_artifacts(args):
+            return None
+        if not all((folder / name).is_file() for name in metadata['artifacts']):
+            return None
+        return json.loads((folder / 'metrics.json').read_text())
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return None
+
+
+def write_case_completion(case, args, signature):
+    folder = case_folder(case, args)
+    artifacts = case_artifacts(args)
+    if not all((folder / name).is_file() for name in artifacts):
+        raise RuntimeError('Cannot complete BUSI image: output files are missing')
+    temporary = folder / 'complete.json.tmp'
+    temporary.write_text(json.dumps({'signature': signature, 'artifacts': artifacts}, indent=2))
+    temporary.replace(folder / 'complete.json')
+
+
 def process_one(case, args, model, prep, id2label):
     import numpy as np
     from PIL import Image, ImageFilter
@@ -324,6 +380,8 @@ def main():
     parser.add_argument("--dataset", type=Path, default=Path("/beegfs/home/mrashid/datasets/BUSI"))
     parser.add_argument("--model-dir", type=Path, default=Path("checkpoints/busi_siglip"))
     parser.add_argument("--results", type=Path, default=Path("results/busi"))
+    parser.add_argument("--no-resume", dest="resume", action="store_false",
+                        help="Recompute XAI; existing SAM partitions/trees are still reused")
     parser.add_argument("--limit", type=int, default=2)
     parser.add_argument("--sam", nargs="+", choices=["sam1", "sam2"], default=["sam1", "sam2"])
     parser.add_argument("--regions", type=int, default=62)
@@ -350,10 +408,6 @@ def main():
         raise RuntimeError("Pretrained checkpoint missing. Run download first.")
     if args.limit < 1: raise ValueError("--limit must be >= 1")
     if args.regions < 1: raise ValueError("--regions must be >= 1")
-    import torch
-    if args.device == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("CUDA unavailable: run inside an allocated GPU compute node")
-    model, prep, labels = load_classifier(args.model_dir, args.device)
     args.results.mkdir(parents=True, exist_ok=True)
     # Sort by class for a mixed-class smoke test (unlike default path order).
     chosen = []
@@ -362,7 +416,29 @@ def main():
         for c in CLASSES:
             if buckets[c] and len(chosen) < args.limit:
                 chosen.append(buckets[c].pop(0))
-    all_metrics = [process_one(c, args, model, prep, labels) for c in chosen]
+    all_metrics, pending = [], []
+    for case in chosen:
+        previous = completed_case(case, args)
+        if previous is None:
+            pending.append(case)
+        else:
+            print(f"[resume] skipping completed image: {case['image']}", flush=True)
+            all_metrics.append(previous)
+    print(f'[resume] complete={len(all_metrics)}; pending={len(pending)}', flush=True)
+    if pending:
+        import torch
+        if args.device == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError("CUDA unavailable: run inside an allocated GPU compute node")
+        model, prep, labels = load_classifier(args.model_dir, args.device)
+        for case in pending:
+            signature = case_signature(case, args)
+            (case_folder(case, args) / 'complete.json').unlink(missing_ok=True)
+            metrics = process_one(case, args, model, prep, labels)
+            write_case_completion(case, args, signature)
+            all_metrics.append(metrics)
+            temporary = args.results / 'summary.json.tmp'
+            temporary.write_text(json.dumps(all_metrics, indent=2))
+            temporary.replace(args.results / 'summary.json')
     (args.results / "summary.json").write_text(json.dumps(all_metrics, indent=2))
     print("[done]", args.results / "summary.json")
 

@@ -162,3 +162,21 @@ def test_configure_ambiguous_annotations_preserves_config(tmp_path):
     with pytest.raises(ValueError, match='found 2'):
         download.configure_dataset(tmp_path, config_path)
     assert config_path.read_text() == 'keep this until selection is explicit'
+
+
+def test_configure_prefers_parts_over_whole_object_annotations(tmp_path):
+    import yaml
+    import download_partimagenet as download
+    data, _ = fixture(tmp_path)
+    annotation_text = (tmp_path / 'val.json').read_text()
+    (tmp_path / 'val.json').unlink()
+    for split in ['val', 'val_whole']:
+        directory = tmp_path / 'PartImageNet/annotations' / split
+        directory.mkdir(parents=True)
+        (directory / 'val.json').write_text(annotation_text)
+    config = tmp_path / 'config.yaml'
+    config.write_text(yaml.safe_dump({'data': data, 'output': {'partitions': '/keep'}}))
+    records = download.configure_dataset(tmp_path, config)
+    selected = yaml.safe_load(config.read_text())['data']['annotation_file']
+    assert Path(selected) == tmp_path / 'PartImageNet/annotations/val/val.json'
+    assert len(records) == 1

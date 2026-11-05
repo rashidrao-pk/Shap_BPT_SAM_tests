@@ -68,3 +68,12 @@ The initial config paths are examples until checked against your extracted archi
 The classifier is Torchvision's [ImageNet ResNet50 V2](https://docs.pytorch.org/vision/stable/models/generated/torchvision.models.resnet50.html), with its original ImageNet class labels and preprocessing. It is not a trained part-segmentation model. SAM1/SAM2 checkpoints are separate; their download commands are in [SAM checkpoint setup](BUSI_SETUP.md#3-sam-checkpoint).
 
 Next: [partition generation and preview](PARTNET.md), then [XAI](../../XAI/PARTIMAGENET.md). Downloads run without scientific packages; partition generation and XAI require the working GPU environment.
+
+### Both `val` and `val_whole` are present
+
+Use `PartImageNet/annotations/val/val.json` for part annotations. The parallel `val_whole` directory contains whole-object annotations. Automatic setup excludes `_whole` paths. With an older script, select the part JSON explicitly:
+
+```bash
+python src/scripts/download_partimagenet.py --assets configure --split val \
+  --annotation-file /beegfs/home/mrashid/datasets/PartImageNet/PartImageNet/annotations/val/val.json
+```

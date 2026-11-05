@@ -70,6 +70,10 @@ def configure_dataset(dataset_root, config_path, split='val', annotation_file=No
         for path in sorted(root.rglob('*.json')):
             relative = path.relative_to(root)
             tokens = {token.lower() for token in re.split(r'[/_.-]+', str(relative.with_suffix('')))}
+            # The release also ships train_whole/val_whole/test_whole object masks.
+            # Automatic setup targets part annotations, not these parallel object files.
+            if 'whole' in tokens:
+                continue
             other_variant = 'partimagenet_ood' if variant == 'Seg' else 'partimagenet_seg'
             if any(other_variant in part.lower() for part in relative.parts):
                 continue

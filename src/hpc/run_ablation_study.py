@@ -24,6 +24,12 @@ def write_json(path, data):
 
 def task_complete(task):
     directory = Path(task['output'])
+    if task.get('completion_mode') == 'interim':
+        study = directory / 'study.json'
+        data = json.loads(study.read_text()) if study.is_file() else {}
+        return (data.get('state') == 'interim' and len(data.get('completed_images', [])) >= task['target_images']
+                and all((directory/name).is_file() for name in
+                        ['interim_conclusion.md', 'interim_selection.json', 'interim_comparisons.csv']))
     if task['type'] == 'auc':
         status = directory / 'comparison_status.json'
         if not status.exists() or json.loads(status.read_text()).get('state') != 'complete':

@@ -33,6 +33,7 @@ def parser(argv=None):
     result.add_argument('--runner', choices=RUNNERS, default=runner)
     result.add_argument('--budgets', nargs='+', type=int, default=[100, 200, 500, 1000, 2000])
     result.add_argument('--reference-budget', type=int, default=4000)
+    result.add_argument('--stop-after-images', type=int, help='Save an interim report after the first N fixed pilot images')
     result.add_argument('--repeats', type=int, default=3)
     result.add_argument('--pilot-seed', type=int, default=0)
     result.add_argument('--holdout-fraction', type=float, default=.4)
@@ -55,6 +56,8 @@ def validate(args):
         raise ValueError('Use budgets >=2 and a reference budget strictly above every candidate')
     if args.repeats < 2:
         raise ValueError('Use at least 2 repeats to assess reference uncertainty')
+    if args.stop_after_images is not None and args.stop_after_images < 1:
+        raise ValueError('--stop-after-images must be positive')
     if not 0 < args.holdout_fraction < 1:
         raise ValueError('--holdout-fraction must be between zero and one')
     if args.limit is not None and args.limit < 3:
@@ -362,7 +365,7 @@ def run(args, adapter=None):
                             for name in ['checkpoint', 'class_names', 'attribute_file']
                             if (value := getattr(args, name)) is not None}
     identity = {key: value for key, value in study.items() if key not in {'state'}}
-    for key in ['resume', 'dry_run', 'verbose_level', 'torch_threads', 'fail_fast']:
+    for key in ['resume', 'dry_run', 'verbose_level', 'torch_threads', 'fail_fast', 'stop_after_images']:
         identity['settings'].pop(key, None)
     signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     study['signature'] = signature
@@ -395,7 +398,9 @@ def run(args, adapter=None):
     study['model_load_sec'] = time.perf_counter()-model_started
     rows, diagnostics = [], []
     split_for = {image: split for split, ids in splits.items() for image in ids}
-    for record in runtime.tqdm(records, desc='Budget pilot', ascii=True):
+    run_records = records[:args.stop_after_images] if args.stop_after_images else records
+    study['execution_limit'] = len(run_records)
+    for record in runtime.tqdm(run_records, desc='Budget pilot', ascii=True):
         image_id = record['image_id']; image_folder = folder/image_id; image_folder.mkdir(exist_ok=True)
         image = np.asarray(Image.open(record['image_path']).convert('RGB'))
         _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id, 'compact')
@@ -468,6 +473,13 @@ def run(args, adapter=None):
             common.write_json(folder/'reference_diagnostics.json', diagnostics)
         if args.save_plots:
             plot_image(runtime, image_folder, image, labels, means, references, args, gt)
+    if len(run_records) < len(records):
+        from budget_interim import write_interim
+        study.update(state='interim', completed_images=[record['image_id'] for record in run_records],
+                     elapsed_sec=time.perf_counter()-started)
+        common.write_json(folder/'study.json', study)
+        common.write_json(folder/'comparisons.json', rows)
+        return write_interim(folder, study, rows, diagnostics)
     study.update(state='complete', elapsed_sec=time.perf_counter()-started)
     common.write_json(folder/'study.json', study)
     common.write_json(folder/'comparisons.json', rows)

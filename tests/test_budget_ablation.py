@@ -123,6 +123,20 @@ class BudgetAblationTest(unittest.TestCase):
             self.assertEqual(json.loads((folder/'selection.json').read_text())['status'],result['status'])
             restored=pilot.run(args,adapter=Adapter())
             self.assertEqual(restored['selected_budget'],result['selected_budget'])
+            caches = {path: path.stat().st_mtime_ns for path in folder.glob('**/B*_s*.npz')}
+            signature = study['signature']
+            args.stop_after_images = 2
+            interim = pilot.run(args, adapter=Adapter())
+            stopped = json.loads((folder/'study.json').read_text())
+            self.assertEqual(stopped['signature'], signature)
+            self.assertEqual(stopped['state'], 'interim')
+            self.assertEqual(len(stopped['completed_images']), 2)
+            self.assertIsNone(interim['selected_budget'])
+            self.assertTrue((folder/'interim_conclusion.md').is_file())
+            self.assertEqual(caches, {path: path.stat().st_mtime_ns for path in caches})
+            args.stop_after_images = None
+            pilot.run(args, adapter=Adapter())
+            self.assertEqual(json.loads((folder/'study.json').read_text())['state'], 'complete')
 
 
 if __name__=='__main__':

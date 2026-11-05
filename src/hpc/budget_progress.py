@@ -30,6 +30,8 @@ def snapshot(task, home):
     if not study:
         return {'task': task['id'], 'text': f"{task['id']}: waiting for study initialization"}
     ids = study['splits']['calibration'] + study['splits']['validation']
+    if task.get('target_images'):
+        ids = ids[:task['target_images']]
     methods = study['methods']
     budgets = study['budgets'] + [study['reference_budget']]
     repeats = study['repeats']

@@ -28,6 +28,17 @@ def test_completion_requires_all_scientific_artifacts(tmp_path):
     assert not driver.task_complete(task)
 
 
+def test_interim_target_does_not_complete_larger_study(tmp_path):
+    driver = module('run_ablation_study')
+    (tmp_path/'study.json').write_text(json.dumps({'state': 'interim', 'completed_images': ['a', 'b', 'c']}))
+    for name in ['interim_conclusion.md', 'interim_selection.json', 'interim_comparisons.csv']:
+        (tmp_path/name).touch()
+    task = {'type': 'budget', 'output': str(tmp_path), 'completion_mode': 'interim', 'target_images': 3}
+    assert driver.task_complete(task)
+    assert not driver.task_complete(dict(task, target_images=6))
+    assert not driver.task_complete({'type': 'budget', 'output': str(tmp_path)})
+
+
 def test_preparation_freezes_common_pilot_before_execution(tmp_path):
     prepare = module('prepare_ablation_study')
     repo = tmp_path / 'repo'

@@ -4,7 +4,7 @@ data:
   name: BUSI
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/BUSI
-  mask_dir_final: BUSI_sam2_tiny_62_compact-refined-sam_50
+  mask_dir_final: BUSI_sam2_tiny_62_compact-sam_50
   ground_truth:
     format: busi
     root: /beegfs/home/mrashid/datasets/BUSI

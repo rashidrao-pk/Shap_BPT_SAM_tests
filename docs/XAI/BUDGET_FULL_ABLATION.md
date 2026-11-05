@@ -38,6 +38,19 @@ sbatch --export=ALL,STUDY_MANIFEST=manifest_yolo_mscoco.json \
 
 The `active_manifest.txt` pointer also makes this scope the study batch script's default. Do not launch the original all-dataset manifest while this run is active.
 
+### See progress inside a pilot
+
+The study controller prints a heartbeat every minute, including cached images, saved evaluation counts, current image, last logged method/budget/seed, time since the last save, and an approximate remaining evaluation time. The current job's main log also has a read-only monitor attached; inference is not restarted.
+
+For a standalone snapshot on EPITO, without loading models:
+
+```bash
+python3 results/evaluations/budget_full_20261105_v1/budget_progress.py \
+  results/evaluations/budget_full_20261105_v1
+```
+
+Add `--watch 60` for a refresh every minute. Each 20-image pilot has **1080 cached evaluations**: 20 images × 3 methods × 6 budget settings (including the reference) × 3 repeats. An image is cached only after all 54 evaluations are saved. The two pilots run in parallel, so their remaining times are not added together. ETA uses median timings for each method/budget and excludes tree building, repeat-mean reference AUC and reporting; it is approximate. A cached image is not itself a completed statistical analysis.
+
 From the repository, freeze the inputs and protocol before inference:
 
 ```bash

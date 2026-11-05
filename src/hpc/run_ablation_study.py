@@ -11,6 +11,8 @@ import queue
 import subprocess
 import sys
 import time
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from budget_progress import snapshot
 
 
 def write_json(path, data):
@@ -92,7 +94,18 @@ def main():
             log_path.parent.mkdir(parents=True, exist_ok=True)
             with log_path.open('a', buffering=1) as log:
                 log.write('\nSTART ' + datetime.now(timezone.utc).isoformat() + '\n')
-                result = subprocess.run(command, cwd=code, env=environment, stdout=log, stderr=subprocess.STDOUT)
+                process = subprocess.Popen(command, cwd=code, env=environment, stdout=log, stderr=subprocess.STDOUT)
+                while True:
+                    try:
+                        returncode = process.wait(timeout=60)
+                        break
+                    except subprocess.TimeoutExpired:
+                        if task['type'] == 'budget':
+                            try:
+                                print(snapshot(task, home)['text'], flush=True)
+                            except Exception as error:
+                                print(f"PROGRESS {task['id']}: unavailable ({error}); inference continues", flush=True)
+                result = subprocess.CompletedProcess(command, returncode)
             success = result.returncode == 0 and task_complete(task)
             write_json(status_path, {'state': 'complete' if success else 'failed', 'task': task['id'],
                 'gpu': device, 'slurm_job_id': os.environ.get('SLURM_JOB_ID'), 'returncode': result.returncode,

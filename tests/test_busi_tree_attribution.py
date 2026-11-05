@@ -55,7 +55,10 @@ def fake_retrieve(url, destination):
         archive.writestr('Dataset_BUSI_with_GT/benign/benign (1).png', b'fixture')
     return destination, None
 urllib.request.urlretrieve = fake_retrieve
-sys.modules['huggingface_hub'] = types.SimpleNamespace(snapshot_download=lambda *a, **k: None)
+import os
+def fake_snapshot(*args, **kwargs):
+    assert os.environ.get('HF_HUB_DISABLE_XET') == '1'
+sys.modules['huggingface_hub'] = types.SimpleNamespace(snapshot_download=fake_snapshot)
 script, folder = sys.argv[1:]
 sys.argv = [script, 'download', '--dataset', folder + '/data', '--model-dir', folder + '/model']
 runpy.run_path(script, run_name='__main__')

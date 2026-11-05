@@ -88,3 +88,13 @@ python -c 'import numpy; print(numpy.__version__, numpy.__file__)'
 ```
 
 This repairs NumPy only; it does not reconcile other packages' version requirements. Run `python -m pip check` afterward to identify any remaining conflicts.
+
+## Missing `hf_xet.abi3.so` during checkpoint download
+
+The optional Xet accelerator may have a broken or incompatible compiled extension on the login node. Use the Hub's documented HTTP fallback; no Xet reinstall is needed for downloading:
+
+```bash
+HF_HUB_DISABLE_XET=1 python src/scripts/run_busi_shapbpt.py download
+```
+
+The script also sets this variable before importing `huggingface_hub`. Existing completed files are reused by the Hub; leave the partial download/cache in place when retrying. See [Hugging Face environment variables](https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet).

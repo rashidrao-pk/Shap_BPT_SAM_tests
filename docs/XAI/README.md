@@ -243,3 +243,5 @@ for the dataset/model matrix, common selection command and application to main
 runs. No budget is claimed as a universal minimum.
 
 BUSI breast ultrasound: see [BUSI SigLIP explanations](BUSI.md) for predicted-class explanations and lesion contours.
+
+PartImageNet: [download, partitions, and ResNet50 explanations](PARTIMAGENET.md).

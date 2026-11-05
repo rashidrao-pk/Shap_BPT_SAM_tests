@@ -15,9 +15,16 @@ python src/scripts/generate_busi_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
   --device cuda --max-regions 62 --generate_at_least_n_masks 50 \
-  --save-partitions sam compact refined --limit 2
+  --save-partitions sam compact --limit 2
 ```
 
-Remove `--limit 2` for all images. Set `data.mask_dir_final` to the folder printed by the generator before running XAI.
-
 Next: [SigLIP checkpoint](../MODELS/SigLIP_BUSI.md) and [BUSI explanations](../../XAI/BUSI.md).
+
+## Preview saved partitions
+
+```bash
+python src/scripts/view_partitions.py \
+  --config BUSI_epito \
+  --limit 2 \
+  --methods sam compact
+```

@@ -244,6 +244,45 @@ def _coco(annotation_file):
     return COCO(annotation_file)
 
 
+@lru_cache(maxsize=8)
+def _partimagenet_index(annotation_file):
+    coco = _coco(annotation_file)
+    index = {}
+    for item in coco.dataset['images']:
+        stem = Path(item['file_name']).stem
+        if stem in index:
+            raise ValueError(f'Duplicate PartImageNet annotation stem: {stem}')
+        index[stem] = item
+    return coco, index
+
+
+def _load_partimagenet(settings, root, image_path, shape, selected_part):
+    annotation = resolve_path(settings['annotation_file'])
+    coco, index = _partimagenet_index(str(annotation))
+    record = index.get(Path(image_path).stem)
+    if record is None:
+        return _empty(shape, 'PartImageNet parts', 'annotation not available', scope='annotated_parts')
+    categories = coco.loadCats(coco.getCatIds())
+    all_parts = selected_part in {None, 'all', 'foreground'}
+    ids = [item['id'] for item in categories if all_parts or
+           str(item['id']) == str(selected_part) or item['name'].lower() == str(selected_part).lower()]
+    if not ids:
+        raise ValueError(f'Unknown PartImageNet part: {selected_part}; choose a category name or ID from the annotation JSON')
+    labels = np.zeros((record['height'], record['width']), dtype=np.uint16)
+    used, names = [], []
+    category_names = {item['id']: item['name'] for item in categories}
+    for ann in coco.loadAnns(coco.getAnnIds(imgIds=[record['id']], catIds=ids)):
+        if ann.get('segmentation'):
+            labels[np.asarray(coco.annToMask(ann), dtype=bool)] = len(used) + 1
+            used.append(ann['id'])
+            names.append(category_names[ann['category_id']])
+    return _result(labels, shape, 'PartImageNet annotated foreground' if all_parts else str(selected_part),
+                   [annotation], 'matched' if used else 'no matching part segmentation',
+                   annotation_ids=used, part_names=names, category_ids=ids,
+                   scope='annotated_parts' if all_parts else 'selected_part',
+                   instance_count=len(used))
+
+
 def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_index=None, label_space=None,
                       predicted_class=None):
     """Load dataset GT; never interpret RGB encoding as a grayscale class mask."""
@@ -267,6 +306,8 @@ def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_
                        annotation_ids=used, category_ids=ids, scope='selected_class' if gt_class else 'all_instances')
     settings, root = validate_config(config)
     format_name = settings['format'].lower()
+    if format_name == 'partimagenet':
+        return _load_partimagenet(settings, root, image_path, image_shape, gt_class)
     if format_name == 'busi':
         from src.medical.datasets import lesion_mask
         path = Path(image_path)

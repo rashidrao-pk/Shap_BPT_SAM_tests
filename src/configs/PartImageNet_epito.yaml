@@ -1,0 +1,16 @@
+# Update image_dir and BOTH annotation_file paths after extracting PartImageNet_Seg.
+device: cuda
+data:
+  name: PartImageNet
+  input_format: directory
+  image_dir: /beegfs/home/mrashid/datasets/PartImageNet/PartImageNet_Seg
+  annotation_file: /beegfs/home/mrashid/datasets/PartImageNet/PartImageNet_Seg/val.json
+  mask_dir_final: PartImageNet_sam2_tiny_62_compact-refined-sam_50
+  ground_truth:
+    format: partimagenet
+    root: /beegfs/home/mrashid/datasets/PartImageNet
+    annotation_file: /beegfs/home/mrashid/datasets/PartImageNet/PartImageNet_Seg/val.json
+output:
+  partitions: /beegfs/home/mrashid/datasets/SAM_BPT
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/evaluations

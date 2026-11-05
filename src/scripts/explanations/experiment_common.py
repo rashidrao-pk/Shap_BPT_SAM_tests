@@ -22,9 +22,9 @@ from config_paths import load_path_config, output_path, partition_path, resolve_
 from model_adapters import load_adapter
 
 METHODS = ['BPT', 'SAM_c', 'SAM_c_kernelshap']
-DEFAULT_CONFIGS = {'OC_BUSI': 'BUSI_epito', 'OD_DETR': 'MSCOCO_epito', 'OC_ResNet': 'ImageNet_epito',
+DEFAULT_CONFIGS = {'OC_PartImageNet': 'PartImageNet_epito', 'OC_BUSI': 'BUSI_epito', 'OD_DETR': 'MSCOCO_epito', 'OC_ResNet': 'ImageNet_epito',
                    'OC_ViT': 'ImageNet_epito', 'COD_ViT': 'CAMO_epito', 'OC_CelebA': 'CelebAHQ_epito'}
-MODEL_NAMES = {'OC_BUSI': 'ghostsas001/busi-breast-ultrasound-siglip', 'OD_DETR': 'facebook/detr-resnet-50', 'OC_ResNet': 'resnet50',
+MODEL_NAMES = {'OC_PartImageNet': 'resnet50', 'OC_BUSI': 'ghostsas001/busi-breast-ultrasound-siglip', 'OD_DETR': 'facebook/detr-resnet-50', 'OC_ResNet': 'resnet50',
                'OC_ViT': 'vit_b_16', 'COD_ViT': 'vit_b_16', 'OC_CelebA': 'celeba_cnn'}
 
 
@@ -101,11 +101,15 @@ def prepare_inputs(kind, args):
         validate(args)
     config = load_path_config(args.config)
     data = config['data']
-    expected = 'mscoco' if kind == 'OD_DETR' else 'camo' if kind == 'COD_ViT' else 'celebahq' if kind == 'OC_CelebA' else 'busi' if kind == 'OC_BUSI' else 'imagenet'
+    expected = 'mscoco' if kind == 'OD_DETR' else 'camo' if kind == 'COD_ViT' else 'celebahq' if kind == 'OC_CelebA' else 'busi' if kind == 'OC_BUSI' else 'partimagenet' if kind == 'OC_PartImageNet' else 'imagenet'
     if data.get('name', '').replace('_', '').lower() != expected:
         raise ValueError(f'{kind} requires the {expected} dataset config')
     if args.gt_only and (not args.show_gt or expected != 'imagenet'):
         raise ValueError('--gt-only requires an ImageNet runner with --show-gt')
+    if expected == 'partimagenet' and args.show_gt:
+        gt_annotation = data.get('ground_truth', {}).get('annotation_file')
+        if not gt_annotation or resolve_path(gt_annotation) != resolve_path(data['annotation_file']):
+            raise ValueError('PartImageNet data.annotation_file and ground_truth.annotation_file must select the same split')
     if args.show_gt and kind != 'OD_DETR':
         from ground_truth import validate_config
         validate_config(config)
@@ -130,6 +134,9 @@ def prepare_inputs(kind, args):
         annotation_file = resolve_path(data['annotation_file'])
         items = json.loads(annotation_file.read_text())['images']
         images = {f"{int(item['id']):012d}": image_dir / item['file_name'] for item in items}
+    elif expected == 'partimagenet':
+        from partimagenet_data import collect_images
+        images = {item['id']: image_dir / item['file_name'] for item in collect_images(data)}
     elif expected == 'busi':
         from src.medical.datasets import discover_images
         images = {item['id']: image_dir / item['file_name'] for item in discover_images(image_dir)}

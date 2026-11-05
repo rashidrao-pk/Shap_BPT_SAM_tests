@@ -127,6 +127,10 @@ class DetrAdapter:
 
 
 def load_adapter(kind, args, device):
+    if kind == 'OC_PartImageNet':
+        adapter = ClassifierAdapter(args, device, 'resnet50')
+        adapter.model.requires_grad_(False)
+        return adapter
     if kind == 'OC_BUSI':
         from src.medical.classifier import BusiAdapter
         return BusiAdapter(args, device)
@@ -135,4 +139,4 @@ def load_adapter(kind, args, device):
         return CelebaAdapter(args, device)
     if kind == 'OD_DETR':
         return DetrAdapter(args, device)
-    return ClassifierAdapter(args, device, 'resnet50' if kind == 'OC_ResNet' else 'vit_b_16')
+    return ClassifierAdapter(args, device, 'resnet50' if kind in {'OC_ResNet', 'OC_PartImageNet'} else 'vit_b_16')

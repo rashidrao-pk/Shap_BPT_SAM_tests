@@ -70,6 +70,9 @@ def download_assets(data_root: Path, model_root: Path):
     cases = discover_cases(data_root)
     if not cases:
         raise RuntimeError("No BUSI images found. Check dataset layout.")
+    # Set before importing the Hub: it reads transfer settings at import time.
+    # EPITO login nodes may not support the environment's compiled Xet extension.
+    os.environ["HF_HUB_DISABLE_XET"] = "1"
     from huggingface_hub import snapshot_download
     model_root.mkdir(parents=True, exist_ok=True)
     print("[download] pretrained SigLIP checkpoint", flush=True)

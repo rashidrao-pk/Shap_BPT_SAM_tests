@@ -193,3 +193,78 @@ runpy.run_path(script, run_name='__main__')
             result = subprocess.run([sys.executable, '-c', harness, str(script), str(config)], text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn('0 / 1', result.stdout)
+
+    def test_imagenet_gt_only_filters_before_limit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            images = root / 'images'
+            images.mkdir()
+            ids = [f'ILSVRC2012_val_{n:08d}' for n in range(1, 7)]
+            for image_id in ids:
+                (images / (image_id + '.JPEG')).touch()
+            gt = root / 'GT/ImageNetS50/validation-segmentation/n00000001'
+            gt.mkdir(parents=True)
+            # Annotated inputs are beyond the first two unfiltered images.
+            for image_id in [*ids[-2:], 'ILSVRC2012_val_99999999']:
+                (gt / (image_id + '.png')).touch()
+            base = root / 'partitions'
+            name = 'ImageNet_sam2_tiny_62_compact-sam_100'
+            folder = base / name
+            folder.mkdir(parents=True)
+            for image_id in ids[-2:]:
+                for stage in ['sam', 'compact']:
+                    (folder / f'{image_id}_{stage}.npy').touch()
+                (folder / f'{image_id}_results.json').write_text(json.dumps({
+                    'saved_partitions': {'sam': '', 'compact': ''}, 'total_time_sec': 5}))
+            data = {'name': 'ImageNet', 'input_format': 'directory', 'image_dir': str(images),
+                    'mask_dir_final': name, 'ground_truth': {'format': 'imagenets',
+                    'root': str(root / 'GT'), 'variant': 50}}
+            self.assertEqual(source_ids(data, 2), set(ids[:2]))
+            self.assertEqual(source_ids(data, 1, gt_only=True), {ids[-2]})
+            self.assertEqual(source_ids(data, 1000, gt_only=True), set(ids[-2:]))
+            config = root / 'config.yaml'
+            config.write_text(yaml.safe_dump({'data': data, 'output': {'partitions': str(base)}}))
+            plain = check_dataset(str(config), limit=2)[0]
+            selected = check_dataset(str(config), limit=1000, gt_only=True)[0]
+            self.assertEqual((plain['completed'], plain['total']), (0, 2))
+            self.assertEqual((selected['completed'], selected['total'], selected['percent']), (2, 2, 100))
+            self.assertEqual(selected['subset_generation_seconds'], 10)
+            self.assertEqual(selected['input_selection'], 'gt-only')
+            self.assertEqual(selected['gt_variant'], 50)
+            # A global --gt-only does not change other datasets' source selection.
+            self.assertEqual(source_ids({**data, 'name': 'CAMO'}, 2, gt_only=True), set(ids[:2]))
+
+    def test_imagenet_gt_only_cli_without_numpy(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            images = root / 'images'
+            images.mkdir()
+            (images / 'ILSVRC2012_val_00000001.JPEG').touch()
+            (images / 'ILSVRC2012_val_00000099.JPEG').touch()
+            gt = root / 'ImageNetS50/validation-segmentation/n00000001'
+            gt.mkdir(parents=True)
+            (gt / 'ILSVRC2012_val_00000099.png').touch()
+            config = root / 'config.yaml'
+            config.write_text(yaml.safe_dump({'data': {'name': 'ImageNet', 'input_format': 'directory',
+                'image_dir': str(images), 'mask_dir_final': 'ImageNet_test',
+                'ground_truth': {'format': 'imagenets', 'root': str(root / 'ImageNetS50'), 'variant': 50}},
+                'output': {'partitions': str(root / 'partitions')}}))
+            harness = '''
+import importlib.abc, runpy, sys
+from pathlib import Path
+class Block(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] in {'numpy', 'torch', 'PIL', 'scipy'}:
+            raise AssertionError(fullname)
+sys.meta_path.insert(0, Block())
+script, config = sys.argv[1:]
+sys.path.insert(0, str(Path(script).parent))
+sys.argv = [script, '--config', config, '--gt-only', '--limit', '1']
+runpy.run_path(script, run_name='__main__')
+'''
+            script = Path(__file__).resolve().parents[1] / 'src/scripts/check_partition_progress.py'
+            result = subprocess.run([sys.executable, '-c', harness, str(script), str(config)], text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 / 1', result.stdout)
+            self.assertIn('GT-only selection', result.stdout)

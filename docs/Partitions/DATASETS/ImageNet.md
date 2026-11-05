@@ -50,3 +50,22 @@ python src/scripts/view_partitions.py \
   --image-id 1 \
   --methods sam compact
 ```
+
+## Progress for GT-only generation
+
+Use the same selection flag in the progress checker as in generation:
+
+```bash
+python src/scripts/check_partition_progress.py --limit 1000 --gt-only
+```
+
+`--gt-only` affects ImageNet rows only; other datasets retain their normal selection. ImageNet source images are intersected with the configured ImageNetS annotations **before** applying `--limit`, matching the generator. For example, 752 annotated source images with 752 completed partitions report `752 / 752`, even with `--limit 1000`. Without this flag, the checker compares the first 1,000 unfiltered inputs; `11 / 1000` describes that different subset, not completion of the GT-only run.
+
+To check only ImageNet and avoid errors from other datasets not yet downloaded:
+
+```bash
+python src/scripts/check_partition_progress.py \
+  --config ImageNet_epito --gt-only --limit 1000
+```
+
+The GT variant/root comes from `data.ground_truth` in `ImageNet_epito.yaml`. Missing annotated source images are excluded from the denominator, just as in generation; missing GT roots and empty overlaps are errors. Folder-wide storage/time still includes all partition outputs. This flag is explicit because older partition metadata does not reliably record whether generation used GT-only selection.

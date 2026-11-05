@@ -35,7 +35,7 @@ def load_data(config_name):
     return load_config(config_name)['data']
 
 
-def source_ids(data, limit=None):
+def source_ids(data, limit=None, gt_only=False):
     if data.get('name', '').lower() == 'busi':
         if str(ROOT) not in sys.path:
             sys.path.insert(0, str(ROOT))
@@ -60,6 +60,18 @@ def source_ids(data, limit=None):
     else:
         records = json.loads(rooted(data['annotation_file']).read_text())['images']
         ids = [f"{int(record['id']):012d}" for record in sorted(records, key=lambda r: int(r['id']))]
+    if gt_only and data.get('name', '').lower() == 'imagenet':
+        settings = data.get('ground_truth', {})
+        if settings.get('format', '').lower() != 'imagenets' or not settings.get('root'):
+            raise ValueError('--gt-only requires ImageNet ground_truth.format: imagenets and ground_truth.root')
+        root = rooted(settings['root'])
+        if not root.is_dir():
+            raise FileNotFoundError(f'Ground-truth directory not found: {root}')
+        from gt_mask_index import _mask_index
+        masks = _mask_index(str(root), 'imagenets', str(settings.get('variant', 919)))
+        ids = [image_id for image_id in ids if image_id in masks]
+        if not ids:
+            raise ValueError('No source images match the configured ImageNetS ground truths')
     return set(ids if limit is None else ids[:limit])
 
 
@@ -223,10 +235,10 @@ def inspect_busi_pipeline(root, data, expected_ids, methods=None):
     return rows
 
 
-def check_dataset(config_name, methods=None, limit=None, configured_only=False, busi_results_root=None):
+def check_dataset(config_name, methods=None, limit=None, configured_only=False, busi_results_root=None, gt_only=False):
     config = load_config(config_name)
     data = config['data']
-    expected = source_ids(data, limit)
+    expected = source_ids(data, limit, gt_only)
     base = output_path(config, 'partitions')
     configured = base / data['mask_dir_final']
     folders = {configured}
@@ -234,6 +246,10 @@ def check_dataset(config_name, methods=None, limit=None, configured_only=False, 
         prefix = re.sub(r'[^A-Za-z0-9-]', '', data['name']) + '_sam'
         folders.update(path for path in base.iterdir() if path.is_dir() and path.name.startswith(prefix))
     rows = [inspect_folder(folder, expected, data['name'], methods) for folder in sorted(folders)]
+    for row in rows:
+        row['input_selection'] = 'gt-only' if gt_only and data['name'].lower() == 'imagenet' else 'all'
+        if row['input_selection'] == 'gt-only':
+            row['gt_variant'] = data['ground_truth'].get('variant', 919)
     if data['name'].lower() == 'busi' and not configured_only and busi_results_root is not None:
         root = rooted(busi_results_root)
         if root.is_dir():
@@ -247,6 +263,8 @@ def main():
     parser.add_argument('--methods', nargs='+', choices=STAGES,
                         help='Require these stages; default: stages recorded for each image')
     parser.add_argument('--configured-only', action='store_true', help='Check only data.mask_dir_final')
+    parser.add_argument('--gt-only', '--gtonly', action='store_true',
+                        help='ImageNet: count only inputs with configured ImageNetS GT before applying --limit; other datasets unchanged')
     parser.add_argument('--limit', type=int, help='Compare against first N inputs in generation order')
     parser.add_argument('--busi-results-root', type=Path, default=ROOT / 'results/busi',
                         help='Also scan nested partitions from run_busi_shapbpt.py (default: results/busi)')
@@ -257,7 +275,7 @@ def main():
     rows, errors = [], []
     for config in args.config:
         try:
-            rows.extend(check_dataset(config, args.methods, args.limit, args.configured_only, args.busi_results_root))
+            rows.extend(check_dataset(config, args.methods, args.limit, args.configured_only, args.busi_results_root, args.gt_only))
         except (OSError, ValueError, KeyError, TypeError) as exc:
             errors.append({'config': config, 'error': str(exc)})
     print(f'{"Dataset":<12} {"Completed / Total":>19} {"Progress":>9} {"Partial":>8} '
@@ -276,10 +294,14 @@ def main():
         if row['subset_missing_timings'] or row['folder_missing_timings']:
             print(f'  Completed images missing timings: subset={row["subset_missing_timings"]}, '
                   f'folder={row["folder_missing_timings"]}')
+    if any(row.get('input_selection') == 'gt-only' for row in rows):
+        print('ImageNet: GT-only selection; annotated source images are selected BEFORE --limit, matching generation.')
     if any(row.get('layout') == 'busi_pipeline' for row in rows):
         print('BUSI nested rows: sizes include SAM input_* outputs only; time is inference + refinement, excluding XAI.')
     print('Size = logical file sizes; subset follows --limit, folder includes all files. '
           'Time = sum of recorded per-image generation times (HH:MM:SS), not Slurm wall time.')
+    if not args.gt_only and any(row['dataset'].lower() == 'imagenet' for row in rows):
+        print('For ImageNet partitions generated with --gt-only, pass --gt-only here as well.')
     for error in errors:
         print(f'ERROR {error["config"]}: {error["error"]}')
     if args.json:

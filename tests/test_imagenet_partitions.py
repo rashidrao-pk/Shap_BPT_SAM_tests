@@ -37,7 +37,7 @@ class ImageNetExportTest(unittest.TestCase):
             with patch.object(batch.sam, 'build_generator', return_value=('fake', 'cpu', 'fake.pt')) as build:
                 with patch.object(batch.sam, 'infer_masks', return_value=(masks, 0.2, 'cpu', 'fake.pt')):
                     imagenet.run(args)
-                    output = root / 'partitions/ImageNet_sam2_tiny_62_refined_singlepass'
+                    output = root / 'partitions/ImageNet_sam2_tiny_62_refined-sam_singlepass'
                     prefix = output / 'ILSVRC2012_val_00000002'
                     # Ordering follows relative paths, as documented.
                     self.assertTrue(prefix.with_name(prefix.name + '_refined.npy').is_file())
@@ -51,7 +51,7 @@ class ImageNetExportTest(unittest.TestCase):
                     self.assertEqual(build.call_count, 2)
                     self.assertTrue((output / 'ILSVRC2012_val_00000001_refined.npy').is_file())
                     log = output.with_suffix('.log').read_text()
-                    self.assertIn('ImageNet_sam2_tiny_62_refined_singlepass', log)
+                    self.assertIn(output.name, log)
                     self.assertIn('1 masks, 1 regions', log)
                     args.dry_run = True
                     imagenet.run(args)

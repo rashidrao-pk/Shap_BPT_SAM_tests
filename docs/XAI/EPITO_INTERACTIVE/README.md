@@ -140,7 +140,7 @@ Repeat with a SAM1 or SAM2 config copy to compare both partition sources. The ex
 python -u src/scripts/explanations/OC_PartImageNet.py \
   --config PartImageNet_epito --show-gt \
   --checkpoint checkpoints/partimagenet/resnet50-11ad3fa6.pth \
-  --weights IMAGENET1K_V2 \
+  --weights IMAGENET1K_V2 --bg-type full \
   --limit 1 --explain_all --budget 1000 --no-heatmaps --auc-num-samples 200
 ```
 

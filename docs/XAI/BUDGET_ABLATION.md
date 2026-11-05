@@ -1,6 +1,10 @@
 # MS-COCO: select one budget with a small ablation
 
+For the current statistical study across datasets, see [Full-background budget ablation](BUDGET_FULL_ABLATION.md). The commands below describe the earlier strict per-image MS-COCO diagnostic; it is separate from the paired bootstrap decision.
+
 Use a few MS-COCO examples to select **one common budget** for BPT, BPT+SAM_c, and SAM_c+KernelSHAP. Test both detectors (YOLO11s and DETR) and both partition sources (SAM1 and SAM2), then combine the evidence.
+
+Only the XAI explanation budget varies in this study. Keep AUC resolution fixed at 200 points for evaluation; comparing AUC point counts is outside this ablation.
 
 The result is the **smallest tested budget passing the declared checks**, not proof of a universal minimum. Until the pilot finishes and validates a choice, budgets such as 500 or 1000 remain provisional.
 
@@ -29,7 +33,7 @@ Run inside your allocated EPITO GPU session with `pt_312_sam` activated. Have th
 ```bash
 python -u src/scripts/explanations/budget_ablation.py \
   --runner OD_yolo --model yolo11s --config MSCOCO_epito_sam1 \
-  --show-gt --limit 5 --bg-type black --class-aggregation sum \
+  --show-gt --limit 5 --bg-type full --class-aggregation sum \
   --budgets 100 200 500 1000 2000 --reference-budget 4000 \
   --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
   --auc-num-samples 200 --study-name mscoco_pilot --dry-run
@@ -48,7 +52,7 @@ Keep budgets, repeats, seed, background, scoring, and AUC resolution identical. 
 ```bash
 python -u src/scripts/explanations/budget_ablation.py \
   --runner OD_yolo --model yolo11s --config MSCOCO_epito_sam1 \
-  --show-gt --limit 5 --bg-type black --class-aggregation sum \
+  --show-gt --limit 5 --bg-type full --class-aggregation sum \
   --budgets 100 200 500 1000 2000 --reference-budget 4000 \
   --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
   --auc-num-samples 200 --study-name mscoco_pilot
@@ -59,7 +63,7 @@ python -u src/scripts/explanations/budget_ablation.py \
 ```bash
 python -u src/scripts/explanations/budget_ablation.py \
   --runner OD_yolo --model yolo11s --config MSCOCO_sam2_epito \
-  --show-gt --limit 5 --bg-type black --class-aggregation sum \
+  --show-gt --limit 5 --bg-type full --class-aggregation sum \
   --budgets 100 200 500 1000 2000 --reference-budget 4000 \
   --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
   --auc-num-samples 200 --study-name mscoco_pilot
@@ -70,7 +74,7 @@ python -u src/scripts/explanations/budget_ablation.py \
 ```bash
 python -u src/scripts/explanations/budget_ablation.py \
   --runner OD_DETR --model facebook/detr-resnet-50 --config MSCOCO_epito_sam1 \
-  --show-gt --limit 5 --bg-type black --class-aggregation sum \
+  --show-gt --limit 5 --bg-type full --class-aggregation sum \
   --budgets 100 200 500 1000 2000 --reference-budget 4000 \
   --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
   --auc-num-samples 200 --study-name mscoco_pilot
@@ -81,7 +85,7 @@ python -u src/scripts/explanations/budget_ablation.py \
 ```bash
 python -u src/scripts/explanations/budget_ablation.py \
   --runner OD_DETR --model facebook/detr-resnet-50 --config MSCOCO_sam2_epito \
-  --show-gt --limit 5 --bg-type black --class-aggregation sum \
+  --show-gt --limit 5 --bg-type full --class-aggregation sum \
   --budgets 100 200 500 1000 2000 --reference-budget 4000 \
   --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
   --auc-num-samples 200 --study-name mscoco_pilot
@@ -91,7 +95,7 @@ For a specific local YOLO file, add `--checkpoint src/checkpoints/yolo11s.pt` if
 
 The target is each detector's top-scoring class on the unmasked input and stays fixed across all budgets/repeats for that image. Detectors can choose different classes on the same image; the study tests convergence for each detector's own target. COCO GT contours and optional IoU diagnostics refer to that target class. GT is not used to construct partitions or choose the budget.
 
-Black background is explicit here. `--bg-type full` averages multiple background replacements and is more expensive; it requires a separate pilot scope. Budgets are method-specific evaluation/sample limits, so actual mask evaluations and background-expanded model-image counts are recorded rather than assumed equal.
+`--bg-type full` is required here. It averages black, gray, white, blurred and noise replacements. Budgets are method-specific evaluation/sample limits, so actual mask evaluations and background-expanded model-image counts are recorded rather than assumed equal.
 
 ## 4. Resume after interruption
 
@@ -102,7 +106,7 @@ For a six-hour batch allocation, prefix the same arguments with:
 ```bash
 sbatch src/hpc/run_xai.sbatch src/scripts/explanations/budget_ablation.py \
   --runner OD_yolo --model yolo11s --config MSCOCO_epito_sam1 \
-  --show-gt --limit 5 --bg-type black --class-aggregation sum \
+  --show-gt --limit 5 --bg-type full --class-aggregation sum \
   --budgets 100 200 500 1000 2000 --reference-budget 4000 \
   --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
   --auc-num-samples 200 --study-name mscoco_pilot
@@ -115,7 +119,7 @@ Create `logs/` before submission. Do not use `--no-resume`. Changing study setti
 Each pilot prints its directory under:
 
 ```text
-<output.evaluations>/budget_ablation/<runner>/<partition>/bg_black/mscoco_pilot/
+<output.evaluations>/budget_ablation/<runner>/<partition>/bg_full/mscoco_pilot/
 ```
 
 Open `budget_report.html`. The directory also contains:
@@ -144,10 +148,10 @@ Once **all four pilots finish**, combine their printed directories. For the defa
 ```bash
 python src/scripts/explanations/budget_ablation.py \
   --combine \
-  results/evaluations/budget_ablation/OD_yolo/MSCOCO_sam1_vit_b_62_compact-sam_200/bg_black/mscoco_pilot \
-  results/evaluations/budget_ablation/OD_yolo/MSCOCO_sam2_large_62_compact-sam_200/bg_black/mscoco_pilot \
-  results/evaluations/budget_ablation/OD_DETR/MSCOCO_sam1_vit_b_62_compact-sam_200/bg_black/mscoco_pilot \
-  results/evaluations/budget_ablation/OD_DETR/MSCOCO_sam2_large_62_compact-sam_200/bg_black/mscoco_pilot \
+  results/evaluations/budget_ablation/OD_yolo/MSCOCO_sam1_vit_b_62_compact-sam_200/bg_full/mscoco_pilot \
+  results/evaluations/budget_ablation/OD_yolo/MSCOCO_sam2_large_62_compact-sam_200/bg_full/mscoco_pilot \
+  results/evaluations/budget_ablation/OD_DETR/MSCOCO_sam1_vit_b_62_compact-sam_200/bg_full/mscoco_pilot \
+  results/evaluations/budget_ablation/OD_DETR/MSCOCO_sam2_large_62_compact-sam_200/bg_full/mscoco_pilot \
   --output-dir results/evaluations/budget_ablation/mscoco_common
 ```
 
@@ -174,7 +178,7 @@ For YOLO, for example:
 ```bash
 python -u src/scripts/explanations/OD_yolo.py \
   --config MSCOCO_epito_sam1 --model yolo11s --show-gt \
-  --explain_all --bg-type black --class-aggregation sum --no-heatmaps \
+  --explain_all --bg-type full --class-aggregation sum --no-heatmaps \
   --auc-num-samples 200 \
   --budget-selection results/evaluations/budget_ablation/mscoco_common/selection.json
 ```
@@ -184,7 +188,7 @@ For DETR:
 ```bash
 python -u src/scripts/explanations/OD_DETR.py \
   --config MSCOCO_epito_sam1 --model facebook/detr-resnet-50 --show-gt \
-  --explain_all --bg-type black --class-aggregation sum --no-heatmaps \
+  --explain_all --bg-type full --class-aggregation sum --no-heatmaps \
   --auc-num-samples 200 \
   --budget-selection results/evaluations/budget_ablation/mscoco_common/selection.json
 ```
@@ -195,4 +199,11 @@ This selection covers the tested **MS-COCO detectors and partition variants**. T
 
 References for metric/method definitions: [Spearman correlation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.spearmanr.html), [Kernel SHAP sampling](https://shap.readthedocs.io/en/latest/generated/shap.KernelExplainer.html). The tolerances above are project criteria, not thresholds prescribed by these sources.
 
-To measure whether 200 AUC points improve evaluation enough over 100, use the separate [saved-map AUC point comparison](AUC_POINTS_ABLATION.md). Keep its resolution fixed while collecting a budget-selection study.
+For the frozen EPITO study, generate the budget-only summary with:
+
+```bash
+python src/scripts/explanations/summarize_ablation_study.py \
+  results/evaluations/ablation_20261105_v1
+```
+
+This writes `report/analysis.md` with the budget status and, when all pilots finish, the combined budget conclusion. Previously collected AUC-resolution results are excluded.

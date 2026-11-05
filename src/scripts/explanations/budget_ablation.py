@@ -16,7 +16,8 @@ import experiment_common as common
 from budget_selection import DEFAULT_CRITERIA, compare_maps, passes, select_budget, load_study
 from config_paths import output_path, resolve_path
 
-RUNNERS = ['OC_ResNet', 'OC_ViT', 'COD_ViT', 'OD_DETR', 'OD_yolo', 'OC_CelebA']
+RUNNERS = ['OC_ResNet', 'OC_VGG', 'OC_ViT', 'COD_ViT', 'OD_DETR', 'OD_yolo',
+           'OC_CelebA', 'OC_BUSI', 'OC_PartImageNet']
 METHODS = ['BPT', 'BPT+SAM_c', 'SAM_c+KernelSHAP']
 
 
@@ -42,7 +43,7 @@ def parser(argv=None):
     result.add_argument('--max-auc-difference', type=float, default=DEFAULT_CRITERIA['max_auc_difference'])
     result.add_argument('--min-image-pass-fraction', type=float, default=1.)
     result.add_argument('--combine', nargs='+', type=Path, help='Combine completed pilot folders, without model inference')
-    result.set_defaults(limit=5)
+    result.set_defaults(limit=5, bg_type='full')
     return result.parse_args(argv)
 
 

@@ -111,7 +111,7 @@ class BudgetAblationTest(unittest.TestCase):
                                '--repeats','2','--limit','3','--auc-num-samples','3','--torch-threads','2',
                                '--methods','BPT','BPT+SAM_c','--no-plots'])
             result=pilot.run(args,adapter=Adapter())
-            folder=root/'eval/budget_ablation/OC_ResNet/fixture/bg_black/pilot'
+            folder=root/'eval/budget_ablation/OC_ResNet/fixture/bg_full/pilot'
             study=json.loads((folder/'study.json').read_text())
             rows=json.loads((folder/'comparisons.json').read_text())
             self.assertEqual(study['state'],'complete')

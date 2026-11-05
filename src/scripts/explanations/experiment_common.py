@@ -22,9 +22,9 @@ from config_paths import load_path_config, output_path, partition_path, resolve_
 from model_adapters import load_adapter
 
 METHODS = ['BPT', 'SAM_c', 'SAM_c_kernelshap']
-DEFAULT_CONFIGS = {'OC_PartImageNet': 'PartImageNet_epito', 'OC_BUSI': 'BUSI_epito', 'OD_DETR': 'MSCOCO_epito', 'OC_ResNet': 'ImageNet_epito',
+DEFAULT_CONFIGS = {'OC_VGG': 'ImageNet_epito', 'OC_PartImageNet': 'PartImageNet_epito', 'OC_BUSI': 'BUSI_epito', 'OD_DETR': 'MSCOCO_epito', 'OC_ResNet': 'ImageNet_epito',
                    'OC_ViT': 'ImageNet_epito', 'COD_ViT': 'CAMO_epito', 'OC_CelebA': 'CelebAHQ_epito'}
-MODEL_NAMES = {'OC_PartImageNet': 'resnet50', 'OC_BUSI': 'ghostsas001/busi-breast-ultrasound-siglip', 'OD_DETR': 'facebook/detr-resnet-50', 'OC_ResNet': 'resnet50',
+MODEL_NAMES = {'OC_VGG': 'vgg16', 'OC_PartImageNet': 'resnet50', 'OC_BUSI': 'ghostsas001/busi-breast-ultrasound-siglip', 'OD_DETR': 'facebook/detr-resnet-50', 'OC_ResNet': 'resnet50',
                'OC_ViT': 'vit_b_16', 'COD_ViT': 'vit_b_16', 'OC_CelebA': 'celeba_cnn'}
 
 

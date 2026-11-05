@@ -18,7 +18,7 @@ python src/scripts/generate_partimagenet_partitions.py \
 
 Remove `--limit 2` for the entire configured split. The generator reads only images listed in `data.annotation_file`; masks are not used to generate partitions. Text progress, logs, and resume follow the existing dataset generators.
 
-Set `data.mask_dir_final` to the output folder printed by the generator. This example produces `PartImageNet_sam2_tiny_62_compact-refined-sam_50`.
+Set `data.mask_dir_final` to the output folder printed by the generator. This example produces `PartImageNet_sam2_tiny_62_compact-sam_50`.
 
 For SAM1, replace the model/checkpoint options with:
 
@@ -36,7 +36,7 @@ Use a filename stem from your completed partitions:
 ```bash
 python src/scripts/view_partitions.py \
   --config PartImageNet_epito --image-id YOUR_IMAGE_STEM \
-  --methods sam compact refined --show-gt
+  --methods sam compact --show-gt
 ```
 
 The config supplies image, partition, ground-truth, and preview output paths. `--gt-class` optionally selects an annotation category name or ID.

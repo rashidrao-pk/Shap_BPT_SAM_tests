@@ -18,12 +18,19 @@ def read_class_names(value):
 class ClassifierAdapter:
     def __init__(self, args, device, architecture):
         import torch
-        from torchvision.models import (ResNet50_Weights, ViT_B_16_Weights, resnet50, vit_b_16)
+        from torchvision.models import (ResNet50_Weights, ViT_B_16_Weights, VGG16_Weights,
+                                        resnet50, vit_b_16, vgg16)
         self.torch, self.device, self.batch_size = torch, device, args.model_batch_size
-        enum = ResNet50_Weights if architecture == 'resnet50' else ViT_B_16_Weights
-        builder = resnet50 if architecture == 'resnet50' else vit_b_16
+        architectures = {'resnet50': (ResNet50_Weights, resnet50, 'fc.weight'),
+                         'vit_b_16': (ViT_B_16_Weights, vit_b_16, 'heads.head.weight'),
+                         'vgg16': (VGG16_Weights, vgg16, 'classifier.6.weight')}
+        if architecture not in architectures:
+            raise ValueError(f'Unsupported classifier architecture: {architecture}')
+        enum, builder, head = architectures[architecture]
         weights = None if args.weights.lower() == 'none' else getattr(enum, args.weights)
         default_weights = weights or enum.DEFAULT
+        if default_weights.meta.get('categories') is None:
+            raise ValueError('Choose classification weights; feature-only weights have no valid classifier')
         names = read_class_names(args.class_names)
         state, metadata = None, {}
         if args.checkpoint:
@@ -34,7 +41,6 @@ class ClassifierAdapter:
                 raise ValueError('Checkpoint must contain a torchvision-compatible state_dict')
             state = {key.removeprefix('module.'): value for key, value in state.items()}
             names = names or read_class_names(metadata.get('class_names', metadata.get('categories')))
-        head = 'fc.weight' if architecture == 'resnet50' else 'heads.head.weight'
         classes = int(state[head].shape[0]) if state is not None and head in state else 1000
         if names is not None and len(names) != classes:
             raise ValueError(f'{len(names)} class names supplied for a {classes}-class checkpoint')
@@ -127,6 +133,10 @@ class DetrAdapter:
 
 
 def load_adapter(kind, args, device):
+    if kind == 'OC_VGG':
+        adapter = ClassifierAdapter(args, device, 'vgg16')
+        adapter.model.requires_grad_(False)
+        return adapter
     if kind == 'OC_PartImageNet':
         adapter = ClassifierAdapter(args, device, 'resnet50')
         adapter.model.requires_grad_(False)

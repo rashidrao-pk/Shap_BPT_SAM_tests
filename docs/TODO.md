@@ -11,16 +11,34 @@ TODO plan
 - [x] Across Experiment analysis:
 - [x] Normalize AUC numbers to keep comparable
 
+## Partition Generation
+
+Add SAM Variants
+
+- [x] SAM-1
+- [x] SAM-2
+- [ ] SAM-3
+
 ## DATASETS
 
 Add Datasets
 
 - [x] MS-COCO
 - [x] ImageNet
-- [ ] PartNet
+- [x] PartNet
 - [x] Celeb-A-HQ
 - [x] CAMO
-- [ ] BUSI
+- [x] BUSI
+
+## Models
+
+Add Models
+
+- [x] Yolo
+- [x] ViT-b
+- [x] ResNet-50
+- [x] VGG
+- [x] CNN
 
 ### XAI part
 

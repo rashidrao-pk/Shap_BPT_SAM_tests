@@ -247,3 +247,5 @@ runs. No budget is claimed as a universal minimum.
 BUSI breast ultrasound: see [BUSI SigLIP explanations](BUSI.md) for predicted-class explanations and lesion contours.
 
 PartImageNet: [download, partitions, and ResNet50 explanations](PARTIMAGENET.md).
+
+Batch commands for every dataset/model, including ImageNet VGG16: [EPITO sbatch guide](EPITO_SBATCH/README.md).

@@ -263,7 +263,7 @@ class GradientMethods:
         x = self.x.detach().requires_grad_(True)
         with torch.enable_grad(), seeded(torch, args.explanation_seed):
             if method == 'LRP':
-                if getattr(self.adapter, 'name', '') not in {'resnet50', 'celeba_cnn'}:
+                if getattr(self.adapter, 'name', '') not in {'resnet50', 'celeba_cnn', 'vgg16'}:
                     raise UnsupportedMethod('LRP for torchvision ViT needs a transformer-specific relevance backend; no substitute map is generated')
                 from captum.attr import LRP
                 model = lrp_model(self.model)
@@ -278,6 +278,10 @@ class GradientMethods:
                 from captum.attr import LayerGradCam
                 if getattr(self.adapter, 'name', '') == 'resnet50':
                     layer = self.model.layer4[-1]
+                    values = LayerGradCam(self.forward, layer).attribute(x, target=target, relu_attributions=True)
+                elif getattr(self.adapter, 'name', '') == 'vgg16':
+                    layer = next(module for module in reversed(list(self.model.features.modules()))
+                                 if isinstance(module, torch.nn.Conv2d))
                     values = LayerGradCam(self.forward, layer).attribute(x, target=target, relu_attributions=True)
                 elif getattr(self.adapter, 'name', '') == 'celeba_cnn':
                     values = LayerGradCam(self.forward, self.model.unit8.conv).attribute(

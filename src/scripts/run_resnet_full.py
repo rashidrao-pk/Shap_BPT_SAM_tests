@@ -665,7 +665,7 @@ def parse_args():
     parser.add_argument("--max-evals", type=int, default=500)
     parser.add_argument("--limit", type=int, default=None, help="Limit number of images for a smoke test.")
     parser.add_argument("--image-ids", nargs="*", default=None, help="Optional explicit image ids.")
-    parser.add_argument("--bg-type", default="noise", choices=["black", "gray", "white", "blurred", "noise", "full"])
+    parser.add_argument("--bg-type", default="full", choices=["black", "gray", "white", "blurred", "noise", "full"])
     parser.add_argument("--num-explained-classes", type=int, default=4)
     parser.add_argument("--eval-batch-size", type=int, default=256)
     parser.add_argument("--auc-batch-size", type=int, default=128)

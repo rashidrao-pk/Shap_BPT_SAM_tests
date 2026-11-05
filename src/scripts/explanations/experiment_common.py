@@ -20,6 +20,7 @@ for directory in [ROOT, ROOT / 'src/scripts']:
 import numpy as np
 from config_paths import load_path_config, output_path, partition_path, resolve_path, evaluation_path
 from model_adapters import load_adapter
+from auc_export import auc_columns, enrich_auc_rows
 
 METHODS = ['BPT', 'SAM_c', 'SAM_c_kernelshap']
 DEFAULT_CONFIGS = {'OC_VGG': 'ImageNet_epito', 'OC_PartImageNet': 'PartImageNet_epito', 'OC_BUSI': 'BUSI_epito', 'OD_DETR': 'MSCOCO_epito', 'OC_ResNet': 'ImageNet_epito',
@@ -535,6 +536,11 @@ def run(kind, args, adapter=None):
                'ground_truth': inputs['ground_truth'],
                'score_type': 'detection confidence' if kind == 'OD_DETR' else 'attribute logit' if kind == 'OC_CelebA' else 'classification probability'})
     rows = [row for manifest in prior for row in manifest['rows']]
+    for manifest in prior:
+        image_id = manifest['prediction']['image_id']
+        metrics = run_dir / image_id / f'{image_id}_metrics.json'
+        if metrics.is_file():
+            enrich_auc_rows(manifest['rows'], json.loads(metrics.read_text()))
     summaries = [manifest['prediction'] for manifest in prior]
     failures = []
     image_timings = []
@@ -620,7 +626,7 @@ def run(kind, args, adapter=None):
                 if args.compute_auc:
                     result = evaluate(runtime, method, values, predict, target, f_s, f_0, args, elapsed)
                     auc_results.append(result)
-                    row.update({key: float(result[key]['auc_clipr']) for key in ['auc_ins', 'auc_del']})
+                    row.update(auc_columns(result))
                     row.update({key: value for key, value in result.items()
                                 if isinstance(value, (int, float, np.number))})
                 image_rows.append(row)
@@ -643,7 +649,7 @@ def run(kind, args, adapter=None):
                     if args.compute_auc:
                         result = evaluate(runtime, method, values, predict, target, f_s, f_0, args, elapsed)
                         auc_results.append(result)
-                        row.update({key: float(result[key]['auc_clipr']) for key in ['auc_ins', 'auc_del']})
+                        row.update(auc_columns(result))
                         row.update({key: value for key, value in result.items()
                                     if isinstance(value, (int, float, np.number))})
                     image_rows.append(row)

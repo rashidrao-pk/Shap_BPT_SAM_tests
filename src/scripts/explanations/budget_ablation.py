@@ -15,6 +15,7 @@ from PIL import Image
 import experiment_common as common
 from budget_selection import DEFAULT_CRITERIA, compare_maps, passes, select_budget, load_study
 from config_paths import output_path, resolve_path
+from auc_export import auc_columns
 
 RUNNERS = ['OC_ResNet', 'OC_VGG', 'OC_ViT', 'COD_ViT', 'OD_DETR', 'OD_yolo',
            'OC_CelebA', 'OC_BUSI', 'OC_PartImageNet']
@@ -125,7 +126,7 @@ def auc_summary(runtime, predict, values, target, f_s, f_0, args):
         curve = runtime.utx.saliency_to_auc(predict, values, f_s, f_0, target,
                                             batch_size=args.auc_batch_size, method=direction,
                                             num_samples=args.auc_num_samples)
-        result['auc_'+direction] = float(curve['auc_clipr'])
+        result.update(auc_columns({'auc_'+direction: curve}))
         result['auc_'+direction+'_points'] = len(curve['xs'])
     return result
 

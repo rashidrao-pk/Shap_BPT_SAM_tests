@@ -1,6 +1,7 @@
 ## UTIL Functions for MS COCO Dataset
 from pathlib import Path
 from config_paths import output_path
+from auc_export import auc_columns
 import html
 import json
 from math import comb
@@ -1151,7 +1152,7 @@ import cv2
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("mps") if ('mps' in dir(torch.backends)) and torch.backends.mps.is_available() else torch.device("cpu")
 
 
-def load_image(fname,im_size=None,bg_type='black'):
+def load_image(fname,im_size=None,bg_type='full'):
     img_ = cv2.imread(f'{fname}')
     image_to_explain = cv2.cvtColor(img_, cv2.COLOR_BGR2RGB)                #.astype(np.float32)
     if im_size is not None:
@@ -1974,6 +1975,7 @@ def auc_results_to_rows(auc_results, image_no=None, f_S=None, f_0=None,
         }
         for key in metric_keys:
             row[key] = result.get(key, np.nan)
+        row.update(auc_columns(result))
         rows.append(row)
     return rows
 

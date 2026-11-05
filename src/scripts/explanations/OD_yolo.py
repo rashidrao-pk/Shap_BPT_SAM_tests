@@ -1901,6 +1901,8 @@ def run(args):
                     f_S=f_S,
                     f_0=f_0,
                 )
+                (path_results_img / f'{image_id}_metrics.json').write_text(
+                    json.dumps(utx.to_jsonable(auc_results), indent=2), encoding='utf-8')
                 auc_table_rows.extend(image_auc_rows)
                 current_run_path, current_auc_df = save_current_auc_table(auc_table_rows, path_results)
                 current_auc_df.to_csv(path_evaluations / current_run_path.name, index=False)

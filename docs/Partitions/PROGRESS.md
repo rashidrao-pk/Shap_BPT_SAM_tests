@@ -68,7 +68,7 @@ The same command now includes storage and time automatically:
 ```bash
 python src/scripts/check_partition_progress.py --limit 1000
 
-python src/scripts/check_partition_progress.py --limit 1000 --gt-only --configured-only
+python src/scripts/check_partition_progress.py --limit 1000 --gt-only --no-busi-pipeline
 ```
 
 - `Size(subset)`: saved partition arrays, raw-mask NPZs, and results JSONs for the selected input IDs, including partial outputs.

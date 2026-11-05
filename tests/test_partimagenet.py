@@ -131,3 +131,34 @@ def test_shared_generation_selects_annotation_split(tmp_path):
     from generate_coco_partitions import collect_images as collect
     data, image = fixture(tmp_path)
     assert [item['id'] for item in collect(data)] == [image.stem]
+
+
+def test_configure_real_extracted_layout(tmp_path):
+    import yaml
+    import download_partimagenet as download
+    data, image = fixture(tmp_path)
+    config_path = tmp_path / 'config.yaml'
+    old = {'data': {**data, 'image_dir': str(tmp_path / 'nonexistent/PartImageNet_Seg'),
+                   'annotation_file': '/wrong/val.json'}, 'output': {'partitions': '/keep/partitions'}}
+    config_path.write_text(yaml.safe_dump(old))
+    records = download.configure_dataset(tmp_path, config_path)
+    updated = yaml.safe_load(config_path.read_text())
+    assert len(records) == 1
+    assert updated['data']['image_dir'] == str(tmp_path)
+    assert updated['data']['annotation_file'] == str(tmp_path / 'val.json')
+    assert updated['data']['ground_truth']['annotation_file'] == updated['data']['annotation_file']
+    assert updated['data']['mask_dir_final'] == data['mask_dir_final']
+    assert updated['output'] == old['output']
+    assert config_path.with_suffix('.yaml.bak').exists()
+
+
+def test_configure_ambiguous_annotations_preserves_config(tmp_path):
+    import download_partimagenet as download
+    data, _ = fixture(tmp_path)
+    (tmp_path / 'other').mkdir()
+    (tmp_path / 'other/val.json').write_text((tmp_path / 'val.json').read_text())
+    config_path = tmp_path / 'config.yaml'
+    config_path.write_text('keep this until selection is explicit')
+    with pytest.raises(ValueError, match='found 2'):
+        download.configure_dataset(tmp_path, config_path)
+    assert config_path.read_text() == 'keep this until selection is explicit'

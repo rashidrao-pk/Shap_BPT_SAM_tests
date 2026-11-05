@@ -25,6 +25,30 @@ Use `--variant OOD` only if you specifically want the authors' OOD split. Both v
 
 ## Configure one split
 
+The archive's internal folders need not be named `PartImageNet_Seg`. Automatically locate the extracted validation part annotations, validate their image paths, and update the config:
+
+```bash
+python src/scripts/download_partimagenet.py --assets configure --split val
+```
+
+This step uses the existing extraction and performs **no downloads**. It sets `data.image_dir` to the extraction root and updates both annotation paths together, retaining output paths and saving the original config as `.yaml.bak`. It uses the already-installed PyYAML package, with no NumPy/PyTorch imports.
+
+If multiple annotation JSONs match, it stops without changing the config. Select the correct part annotation explicitly:
+
+```bash
+python src/scripts/download_partimagenet.py --assets configure \
+  --annotation-file /absolute/path/to/validation_part_annotations.json
+```
+
+Confirm selection before loading SAM:
+
+```bash
+python src/scripts/generate_partimagenet_partitions.py \
+  --config PartImageNet_epito --dry-run --limit 2
+```
+
+For a first-time download plus configuration, use `python src/scripts/download_partimagenet.py --configure`. To inspect or set paths manually, use the following steps.
+
 Inspect the extracted paths:
 
 ```bash

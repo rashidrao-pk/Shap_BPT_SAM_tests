@@ -180,3 +180,66 @@ def test_configure_prefers_parts_over_whole_object_annotations(tmp_path):
     selected = yaml.safe_load(config.read_text())['data']['annotation_file']
     assert Path(selected) == tmp_path / 'PartImageNet/annotations/val/val.json'
     assert len(records) == 1
+
+
+def test_limited_partimagenet_previews_with_ground_truth(tmp_path, monkeypatch):
+    import yaml
+    from view_partitions import main as preview_main
+    data, image = fixture(tmp_path)
+    directory = tmp_path / 'partitions' / data['mask_dir_final']
+    directory.mkdir(parents=True)
+    labels = np.zeros((16, 16), dtype=np.uint16)
+    labels[8:] = 1
+    for stage in ['sam', 'compact']:
+        np.save(directory / f'{image.stem}_{stage}.npy', labels)
+    (directory / f'{image.stem}_results.json').write_text('{}')
+    # Partial outputs must not be selected for preview.
+    (directory / 'unannotated_results.json').write_text('{}')
+    np.save(directory / 'unannotated_sam.npy', labels)
+    config = tmp_path / 'config.yaml'
+    config.write_text(yaml.safe_dump({'data': data,
+        'output': {key: str(tmp_path / key) for key in ['partitions', 'evaluations', 'explanations']}}))
+    monkeypatch.setattr(sys, 'argv', ['view_partitions.py', '--config', str(config),
+        '--limit', '2', '--methods', 'sam', 'compact', '--show-gt'])
+    preview_main()
+    output = tmp_path / 'evaluations/previews' / data['mask_dir_final']
+    assert (output / f'{image.stem}.png').is_file()
+    assert not (output / 'unannotated.png').exists()
+    saved_gt = json.loads((output / f'{image.stem}_gt.json').read_text())
+    assert saved_gt['foreground_pixels'] == 50
+
+
+def test_preview_uses_annotation_path_when_image_basename_is_duplicated(tmp_path, monkeypatch):
+    import yaml
+    from view_partitions import main as preview_main, resolve_paths
+    from types import SimpleNamespace
+    data, image = fixture(tmp_path)
+    annotation = Path(data['annotation_file'])
+    document = json.loads(annotation.read_text())
+    document['images'][0]['file_name'] = 'val/' + image.name
+    annotation.write_text(json.dumps(document))
+    for split in ['train', 'test']:
+        directory = tmp_path / 'images' / split
+        directory.mkdir()
+        Image.fromarray(np.full((16, 16, 3), 255, dtype=np.uint8)).save(directory / image.name)
+    directory = tmp_path / 'partitions' / data['mask_dir_final']
+    directory.mkdir(parents=True)
+    for stage in ['sam', 'compact']:
+        np.save(directory / f'{image.stem}_{stage}.npy', np.zeros((16, 16), dtype=np.uint16))
+    (directory / f'{image.stem}_results.json').write_text('{}')
+    # A completed output outside this annotation split must not enter the preview batch.
+    for stage in ['sam', 'compact']:
+        np.save(directory / f'unannotated_{stage}.npy', np.zeros((16, 16), dtype=np.uint16))
+    (directory / 'unannotated_results.json').write_text('{}')
+    config = tmp_path / 'config.yaml'
+    config.write_text(yaml.safe_dump({'data': data, 'output': {
+        key: str(tmp_path / key) for key in ['partitions', 'evaluations', 'explanations']}}))
+    selected, _, _ = resolve_paths(SimpleNamespace(config=str(config), image_id=image.stem,
+        image=None, partitions=None, output=None, methods=['sam', 'compact']))
+    assert selected == image
+    monkeypatch.setattr(sys, 'argv', ['view_partitions.py', '--config', str(config),
+        '--limit', '5', '--methods', 'sam', 'compact', '--show-gt'])
+    preview_main()
+    output = tmp_path / 'evaluations/previews' / data['mask_dir_final']
+    assert (output / f'{image.stem}.png').exists()
+    assert not (output / 'unannotated.png').exists()

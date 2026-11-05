@@ -13,7 +13,7 @@ python src/scripts/generate_partimagenet_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
   --device cuda --max-regions 62 --generate_at_least_n_masks 50 \
-  --save-partitions sam compact refined --limit 2
+  --save-partitions sam compact --limit 2
 ```
 
 Remove `--limit 2` for the entire configured split. The generator reads only images listed in `data.annotation_file`; masks are not used to generate partitions. Text progress, logs, and resume follow the existing dataset generators.
@@ -31,7 +31,15 @@ Then use the printed SAM1 folder in `mask_dir_final`. Use separate partition out
 
 ## Preview
 
-Use a filename stem from your completed partitions:
+Preview the first five completed images without specifying image IDs:
+
+```bash
+python src/scripts/view_partitions.py \
+  --config PartImageNet_epito --limit 5 \
+  --methods sam compact --show-gt
+```
+
+Or select one image explicitly:
 
 ```bash
 python src/scripts/view_partitions.py \
@@ -39,7 +47,9 @@ python src/scripts/view_partitions.py \
   --methods sam compact --show-gt
 ```
 
-The config supplies image, partition, ground-truth, and preview output paths. `--gt-class` optionally selects an annotation category name or ID.
+`--limit` selects up to N completed images in filename order, skipping inputs missing a requested partition stage. Each preview is saved separately under `output.evaluations/previews/<partition-folder>/`. Use either `--limit` or `--image-id`; do not combine them.
+
+The config supplies image, partition, ground-truth, and preview output paths. PartImageNet previews use the same annotation-based image resolver as generation and XAI. Duplicate basenames elsewhere in the extraction do not override an exact annotated path; unresolved ambiguity remains an error. Batch previews are restricted to the selected annotation split. `--gt-class` optionally selects an annotation category name or ID.
 
 Next: [PartImageNet XAI](../../XAI/PARTIMAGENET.md).
 

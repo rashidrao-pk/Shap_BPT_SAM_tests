@@ -93,7 +93,7 @@ def load_view_config(config_name):
     return root, yaml.safe_load(path.read_text())
 
 
-def discover_image_ids(config_name, methods, limit):
+def discover_image_ids(config_name, methods, limit, allowed_ids=None):
     root, config = load_view_config(config_name)
     data = config['data']
     folder = partition_path(config, root)
@@ -102,6 +102,8 @@ def discover_image_ids(config_name, methods, limit):
     image_ids = []
     for metadata in sorted(folder.glob('*_results.json')):
         image_id = metadata.name.removesuffix('_results.json')
+        if allowed_ids is not None and image_id not in allowed_ids:
+            continue
         if all((folder / f'{image_id}_{method}.npy').is_file() for method in methods):
             image_ids.append(image_id)
             if len(image_ids) >= limit:
@@ -111,7 +113,15 @@ def discover_image_ids(config_name, methods, limit):
     return image_ids
 
 
-def resolve_paths(args):
+def partimagenet_image_index(config):
+    from partimagenet_data import collect_images
+    from config_paths import resolve_path
+    data = config['data']
+    image_dir = resolve_path(data['image_dir'])
+    return {item['id']: image_dir / item['file_name'] for item in collect_images(data)}
+
+
+def resolve_paths(args, image_index=None):
     """Resolve config paths; explicit CLI paths take precedence."""
     image, partitions, output = args.image, args.partitions, args.output
     if args.config:
@@ -134,16 +144,22 @@ def resolve_paths(args):
             partitions = [partition_dir / f'{image_id}_{method}.npy' for method in args.methods]
         if image is None:
             image_dir = rooted(data['image_dir'])
-            extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp'}
-            candidates = [p for p in image_dir.glob(f'{image_id}.*')
-                          if p.suffix.lower() in extensions and p.is_file()]
-            if not candidates and data.get('input_format') == 'directory':
-                candidates = [p for p in image_dir.rglob(f'{image_id}.*')
+            if data.get('name', '').lower() == 'partimagenet':
+                images = image_index if image_index is not None else partimagenet_image_index(config)
+                if image_id not in images:
+                    raise ValueError(f'{image_id}: not listed in the selected PartImageNet annotation split')
+                image = images[image_id]
+            else:
+                extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp'}
+                candidates = [p for p in image_dir.glob(f'{image_id}.*')
                               if p.suffix.lower() in extensions and p.is_file()]
-            if len(candidates) != 1:
-                raise ValueError(f'Expected one image for {image_id} under {image_dir}; '
-                                 f'found {len(candidates)}. Pass --image explicitly.')
-            image = candidates[0]
+                if not candidates and data.get('input_format') == 'directory':
+                    candidates = [p for p in image_dir.rglob(f'{image_id}.*')
+                                  if p.suffix.lower() in extensions and p.is_file()]
+                if len(candidates) != 1:
+                    raise ValueError(f'Expected one image for {image_id} under {image_dir}; '
+                                     f'found {len(candidates)}. Pass --image explicitly.')
+                image = candidates[0]
         if output is None:
             output_root = output_path(config, 'evaluations', root)
             output = output_root / 'previews' / data['mask_dir_final'] / f'{image_id}.png'
@@ -176,10 +192,13 @@ def main():
             parser.error('--limit cannot be combined with explicit image/partition/output paths')
     try:
         if args.limit is not None:
-            for image_id in discover_image_ids(args.config, args.methods, args.limit):
+            _, config = load_view_config(args.config)
+            image_index = (partimagenet_image_index(config)
+                           if config['data'].get('name', '').lower() == 'partimagenet' else None)
+            for image_id in discover_image_ids(args.config, args.methods, args.limit, image_index):
                 selected = copy.copy(args)
                 selected.image_id = image_id
-                image, partitions, output = resolve_paths(selected)
+                image, partitions, output = resolve_paths(selected, image_index)
                 render(image, partitions, output, args.alpha, preview_ground_truth(args, image))
                 print(f'Preview: {output}')
             return

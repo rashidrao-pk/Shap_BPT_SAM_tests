@@ -2,6 +2,7 @@
 import sys
 from pathlib import Path
 import numpy as np
+import pytest
 from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.medical.datasets import discover_images, lesion_mask
@@ -86,7 +87,8 @@ def test_shared_busi_discovery_and_ground_truth(tmp_path):
     assert gt['scope'] == 'lesion_region' and gt['dataset_class'] == 'malignant'
 
 
-def test_busi_explanation_pipeline_with_stub_classifier(tmp_path, monkeypatch):
+@pytest.mark.parametrize('all_methods', [False, True])
+def test_busi_explanation_pipeline_with_stub_classifier(tmp_path, monkeypatch, all_methods):
     import json
     import yaml
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src/scripts/explanations'))
@@ -116,11 +118,65 @@ def test_busi_explanation_pipeline_with_stub_classifier(tmp_path, monkeypatch):
         def detections(self, image):
             return []
     monkeypatch.setattr(common, 'load_adapter', lambda *args: Adapter())
-    args = common.create_parser('OC_BUSI').parse_args([
-        '--config', str(config_file), '--show-gt', '--budget', '8',
-        '--no-auc', '--no-plots', '--no-html', '--torch-threads', '1'])
+    arguments = ['--config', str(config_file), '--show-gt', '--budget', '8',
+        '--no-plots', '--no-html', '--torch-threads', '1']
+    arguments += (['--explain_all', '--lime-budgets', '8', '--aa-budget', '8', '--auc-num-samples', '3']
+                  if all_methods else ['--no-auc'])
+    args = common.create_parser('OC_BUSI').parse_args(arguments)
     common.run('OC_BUSI', args)
     metrics = list((tmp_path / 'explanations').rglob('*_metrics.json'))
     assert len(metrics) == 1
     rows = json.loads(metrics[0].read_text())
-    assert len(rows) == 3 and all('pointing_accuracy' in row for row in rows)
+    assert len(rows) == (5 if all_methods else 3)
+    assert all('pointing_accuracy' in row for row in rows)
+    if all_methods:
+        assert all(row['auc_requested_points'] == 3 for row in rows)
+
+
+def test_model_card_preprocessing_without_processor_metadata(monkeypatch):
+    import types
+    import torch
+    from src.medical.classifier import BusiAdapter
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.config = types.SimpleNamespace(num_labels=3, id2label={0: 'benign', 1: 'malignant', 2: 'normal'})
+        @classmethod
+        def from_pretrained(cls, *args, **kwargs):
+            return cls()
+    monkeypatch.setitem(sys.modules, 'transformers', types.SimpleNamespace(AutoModelForImageClassification=Model))
+    adapter = BusiAdapter(types.SimpleNamespace(checkpoint=Path('local_model_without_processor'),
+        model='unused', local_files_only=True, model_batch_size=1), 'cpu')
+    value = adapter.preprocess(np.full((20, 30), 255, dtype=np.uint8))
+    assert tuple(value.shape) == (3, 224, 224)
+    assert torch.allclose(value, torch.ones_like(value))
+    assert torch.allclose(adapter.preprocess(np.zeros((20, 30), dtype=np.uint8)), -torch.ones_like(value))
+
+
+def test_siglip_gradcam_patch_alignment():
+    import torch
+    from types import SimpleNamespace
+    from torchvision.transforms import Compose, Resize, ToTensor
+    from transformers import SiglipConfig, SiglipForImageClassification
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src/scripts/explanations'))
+    from all_methods import GradientMethods, UnsupportedMethod
+    from experiment_common import create_parser
+    import pytest
+    torch.set_num_threads(1)
+    config = SiglipConfig(vision_config={'hidden_size': 8, 'intermediate_size': 16,
+        'num_hidden_layers': 1, 'num_attention_heads': 2, 'image_size': 16, 'patch_size': 8}, num_labels=3)
+    config._attn_implementation = 'eager'
+    model = SiglipForImageClassification(config).eval().requires_grad_(False)
+    adapter = SimpleNamespace(name='siglip_busi', model=model, device='cpu',
+        preprocessing_geometry='resize', preprocess=Compose([Resize((16, 16)), ToTensor()]),
+        forward_tensor=lambda x: model(pixel_values=x).logits.softmax(dim=1))
+    image = np.arange(20 * 24 * 3, dtype=np.uint8).reshape(20, 24, 3)
+    arguments = create_parser('OC_BUSI').parse_args(['--gradient-samples', '2', '--idg-steps', '4',
+                                                       '--attribution-batch-size', '2'])
+    methods = GradientMethods(adapter, image, [np.zeros_like(image)], arguments)
+    for method in ['GradCAM', 'IDG', 'GradExp', 'GradShap']:
+        values = methods.compute(method, 0)
+        assert values.shape == (1, 20, 24) and np.isfinite(values).all()
+    assert not model.vision_model.encoder.layers[-1].layer_norm1._forward_hooks
+    with pytest.raises(UnsupportedMethod):
+        methods.compute('LRP', 0)

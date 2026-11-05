@@ -4,6 +4,19 @@ This document covers **PartImageNet (2D images)**. First follow [one-time setup]
 
 ## Generate partitions
 
+## SAM 1
+
+```bash
+python src/scripts/generate_partimagenet_partitions.py \
+  --model sam1 \
+  --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" \
+  --sam1-variant vit_b \
+  --device cuda --max-regions 62 --generate_at_least_n_masks 50 \
+  --save-partitions sam compact --limit 2
+```
+
+## SAM 2
+
 From the repository root, inside an allocated GPU node with `pt_312_sam` active:
 
 ```bash

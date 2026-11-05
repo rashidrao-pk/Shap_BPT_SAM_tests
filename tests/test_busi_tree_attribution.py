@@ -132,3 +132,34 @@ def test_resume_after_interruption_skips_completed_images(tmp_path, monkeypatch)
     monkeypatch.setattr(sys, 'argv', [*argv, '--budget', '1000'])
     with pytest.raises(ValueError, match='settings/inputs changed'):
         mod.main()
+
+
+def test_explain_all_dispatches_to_shared_runner_for_selected_sam(tmp_path, monkeypatch):
+    import json
+    import sys
+    import yaml
+    sys.path.insert(0, str(SCRIPT.parents[0] / 'explanations'))
+    import experiment_common as common
+    base = tmp_path / 'partitions'
+    sam1 = base / 'BUSI_sam1_vit_b_62_compact-sam_50'
+    sam2 = base / 'BUSI_sam2_tiny_62_compact-sam_50'
+    sam1.mkdir(parents=True)
+    sam2.mkdir()
+    config = tmp_path / 'config.yaml'
+    config.write_text(yaml.safe_dump({'data': {'name': 'BUSI', 'mask_dir_final': sam2.name},
+                                    'output': {'partitions': str(base)}}))
+    captured = []
+    monkeypatch.setattr(common, 'run', lambda kind, args: captured.append((kind, args)))
+    monkeypatch.setattr(sys, 'argv', [str(SCRIPT), 'run', '--config', str(config),
+        '--sam', 'sam1', '--model-dir', str(tmp_path / 'model'), '--results', str(tmp_path / 'results'),
+        '--limit', '1', '--budget', '1000', '--explain_all', '--no-heatmaps', '--show-gt',
+        '--batch-size', '8', '--auc-num-samples', '200'])
+    mod.main()
+    assert len(captured) == 1
+    kind, args = captured[0]
+    assert kind == 'OC_BUSI' and args.explain_all and args.max_evals == 1000
+    assert args.auc_num_samples == 200 and args.model_batch_size == 8
+    assert args.show_gt and not args.save_heatmaps and args.resume
+    written = yaml.safe_load(Path(args.config).read_text())
+    assert written['data']['mask_dir_final'] == str(sam1)
+    assert yaml.safe_load(config.read_text())['data']['mask_dir_final'] == sam2.name

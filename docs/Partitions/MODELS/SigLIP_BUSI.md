@@ -1,14 +1,13 @@
 # BUSI SigLIP checkpoint
 
-The [BUSI SigLIP model](https://huggingface.co/ghostsas001/busi-breast-ultrasound-siglip) is a three-class image classifier: index 0 benign, 1 malignant, 2 normal. The runner reads labels and preprocessing from the checkpoint, freezes its weights, and explains the original image's predicted class using softmax probability. It does not train the model.
+The [BUSI SigLIP model](https://huggingface.co/ghostsas001/busi-breast-ultrasound-siglip) is a three-class image classifier: index 0 benign, 1 malignant, 2 normal. The runner reads labels from the checkpoint and uses the model-card preprocessing, freezes its weights, and explains the original image's predicted class using softmax probability. It does not train the model.
 
 Use the existing Transformers installation in your SAM environment. Download once to the Hugging Face cache (no GPU needed):
 
 ```bash
 python - <<'PY'
-from transformers import AutoImageProcessor, AutoModelForImageClassification
+from transformers import AutoModelForImageClassification
 name = 'ghostsas001/busi-breast-ultrasound-siglip'
-processor = AutoImageProcessor.from_pretrained(name)
 model = AutoModelForImageClassification.from_pretrained(name)
 print(model.config.id2label)
 PY
@@ -19,12 +18,10 @@ For a named checkpoint folder instead of relying on the cache, download once fro
 ```bash
 python - <<'PY'
 from pathlib import Path
-from transformers import AutoImageProcessor, AutoModelForImageClassification
+from transformers import AutoModelForImageClassification
 name = 'ghostsas001/busi-breast-ultrasound-siglip'
 folder = Path('checkpoints/busi-siglip')
-processor = AutoImageProcessor.from_pretrained(name)
 model = AutoModelForImageClassification.from_pretrained(name)
-processor.save_pretrained(folder)
 model.save_pretrained(folder)
 print('Saved:', folder.resolve())
 print('Classes:', model.config.id2label)
@@ -39,7 +36,7 @@ python src/scripts/explanations/OC_BUSI.py \
   --local-files-only --show-gt --limit 2 --budget 1000 --no-heatmaps
 ```
 
-Routine runs can use `--local-files-only`. Alternatively supply `--checkpoint /path/to/local/huggingface/model_directory` containing the weights, model config, and image processor config.
+Routine runs can use `--local-files-only`. Alternatively supply `--checkpoint /path/to/local/huggingface/model_directory` containing the weights and model config. The shared runner applies the model-card transforms, so an image processor config is unnecessary.
 
 The [MMFM checkpoints](https://huggingface.co/noe95/mmfm-breast-imaging-checkpoints) use a separate binary ResNet18 classifier and require their source architecture/preprocessing. They are not interchangeable with this SigLIP runner.
 

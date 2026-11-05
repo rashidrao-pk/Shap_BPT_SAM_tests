@@ -249,3 +249,5 @@ BUSI breast ultrasound: see [BUSI SigLIP explanations](BUSI.md) for predicted-cl
 PartImageNet: [download, partitions, and ResNet50 explanations](PARTIMAGENET.md).
 
 Batch commands for every dataset/model, including ImageNet VGG16: [EPITO sbatch guide](EPITO_SBATCH/README.md).
+
+Direct Python commands for all datasets/models: [interactive EPITO guide](EPITO_INTERACTIVE/README.md).

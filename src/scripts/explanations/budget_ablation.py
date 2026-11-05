@@ -201,6 +201,72 @@ def plot_image(runtime, folder, image, labels, means, references, args, ground_t
         runtime.plt.close(fig)
 
 
+def budget_conclusion(selection, studies, selection_path):
+    """Describe the observed decision without recommending a failed or partial pilot."""
+    status = selection['status']
+    budget = selection.get('selected_budget')
+    candidate = selection.get('calibration_candidate')
+    all_methods = set(selection['methods']) == set(METHODS)
+    if status == 'validated' and all_methods:
+        summary = (f'Recommended budget: {budget} for BPT, BPT+SAM_c, and SAM_c+KernelSHAP. '
+                   'This is the smallest tested common budget that passed calibration and held-out '
+                   'validation for every included pilot under the declared criteria.')
+    elif status == 'validated':
+        summary = (f'Budget {budget} passed for the tested methods only. No common budget for all '
+                   'three partition methods is recommended because this ablation omitted methods.')
+    elif status == 'validation_failed':
+        summary = (f'No budget is recommended. Calibration selected {candidate}, but it failed '
+                   'held-out validation. Do not substitute a larger budget using these same '
+                   'held-out outcomes; revise the study with fresh validation images.')
+    elif status == 'stability_only':
+        summary = (f'No production budget is recommended. Budget {candidate} passed map-stability '
+                   'checks, but AUC was disabled. Repeat the declared study with AUC enabled '
+                   'before applying a budget selection.')
+    else:
+        summary = ('No tested common budget is recommended. No candidate passed the calibration '
+                   'criteria across all included pilots and methods. Inspect failed metrics and '
+                   'reference stability before designing a new study; do not assume the largest '
+                   'tested budget or reference budget is adequate.')
+    lines = ['# Budget ablation conclusion', '', summary, '',
+             f"Status: `{status}`. Tested budgets: {', '.join(map(str, selection['tested_budgets']))}. "
+             f"Reference budget: {selection['reference_budget']}.", '',
+             '## Scope of the evidence', '',
+             '| Dataset | Runner | Partitions | Background | Calibration images | Validation images |',
+             '| --- | --- | --- | --- | --- | --- |']
+    for study in studies:
+        stamps = study.get('inputs', [])
+        partition = (Path(stamps[0]['partition_path'][0]).parent.name
+                     if stamps and stamps[0].get('partition_path') else 'not recorded')
+        lines.append(f"| {study['dataset']} | {study['runner']} | {partition} | "
+                     f"{study['background']} | {len(study['splits']['calibration'])} | "
+                     f"{len(study['splits']['validation'])} |")
+    lines += ['', 'Methods tested: ' + ', '.join(selection['methods']) + '.',
+              f"AUC: {selection['auc_points']} requested points per curve; "
+              + ('included in selection.' if selection['auc_checked'] else 'not checked.'), '']
+    if status == 'validated' and all_methods:
+        lines += ['## Use this budget', '',
+                  f'Pass `--budget-selection {selection_path}` to the production runner. '
+                  'It supplies one budget to all three partition-based methods. Keep the same '
+                  'model/checkpoint, partition setup, background, class scoring, and AUC resolution.', '']
+    elif candidate is not None and selection.get('validation'):
+        failed = [group for group in selection['validation'] if not group['pass']]
+        if failed:
+            lines += ['Failed held-out groups:', '']
+            for group in failed:
+                lines.append(f"- Pilot {group['study'] + 1}, {group['runner']}, {group['method']}: "
+                             f"{group['passed_images']}/{group['images']} images passed.")
+            lines.append('')
+    unstable = sum(not row.get('reference_stable', False) for study in studies for row in study['rows'])
+    if unstable:
+        lines += [f'{unstable} comparison rows were marked as having an unstable reference. '
+                  'These rows cannot support convergence.', '']
+    lines += ['This conclusion is limited to the tested grid, examples, and scopes above. '
+              'A single pilot does not establish a budget for untested models, partition variants, '
+              'backgrounds, or datasets. Combine all intended pilots before claiming a common budget. '
+              'The high-budget reference is approximate, not exact Shapley ground truth.', '']
+    return summary, '\n'.join(lines)
+
+
 def write_reports(folder, studies, save_plots=True):
     import matplotlib
     matplotlib.use('Agg')
@@ -215,6 +281,8 @@ def write_reports(folder, studies, save_plots=True):
         frame[key] = pd.to_numeric(frame[key], errors='coerce')
     frame.to_csv(folder/'budget_comparisons.csv', index=False)
     common.write_json(folder/'selection.json', selection)
+    conclusion_summary, conclusion = budget_conclusion(selection, studies, folder/'selection.json')
+    (folder/'conclusion.md').write_text(conclusion)
     grouped = frame.groupby(['runner', 'method', 'budget'], sort=False)
     grouped.agg({'spearman': ['min', 'median'], 'top_jaccard': ['min', 'median'],
                  'relative_l1': ['max', 'median'], 'explanation_sec': ['median', 'max'],
@@ -246,12 +314,16 @@ def write_reports(folder, studies, save_plots=True):
     document = ('<!doctype html><meta charset="utf-8"><title>Budget ablation</title>'
                 '<style>body{font:15px sans-serif;margin:24px}img{max-width:100%}td,th{padding:6px}</style>'
                 f'<h1>Budget ablation: {html.escape(selection["status"])}</h1>'
+                f'<h2>Conclusion</h2><p>{html.escape(conclusion_summary)}</p>'
+                '<p><a href="conclusion.md">Read the complete conclusion and scope</a></p>'
                 f'<p>{html.escape(selection["claim"])}</p>'
                 f'<p>Calibration candidate: {selection["calibration_candidate"]}; validated budget: {selection["selected_budget"]}</p>'
                 '<p>GT best-IoU values are oracle-threshold diagnostics only, not selection criteria.</p>'
                 + ('<img src="budget_curves.png">' if save_plots else '') + frame.to_html(index=False, escape=True) + images)
     (folder/'budget_report.html').write_text(document)
     print(f"Budget selection: {selection['status']}; selected={selection['selected_budget']}; calibration candidate={selection['calibration_candidate']}")
+    print('Conclusion: ' + conclusion_summary)
+    print(f'Conclusion saved: {folder / "conclusion.md"}')
     print(f'Report: {folder / "budget_report.html"}')
     return selection
 

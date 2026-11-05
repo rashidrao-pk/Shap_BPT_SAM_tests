@@ -668,7 +668,7 @@ def run(kind, args, adapter=None):
                         diagnostic.pop('mask')
                         localization.update(diagnostic)
                     for row in [*image_rows, *auc_results]:
-                        if row.get('method') == method:
+                        if row.get('method', row.get('label')) == method:
                             row.update(localization)
             np.savez_compressed(folder / f'{image_id}_attributions.npz', **attributions)
             write_json(folder / f'{image_id}_metrics.json', auc_results if args.compute_auc else image_rows)

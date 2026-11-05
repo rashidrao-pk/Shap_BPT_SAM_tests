@@ -100,3 +100,5 @@ HF_HUB_DISABLE_XET=1 python src/scripts/run_busi_shapbpt.py download
 The script also sets this variable before importing `huggingface_hub`. Existing completed files are reused by the Hub; leave the partial download/cache in place when retrying. See [Hugging Face environment variables](https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet).
 
 Long runs resume from completed images by default. See [resume and Slurm jobs](../../XAI/RESUME_EPITO.md). An interrupted image repeats its XAI; `--no-resume` forces recomputation.
+
+For the same all-method comparison used by DETR and the other datasets, use `run_busi_shapbpt.py run --explain_all` with saved compact partitions or `OC_BUSI.py --explain_all`. See [BUSI all-method commands](../../XAI/BUSI.md).

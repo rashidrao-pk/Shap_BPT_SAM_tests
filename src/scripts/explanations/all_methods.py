@@ -264,7 +264,7 @@ class GradientMethods:
         with torch.enable_grad(), seeded(torch, args.explanation_seed):
             if method == 'LRP':
                 if getattr(self.adapter, 'name', '') not in {'resnet50', 'celeba_cnn', 'vgg16'}:
-                    raise UnsupportedMethod('LRP for torchvision ViT needs a transformer-specific relevance backend; no substitute map is generated')
+                    raise UnsupportedMethod('LRP for this transformer architecture needs a transformer-specific relevance backend; no substitute map is generated')
                 from captum.attr import LRP
                 model = lrp_model(self.model)
                 try:
@@ -286,6 +286,23 @@ class GradientMethods:
                 elif getattr(self.adapter, 'name', '') == 'celeba_cnn':
                     values = LayerGradCam(self.forward, self.model.unit8.conv).attribute(
                         x, target=target, relu_attributions=True)
+                elif getattr(self.adapter, 'name', '') == 'siglip_busi':
+                    # SigLIP has patch tokens and mean pooling, without a CLS token.
+                    layer = self.model.vision_model.encoder.layers[-1].layer_norm1
+                    saved = []
+                    hook = layer.register_forward_hook(lambda _, __, output: saved.append(output))
+                    try:
+                        score = self.forward(x)[:, target].sum()
+                        features = saved[-1]
+                        gradient = torch.autograd.grad(score, features)[0]
+                        patch = self.model.config.vision_config.patch_size
+                        height, width = self.x.shape[-2] // patch, self.x.shape[-1] // patch
+                        if features.shape[1] != height * width:
+                            raise UnsupportedMethod('SigLIP GradCAM patch-token geometry does not match model input')
+                        weights = gradient.mean(dim=1, keepdim=True)
+                        values = (features * weights).sum(dim=-1).relu().reshape(1, 1, height, width)
+                    finally:
+                        hook.remove()
                 elif getattr(self.adapter, 'name', '') == 'vit_b_16':
                     # Patch tokens before the last attention block still influence CLS.
                     layer = self.model.encoder.layers[-1].ln_1

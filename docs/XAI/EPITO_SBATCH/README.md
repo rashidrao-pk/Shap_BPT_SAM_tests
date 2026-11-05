@@ -1,5 +1,7 @@
 # XAI batch jobs on EPITO
 
+For direct Python commands with live terminal output, see the [interactive guide](../EPITO_INTERACTIVE/README.md).
+
 Submit from the repository root on `mercurio-login`. Each command submits one experiment with a six-hour GPU allocation. The job continues after you disconnect.
 
 ```bash
@@ -16,7 +18,7 @@ mkdir -p logs
 | MS-COCO                 | OD                                              | DETR / ResNet50 backbone | `OD_DETR.py`          |
 | CAMO                    | Classification explanation on camouflage images | ViT-B/16                 | `COD_ViT.py`          |
 | CelebA-HQ               | Attribute classification                        | CelebModel CNN           | `OC_CelebA.py`        |
-| BUSI                    | Benign/malignant/normal classification          | SigLIP                   | `run_busi_shapbpt.py` |
+| BUSI                    | Benign/malignant/normal classification          | SigLIP                   | `OC_BUSI.py` |
 | PartImageNet            | OC with part GT                                 | ResNet50                 | `OC_PartImageNet.py`  |
 
 The available transformer **detector** is [DETR](https://huggingface.co/facebook/detr-resnet-50), which combines a ResNet50 backbone with a transformer. `OC_ViT.py` is a classifier, not an object detector. A ViT-backbone detector is not currently implemented.
@@ -109,20 +111,19 @@ sbatch --job-name=CelebA-Hair src/hpc/run_xai.sbatch \
 
 Change `Brown_Hair` to the attribute to explain, for example `Eyeglasses`. The model checkpoint comes from `model.checkpoint` in the config. Attribute experiments have separate result folders.
 
-## BUSI: SigLIP with SAM1 and SAM2
+## BUSI: SigLIP with all methods
 
-Use the separate BUSI pipeline with the classifier already downloaded to `checkpoints/busi_siglip`:
+Set `BUSI_epito.yaml` to the saved compact partition folder, then run the same shared comparison as the other datasets:
 
 ```bash
 sbatch --job-name=BUSI-SigLIP src/hpc/run_xai.sbatch \
-  src/scripts/run_busi_shapbpt.py run \
-  --model-dir checkpoints/busi_siglip --limit 780 \
-  --sam sam1 sam2 --regions 62 --budget 1000 --batch-size 8 \
-  --sam1-checkpoint checkpoints/sam1/sam_vit_b_01ec64.pth \
-  --sam2-checkpoint /beegfs/home/mrashid/repos/third_party/sam2/checkpoints/sam2.1_hiera_tiny.pt
+  src/scripts/explanations/OC_BUSI.py \
+  --config BUSI_epito --checkpoint checkpoints/busi_siglip --show-gt \
+  --limit 780 --explain_all --budget 1000 --no-heatmaps \
+  --auc-num-samples 200 --local-files-only
 ```
 
-This pipeline generates/reuses its own SAM partitions and BPT trees, explains the predicted class, and saves under `results/busi`. It runs its hierarchical SAM/BPT method for both SAM variants; it does not accept `--explain_all`, `--no-heatmaps`, or the shared runner's AUC options. Its budget is rounded to complete hierarchical permutations. For the separate three-method shared workflow, see [BUSI explanations](../BUSI.md).
+Repeat with a SAM1 or SAM2 config copy to compare both partition sources. The existing `run_busi_shapbpt.py run --explain_all --sam sam1` command can also select saved partitions and dispatch to this shared runner. See [BUSI all-method instructions](../BUSI.md). SigLIP GradCAM is supported; transformer LRP is reported unsupported.
 
 ## PartImageNet: ResNet50
 
@@ -152,7 +153,7 @@ Output folders include the runner and partition folder, so different classifiers
 
 ## Small test, monitoring, and resume
 
-For a small test, add `--limit 1` to a shared-runner command. For BUSI, change `--limit 780` to `--limit 2`. Budgets shown above are examples; use your validated budget selection for production experiments.
+For a small test, add `--limit 1` to a shared-runner command. For BUSI, use `--limit 1` as well. Budgets shown above are examples; use your validated budget selection for production experiments.
 
 ```bash
 squeue -u mrashid
@@ -160,6 +161,6 @@ tail -f logs/XAI_JOBID.out logs/XAI_JOBID.err
 python src/scripts/check_experiment_progress.py --results-root results/explanations
 ```
 
-Replace `JOBID` with the submitted job ID. The separate BUSI pipeline reports its own progress under `results/busi`.
+Replace `JOBID` with the submitted job ID. Shared BUSI runs are included under `results/explanations/OC_BUSI`.
 
 After timeout, submit the identical command again. Completed images are skipped; an interrupted image repeats its XAI. Keep `--no-resume` out of continuation commands. `--no-heatmaps` suppresses individual map PNGs while retaining combined plots. AUC is enabled in the shared examples with 200 requested points. Architecture-specific methods that are unsupported are reported explicitly. See [resume details](../RESUME_EPITO.md).

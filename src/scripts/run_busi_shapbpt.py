@@ -266,7 +266,8 @@ def case_signature(case, args):
     import hashlib
     settings = {key: str(value) if isinstance(value, Path) else value
                 for key, value in vars(args).items()
-                if key not in {'command', 'limit', 'results', 'dataset', 'resume'}}
+                if key not in {'command', 'limit', 'results', 'dataset', 'resume', 'explain_all', 'config',
+                               'partition_folder', 'show_gt', 'no_heatmaps', 'no_auc', 'auc_num_samples', 'bg_type'}}
     paths = [Path(case['image']), *map(Path, case['masks']),
              *args.model_dir.glob('*.json'), *args.model_dir.glob('*.safetensors')]
     paths += [getattr(args, method + '_checkpoint') for method in args.sam]
@@ -374,6 +375,64 @@ def model_softmax(z):
     z = np.asarray(z, dtype=np.float64); q = np.exp(z-z.max()); return q/q.sum()
 
 
+def run_all_methods(args):
+    """Use the shared XAI runner on previously generated compact BUSI partitions."""
+    import copy
+    import yaml
+    root = Path(__file__).resolve().parents[2]
+    for directory in [root, root / 'src/scripts', root / 'src/scripts/explanations']:
+        if str(directory) not in sys.path:
+            sys.path.insert(0, str(directory))
+    from config_paths import load_path_config, output_path
+    from experiment_common import create_parser, run
+    config = load_path_config(args.config)
+    base = output_path(config, 'partitions')
+    if args.partition_folder and len(args.sam) != 1:
+        raise ValueError('--partition-folder requires one --sam model')
+    results = []
+    for sam_model in args.sam:
+        selected = copy.deepcopy(config)
+        configured = base / config['data']['mask_dir_final']
+        prefix = f"BUSI_{sam_model}_"
+        def matching(path):
+            return (path.is_dir() and path.name.startswith(prefix)
+                    and f'_{args.regions}_' in path.name and 'compact' in path.name)
+        if args.partition_folder:
+            folder = Path(args.partition_folder)
+            folder = folder if folder.is_absolute() else base / folder
+            if not matching(folder):
+                raise ValueError(f'Expected a {sam_model} compact partition folder for {args.regions} regions: {folder}')
+        elif matching(configured):
+            folder = configured
+        else:
+            matches = sorted(path for path in base.glob(prefix + '*') if matching(path))
+            if len(matches) != 1:
+                raise ValueError(f'Expected one saved compact {sam_model} partition folder; found {len(matches)}. '
+                                 'Generate BUSI partitions first or pass --partition-folder FOLDER_NAME. '
+                                 f'Candidates: {[path.name for path in matches]}')
+            folder = matches[0]
+        selected['data']['mask_dir_final'] = str(folder.resolve())
+        directory = args.results / 'all_methods_configs'
+        directory.mkdir(parents=True, exist_ok=True)
+        path = (directory / f'{folder.name}.yaml').resolve()
+        content = yaml.safe_dump(selected, sort_keys=False)
+        if not path.exists() or path.read_text() != content:
+            path.write_text(content)
+        command = ['--config', str(path), '--checkpoint', str(args.model_dir),
+                   '--limit', str(args.limit), '--budget', str(args.budget), '--explain_all',
+                   '--device', args.device, '--bg-type', args.bg_type,
+                   '--model-batch-size', str(args.batch_size), '--eval-batch-size', str(args.batch_size),
+                   '--auc-num-samples', str(args.auc_num_samples), '--explanation-seed', str(args.seed),
+                   '--local-files-only']
+        for flag, enabled in [('--show-gt', args.show_gt), ('--no-heatmaps', args.no_heatmaps),
+                              ('--no-resume', not args.resume), ('--no-auc', args.no_auc)]:
+            if enabled:
+                command.append(flag)
+        print(f'[all methods] {sam_model}: saved compact partitions {folder}', flush=True)
+        results.append(run('OC_BUSI', create_parser('OC_BUSI').parse_args(command)))
+    return results
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["download", "run", "all", "inventory"])
@@ -395,10 +454,23 @@ def main():
     parser.add_argument("--sam2-config", default="configs/sam2.1/sam2.1_hiera_t.yaml")
     parser.add_argument("--points-per-side", type=int, default=24)
     parser.add_argument("--points-per-batch", type=int, default=32)
+    parser.add_argument('--explain_all', '--explain-all', action='store_true',
+                        help='Run the shared OC_BUSI comparison on saved compact partitions')
+    parser.add_argument('--config', default='BUSI_epito', help='Dataset/output config for --explain_all')
+    parser.add_argument('--partition-folder', help='Saved partition folder name or absolute path for one --sam model')
+    parser.add_argument('--show-gt', '--show_gt', action='store_true')
+    parser.add_argument('--no-heatmaps', action='store_true')
+    parser.add_argument('--no-auc', action='store_true')
+    parser.add_argument('--auc-num-samples', type=int, default=200)
+    parser.add_argument('--bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'], default='black')
     args = parser.parse_args()
     if args.command in ("download", "all"):
         download_assets(args.dataset, args.model_dir)
         if args.command == "download": return
+    if args.explain_all:
+        if args.command not in {'run', 'all'}:
+            parser.error('--explain_all applies to run/all commands')
+        return run_all_methods(args)
     cases = discover_cases(args.dataset)
     if not cases:
         raise RuntimeError(f"No BUSI images found in {args.dataset}. Run download first.")

@@ -117,6 +117,8 @@ class BudgetAblationTest(unittest.TestCase):
             self.assertEqual(study['state'],'complete')
             self.assertEqual(len(rows),3*2*2*2)
             self.assertTrue((folder/'budget_report.html').is_file())
+            self.assertTrue((folder/'conclusion.md').is_file())
+            self.assertIn('<h2>Conclusion</h2>', (folder/'budget_report.html').read_text())
             self.assertTrue((folder/'reference_diagnostics.json').is_file())
             self.assertEqual(json.loads((folder/'selection.json').read_text())['status'],result['status'])
             restored=pilot.run(args,adapter=Adapter())
@@ -125,3 +127,90 @@ class BudgetAblationTest(unittest.TestCase):
 
 if __name__=='__main__':
     unittest.main()
+
+
+class CocoBudgetAblationTest(unittest.TestCase):
+    def test_yolo_detr_and_sam_variants_share_reproducible_coco_pilot(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            images = root / 'val2017'
+            images.mkdir()
+            records = []
+            for number in range(1, 7):
+                image_id = f'{number:012d}'
+                Image.fromarray(np.zeros((8, 12, 3), dtype=np.uint8)).save(images / f'{image_id}.jpg')
+                records.append({'id': number, 'file_name': f'{image_id}.jpg', 'height': 8, 'width': 12})
+            annotation = root / 'instances_val2017.json'
+            annotation.write_text(json.dumps({'images': records, 'annotations': [], 'categories': []}))
+            splits = []
+            for model in ['sam1_vit_b', 'sam2_large']:
+                folder_name = f'MSCOCO_{model}_62_compact-sam_200'
+                folder = root / 'partitions' / folder_name
+                folder.mkdir(parents=True)
+                for record in records:
+                    image_id = f"{record['id']:012d}"
+                    np.save(folder / f'{image_id}_compact.npy', np.zeros((8, 12), dtype=np.uint16))
+                    (folder / f'{image_id}_results.json').write_text(json.dumps({'saved_partitions': {'compact': 'present'}}))
+                config = root / f'{model}.yaml'
+                config.write_text(yaml.safe_dump({'device': 'cpu', 'data': {
+                    'name': 'MS_COCO', 'image_dir': str(images), 'annotation_file': str(annotation),
+                    'mask_dir_final': folder_name}, 'output': {
+                    key: str(root / key) for key in ['partitions', 'explanations', 'evaluations']}}))
+                for runner, detector in [('OD_yolo', 'yolo11s'), ('OD_DETR', 'facebook/detr-resnet-50')]:
+                    args = pilot.parser(['--runner', runner, '--model', detector, '--config', str(config),
+                        '--show-gt', '--limit', '5', '--bg-type', 'black', '--class-aggregation', 'sum',
+                        '--budgets', '100', '200', '500', '1000', '2000', '--reference-budget', '4000',
+                        '--repeats', '3', '--pilot-seed', '0', '--holdout-fraction', '0.4',
+                        '--auc-num-samples', '200', '--study-name', 'mscoco_pilot', '--dry-run'])
+                    study = pilot.run(args)
+                    self.assertEqual(study['runner'], runner)
+                    self.assertEqual(study['dataset'], 'MS_COCO')
+                    self.assertEqual(study['eligible_images'], 6)
+                    self.assertEqual(len(study['splits']['calibration']), 3)
+                    self.assertEqual(len(study['splits']['validation']), 2)
+                    self.assertEqual(study['methods'], pilot.METHODS)
+                    splits.append(study['splits'])
+            self.assertTrue(all(split == splits[0] for split in splits))
+
+
+class BudgetConclusionTest(unittest.TestCase):
+    def test_conclusion_recommends_only_the_validated_budget(self):
+        study = BudgetAblationTest().study('OD_yolo')
+        study['dataset'] = 'MS_COCO'
+        selection = select_budget([study])
+        summary, text = pilot.budget_conclusion(selection, [study], Path('combined/selection.json'))
+        self.assertIn('Recommended budget: 200', summary)
+        self.assertIn('smallest tested common budget', summary)
+        self.assertIn('MS_COCO', text)
+        self.assertIn('--budget-selection combined/selection.json', text)
+        self.assertIn('untested models', text)
+
+    def test_failed_and_diagnostic_studies_never_recommend_a_budget(self):
+        study = BudgetAblationTest().study('OD_DETR')
+        for row in study['rows']:
+            if row['image_id'] == 'c' and row['budget'] == 200:
+                row['spearman'] = 0.1
+        summary, text = pilot.budget_conclusion(select_budget([study]), [study], Path('selection.json'))
+        self.assertIn('No budget is recommended', summary)
+        self.assertIn('failed held-out validation', summary)
+        self.assertIn('Failed held-out groups', text)
+        self.assertNotIn('## Use this budget', text)
+        study = BudgetAblationTest().study()
+        study['compute_auc'] = False
+        summary, text = pilot.budget_conclusion(select_budget([study]), [study], Path('selection.json'))
+        self.assertIn('No production budget is recommended', summary)
+        self.assertIn('AUC was disabled', summary)
+        study = BudgetAblationTest().study()
+        for row in study['rows']:
+            row['reference_stable'] = False
+        summary, text = pilot.budget_conclusion(select_budget([study]), [study], Path('selection.json'))
+        self.assertIn('No tested common budget is recommended', summary)
+        self.assertIn('unstable reference', text)
+
+    def test_partial_method_study_cannot_claim_all_three_methods(self):
+        study = BudgetAblationTest().study()
+        study['methods'] = ['BPT']
+        study['rows'] = [row for row in study['rows'] if row['method'] == 'BPT']
+        summary, text = pilot.budget_conclusion(select_budget([study]), [study], Path('selection.json'))
+        self.assertIn('omitted methods', summary)
+        self.assertNotIn('## Use this budget', text)

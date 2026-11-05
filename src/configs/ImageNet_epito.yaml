@@ -6,7 +6,11 @@ data:
   image_dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/ImageNet/ImageNet/ILSVRC2012_img_val
   # Reference for downstream use; generation names its folder from CLI settings.
   mask_dir_final: ImageNet_sam2_tiny_62_compact-sam_100
-
+    
+  # New SAM2 batch outputs; older partition directories are preserved.
+  mask_dir_final_sam1: "MSCOCO_sam1_vit_b_62_compact-sam_200"
+  mask_dir_final_sam2: "MSCOCO_sam2_tiny_62_compact-sam_200"
+  
   ground_truth:
     format: imagenets
     root: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/ImageNet/ImageNetS

@@ -1,16 +1,14 @@
-# After extraction: python src/scripts/download_partimagenet.py --assets configure --split val
-# Annotation paths below are examples until configured.
 device: cuda
 data:
   name: PartImageNet
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/PartImageNet
-  annotation_file: /beegfs/home/mrashid/datasets/PartImageNet/PartImageNet_Seg/val.json
-  mask_dir_final: PartImageNet_sam2_tiny_62_compact-refined-sam_50
+  annotation_file: /beegfs/home/mrashid/datasets/PartImageNet/PartImageNet/annotations/val/val.json
+  mask_dir_final: PartImageNet_sam2_tiny_62_compact-sam_50
   ground_truth:
     format: partimagenet
     root: /beegfs/home/mrashid/datasets/PartImageNet
-    annotation_file: /beegfs/home/mrashid/datasets/PartImageNet/PartImageNet_Seg/val.json
+    annotation_file: /beegfs/home/mrashid/datasets/PartImageNet/PartImageNet/annotations/val/val.json
 output:
   partitions: /beegfs/home/mrashid/datasets/SAM_BPT
   explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations

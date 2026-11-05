@@ -6,7 +6,11 @@ data:
   image_dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/CelebAMask-HQ/CelebAMask-HQ/CelebA-HQ-img
   # Preview input: match this to the folder produced by your generation command.
   mask_dir_final: CelebAHQ_sam1_vit_b_62_compact-sam_50
-
+    
+  # New SAM2 batch outputs; older partition directories are preserved.
+  mask_dir_final_sam1: "MSCOCO_sam1_vit_b_62_compact-sam_200"
+  mask_dir_final_sam2: "MSCOCO_sam2_tiny_62_compact-sam_200"
+  
   ground_truth:
     format: celebamask_hq
     root: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/CelebAMask-HQ/CelebAMask-HQ/CelebAMask-HQ-mask-anno

@@ -43,6 +43,34 @@ python src/hpc/prepare_full_budget_study.py --repo . --study <folder> --datasets
 
 The default study remains the original six datasets.
 
+## Check your setup
+
+From the repository root, on EPITO. This only checks files and packages, so it is safe on a login node:
+
+```bash
+python src/scripts/summary_setup.py
+```
+
+It prints tables for datasets, checkpoints, and packages, then a **To fix** list with the page to read for each problem.
+
+| Column | Meaning |
+| --- | --- |
+| `Partitions: READY` | Partition generation can run |
+| `XAI: READY` | Explanations can run now |
+| `XAI: NO PARTS` | Everything is in place except partitions, so generate them first |
+| `BLOCKED` | Something required is missing; see **To fix** |
+
+Useful options:
+
+```bash
+python src/scripts/summary_setup.py --config PACO_epito KvasirSEG_epito   # Selected datasets
+python src/scripts/summary_setup.py --verify-hash                         # Also check SHA-256; slower
+python src/scripts/summary_setup.py --strict                              # Exit 1 unless all are READY for XAI
+python src/scripts/summary_setup.py --json results/setup.json             # Also save a report
+```
+
+The command exits with 1 if any dataset is `BLOCKED`. For exact partition progress and timing, use `check_partition_progress.py`.
+
 ## Added datasets
 
 - [x] MS-COCO

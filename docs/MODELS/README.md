@@ -2,6 +2,8 @@
 
 One page per model, with its download command and why it was chosen. Dataset pages link here.
 
+To check that every checkpoint is in place, run `python src/scripts/summary_setup.py`. See [Check your setup](../DATASETS/README.md#check-your-setup).
+
 ## Partition generation
 
 | Model | Used by |

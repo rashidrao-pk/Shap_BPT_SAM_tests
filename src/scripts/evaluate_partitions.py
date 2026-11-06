@@ -3,7 +3,8 @@
 
 For every GT object or part, this finds the union of partition cells with the highest IoU, as in
 notebooks/stats.ipynb, and compares it with a plain grid that has the same number of cells.
-It needs no model or GPU. The verdict covers partition quality only, not model behaviour.
+It needs no model or GPU. It writes tables, plots, and a verdict for each dataset, which cover
+partition quality only, not model behaviour.
 """
 import argparse
 import csv
@@ -27,14 +28,16 @@ IGNORED_LABEL = 1000  # ImageNet-S marks pixels to ignore with this value.
 IOU_LEVELS = (.5, .75, .9)
 USE, CAUTION, SKIP = 'USE', 'CAUTION', 'SKIP'
 NEED_PARTITIONS, NO_GT, ERROR = 'NEED PARTITIONS', 'NO GT', 'ERROR'
-SUMMARY_FIELDS = ['config', 'partitions', 'found', 'images', 'objects', 'cells', 'mean_iou', 'median_iou', 'grid_median_iou',
-                  'gain', 'iou_50', 'iou_75', 'iou_90', 'coverage', 'verdict', 'reason']
+NUMBERS = ['found', 'images', 'objects', 'cells', 'mean_iou', 'std_iou', 'median_iou', 'grid_median_iou', 'gain',
+           'iou_50', 'iou_75', 'iou_90', 'mean_coverage', 'std_coverage', 'median_coverage']
+SUMMARY_FIELDS = ['config', 'partitions', *NUMBERS, 'verdict', 'reason']
+OBJECT_FIELDS = ['config', 'image_id', 'object', 'gt_pixels', 'cells', 'best_iou', 'grid_iou', 'gt_coverage']
 
 
 def parser():
     result = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     result.add_argument('--config', nargs='+', default=DEFAULT_CONFIGS)
-    result.add_argument('--limit', type=int, default=300, help='Images with GT to evaluate per dataset')
+    result.add_argument('--limit', type=int, help='Images with GT to evaluate per dataset; default: every completed partition')
     result.add_argument('--seed', type=int, default=0)
     result.add_argument('--partition-type', default='compact')
     result.add_argument('--all-sam', action='store_true', help="Also evaluate the dataset's other SAM partition folders")
@@ -44,11 +47,12 @@ def parser():
     result.add_argument('--skip-median-iou', type=float, default=.5)
     result.add_argument('--min-gain', type=float, default=.05, help='Median IoU lead over the same-size grid')
     result.add_argument('--output-dir', type=Path, default=ROOT / 'results/evaluations/partition_quality')
+    result.add_argument('--no-plots', dest='plots', action='store_false')
     return result
 
 
 def maximize_iou(gt_mask, partition):
-    """Best IoU of any union of cells, and its GT coverage in percent; cell 0 is background.
+    """Best IoU of any union of cells, its GT coverage in percent, and those cells; cell 0 is background.
 
     Adding cells in order of purity (share of the cell inside the GT) reaches the optimum.
     """
@@ -59,7 +63,7 @@ def maximize_iou(gt_mask, partition):
     inside[0] = 0
     ids = np.nonzero(inside)[0]
     if gt_area == 0 or ids.size == 0:
-        return 0., 0.
+        return 0., 0., []
     total = np.bincount(cells)[ids]
     overlap = inside[ids]
     order = np.argsort(-overlap / total, kind='stable')
@@ -67,7 +71,7 @@ def maximize_iou(gt_mask, partition):
     outside = np.cumsum((total - overlap)[order])
     ious = covered / (gt_area + outside)
     best = int(np.argmax(ious))
-    return float(ious[best]), float(covered[best] / gt_area * 100)
+    return float(ious[best]), float(covered[best] / gt_area * 100), ids[order[:best + 1]].tolist()
 
 
 def grid_partition(shape, cells):
@@ -112,22 +116,62 @@ def gt_objects(config, image_path, shape):
         yield names.get(int(value), str(value)), gt['mask'] & (labels == value), valid
 
 
-def evaluate_image(config, name, image_id, image_path, partition_file):
+def load_partition(image_path, partition_file):
     with Image.open(image_path) as source:
         shape = (source.height, source.width)
     partition = load_partition_array(partition_file, shape).astype(np.int64)
     if partition.shape != shape:
-        raise ValueError(f'{image_id}: partition {partition.shape} does not match image {shape}')
+        raise ValueError(f'{Path(image_path).stem}: partition {partition.shape} does not match image {shape}')
+    return partition
+
+
+def evaluate_image(config, name, image_id, image_path, partition_file):
+    partition = load_partition(image_path, partition_file)
+    shape = partition.shape
     cells = int(np.count_nonzero(np.unique(partition)))
     grid = grid_partition(shape, max(cells, 1))
     rows = []
     for object_name, mask, valid in gt_objects(config, image_path, shape):
         selected = np.ones(shape, dtype=bool) if valid is None else valid
-        iou, coverage = maximize_iou(mask[selected], partition[selected])
+        iou, coverage, _ = maximize_iou(mask[selected], partition[selected])
         grid_iou = maximize_iou(mask[selected], grid[selected])[0]
         rows.append({'config': name, 'image_id': image_id, 'object': object_name, 'gt_pixels': int(mask.sum()),
                      'cells': cells, 'best_iou': iou, 'grid_iou': grid_iou, 'gt_coverage': coverage})
     return rows
+
+
+def case_maps(config, image_path, partition_file):
+    """Label maps for one example: GT, the best union of cells, and each cell's closest GT object."""
+    partition = load_partition(image_path, partition_file)
+    with Image.open(image_path) as source:
+        image = np.asarray(source.convert('RGB'))
+    gt_labels, subsets = np.zeros_like(partition), np.zeros_like(partition)
+    cells = int(partition.max()) + 1
+    area = np.bincount(partition.ravel(), minlength=cells)
+    closest, owner = np.zeros(cells), np.zeros(cells, dtype=np.int64)
+    ious = []
+    for number, (_, mask, valid) in enumerate(gt_objects(config, Path(image_path), partition.shape), 1):
+        selected = np.ones(partition.shape, dtype=bool) if valid is None else valid
+        iou, _, ids = maximize_iou(mask[selected], partition[selected])
+        ious.append(iou)
+        gt_labels[mask] = number
+        subsets[np.isin(partition, ids)] = number
+        overlap = np.bincount(partition[mask], minlength=cells)
+        cell_iou = overlap / np.maximum(area + mask.sum() - overlap, 1)
+        better = cell_iou > closest
+        closest[better], owner[better] = cell_iou[better], number
+    owner[0] = 0
+    return {'image': image, 'partition': partition, 'gt': gt_labels, 'subsets': subsets, 'closest': owner[partition],
+            'objects': len(ious), 'cells': int(np.count_nonzero(np.unique(partition))), 'mean_iou': float(np.mean(ious))}
+
+
+def example_ids(rows):
+    """Images with the highest, middle, and lowest mean best IoU, as in the thesis examples."""
+    means = {}
+    for row in rows:
+        means.setdefault(row['image_id'], []).append(row['best_iou'])
+    ordered = sorted(means, key=lambda image_id: (np.mean(means[image_id]), image_id))
+    return {'Highest IoU': ordered[-1], 'Middle IoU': ordered[len(ordered) // 2], 'Lowest IoU': ordered[0]}
 
 
 def decide(summary, args):
@@ -152,18 +196,19 @@ def decide(summary, args):
 
 
 def summarize(name, folder, found, images, rows, args):
-    summary = {'config': name, 'partitions': folder, 'found': found, 'images': images, 'objects': len(rows)}
+    summary = {**dict.fromkeys(NUMBERS, 0.), 'config': name, 'partitions': folder, 'found': found, 'images': images,
+               'objects': len(rows)}
     if rows:
         ious = np.array([row['best_iou'] for row in rows])
         grids = np.array([row['grid_iou'] for row in rows])
+        coverage = np.array([row['gt_coverage'] for row in rows])
         per_image = {row['image_id']: row['cells'] for row in rows}
         summary.update(cells=float(np.median(list(per_image.values()))), mean_iou=float(ious.mean()),
-                       median_iou=float(np.median(ious)), grid_median_iou=float(np.median(grids)),
-                       gain=float(np.median(ious - grids)), coverage=float(np.median([row['gt_coverage'] for row in rows])),
+                       std_iou=float(ious.std(ddof=1)) if len(rows) > 1 else 0., median_iou=float(np.median(ious)),
+                       grid_median_iou=float(np.median(grids)), gain=float(np.median(ious - grids)),
+                       mean_coverage=float(coverage.mean()), std_coverage=float(coverage.std(ddof=1)) if len(rows) > 1 else 0.,
+                       median_coverage=float(np.median(coverage)),
                        **{f'iou_{round(level * 100)}': float((ious >= level).mean()) for level in IOU_LEVELS})
-    else:
-        summary.update(dict.fromkeys(['cells', 'mean_iou', 'median_iou', 'grid_median_iou', 'gain', 'coverage',
-                                      'iou_50', 'iou_75', 'iou_90'], 0.))
     summary['verdict'], summary['reason'] = decide(summary, args)
     return summary
 
@@ -181,7 +226,8 @@ def evaluate_folder(name, config, folder, args):
     files = {path.name.removesuffix(suffix): path for path in folder.glob(f'*{suffix}')} if folder.is_dir() else {}
     paths = image_paths(config['data']) if files else {}
     ids = sorted(set(files) & set(paths))
-    label = f"{Path(name).stem} {folder.name.split('_')[1]}" if args.all_sam else Path(name).stem
+    label = Path(name).stem.removesuffix('_epito')
+    label = f"{label} {folder.name.split('_')[1].upper()}" if args.all_sam else label
     rows, images = [], 0
     for index in np.random.default_rng(args.seed).permutation(len(ids)):
         if images == args.limit:
@@ -189,7 +235,12 @@ def evaluate_folder(name, config, folder, args):
         image_rows = evaluate_image(config, label, ids[index], paths[ids[index]], files[ids[index]])
         rows.extend(image_rows)
         images += bool(image_rows)  # Images without GT do not use up the limit.
-    return summarize(label, folder.name, len(ids), images, rows, args), rows
+    summary = summarize(label, folder.name, len(ids), images, rows, args)
+    if rows and args.plots and summary['verdict'] in {USE, CAUTION, SKIP}:
+        from partition_quality_plots import plot_examples
+        cases = {title: case_maps(config, paths[image_id], files[image_id]) for title, image_id in example_ids(rows).items()}
+        plot_examples(cases, label, args.output_dir / 'examples')
+    return summary, rows
 
 
 def evaluate_dataset(name, args):
@@ -210,28 +261,31 @@ def conclusion(summaries, args):
              f'USE needs a median IoU of at least {args.use_median_iou:g}, at least {args.use_iou_50:.0%} of objects at IoU 0.5, '
              f'and a median lead over a same-size grid of at least {args.min_gain:g}. '
              f'SKIP means a median IoU below {args.skip_median_iou:g}, or no lead over the grid.', '',
-             '| Dataset | Verdict | Images | Objects | Median IoU | Grid | IoU ≥ 0.5 | Why |', '| --- | --- | --- | --- | --- | --- | --- | --- |']
+             '| Dataset | Verdict | Images | Objects | Median IoU | Grid | IoU ≥ 0.5 | IoU ≥ 0.75 | IoU ≥ 0.9 | Median coverage | Why |',
+             '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |']
     for item in summaries:
         lines.append(f"| {item['config']} | **{item['verdict']}** | {item['images']} | {item['objects']} | {item['median_iou']:.3f} | "
-                     f"{item['grid_median_iou']:.3f} | {item['iou_50']:.1%} | {item['reason']} |")
+                     f"{item['grid_median_iou']:.3f} | {item['iou_50']:.1%} | {item['iou_75']:.1%} | {item['iou_90']:.1%} | "
+                     f"{item['median_coverage']:.1f}% | {item['reason']} |")
     return '\n'.join(lines) + '\n'
 
 
 def print_table(summaries):
-    print(f"\n{'Dataset':<22} {'Verdict':<16} {'Images':>6} {'Objects':>8} {'Cells':>6} {'Mean':>6} {'Median':>7} {'Grid':>6} "
+    print(f"\n{'Dataset':<22} {'Verdict':<16} {'Images':>6} {'Objects':>8} {'Cells':>6} {'Mean':>6} {'SD':>6} {'Median':>7} {'Grid':>6} "
           f"{'>=.5':>6} {'>=.75':>6} {'>=.9':>6} {'Cover':>6}")
     for item in summaries:
         print(f"{item['config']:<22} {item['verdict']:<16} {item['images']:>6} {item['objects']:>8} {item['cells']:>6.0f} "
-              f"{item['mean_iou']:>6.3f} {item['median_iou']:>7.3f} {item['grid_median_iou']:>6.3f} {item['iou_50']:>6.1%} "
-              f"{item['iou_75']:>6.1%} {item['iou_90']:>6.1%} {item['coverage']:>5.1f}%")
+              f"{item['mean_iou']:>6.3f} {item['std_iou']:>6.3f} {item['median_iou']:>7.3f} {item['grid_median_iou']:>6.3f} "
+              f"{item['iou_50']:>6.1%} {item['iou_75']:>6.1%} {item['iou_90']:>6.1%} {item['median_coverage']:>5.1f}%")
     print()
     for item in summaries:
         print(f"{item['config']}: {item['verdict']} - {item['reason']}")
 
 
 def run(args):
-    if args.limit < 1 or args.min_images < 1:
+    if (args.limit is not None and args.limit < 1) or args.min_images < 1:
         raise ValueError('--limit and --min-images must be positive')
+    args.output_dir.mkdir(parents=True, exist_ok=True)
     summaries, rows = [], []
     for name in args.config:
         print(f'Evaluating {name}', flush=True)
@@ -240,15 +294,14 @@ def run(args):
                 summaries.append(summary)
                 rows.extend(dataset_rows)
         except Exception as error:  # One broken dataset should not hide the others.
-            empty = dict.fromkeys(['found', 'images', 'objects', 'cells', 'mean_iou', 'median_iou', 'grid_median_iou',
-                                   'gain', 'iou_50', 'iou_75', 'iou_90', 'coverage'], 0)
-            summaries.append({'config': Path(name).stem, 'partitions': '', **empty, 'verdict': ERROR,
-                              'reason': f'{type(error).__name__}: {error}'})
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    write_csv(args.output_dir / 'partition_quality_objects.csv', rows,
-              ['config', 'image_id', 'object', 'gt_pixels', 'cells', 'best_iou', 'grid_iou', 'gt_coverage'])
+            summaries.append({**dict.fromkeys(NUMBERS, 0), 'config': Path(name).stem.removesuffix('_epito'), 'partitions': '',
+                              'verdict': ERROR, 'reason': f'{type(error).__name__}: {error}'})
+    write_csv(args.output_dir / 'partition_quality_objects.csv', rows, OBJECT_FIELDS)
     write_csv(args.output_dir / 'partition_quality_summary.csv', summaries, SUMMARY_FIELDS)
     (args.output_dir / 'conclusion.md').write_text(conclusion(summaries, args))
+    if args.plots:
+        from partition_quality_plots import plot_all
+        plot_all(summaries, rows, args)
     print_table(summaries)
     print(f'\nSaved: {args.output_dir}', flush=True)
     return summaries

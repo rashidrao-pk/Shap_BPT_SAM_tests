@@ -5,11 +5,13 @@ from pathlib import Path
 import sys
 
 import numpy as np
+from PIL import Image
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src/scripts'))
 import evaluate_partitions as ep
+import partition_quality_plots as plots
 
 
 def exhaustive_best_iou(gt, partition):
@@ -32,24 +34,23 @@ def test_best_iou_matches_trying_every_union_of_cells(seed):
 
 def test_exact_cells_give_iou_one_and_full_coverage():
     partition = np.array([[1, 1, 2, 2]] * 4)
-    assert ep.maximize_iou(partition == 1, partition) == pytest.approx((1, 100))
+    assert ep.maximize_iou(partition == 1, partition) == (1, 100, [1])
 
 
 def test_background_cell_is_never_selected():
     partition = np.array([[0, 0, 2, 2]] * 4)
-    iou, coverage = ep.maximize_iou(partition == 0, partition)
-    assert (iou, coverage) == (0, 0)
+    assert ep.maximize_iou(partition == 0, partition) == (0, 0, [])
 
 
 def test_partial_coverage_is_reported_in_percent():
     partition = np.array([[1, 1, 0, 0]] * 4)
-    iou, coverage = ep.maximize_iou(np.ones((4, 4), dtype=bool), partition)
+    iou, coverage, _ = ep.maximize_iou(np.ones((4, 4), dtype=bool), partition)
     assert iou == pytest.approx(.5)
     assert coverage == pytest.approx(50)
 
 
 def test_empty_gt_scores_zero():
-    assert ep.maximize_iou(np.zeros((4, 4), dtype=bool), np.ones((4, 4), dtype=int)) == (0, 0)
+    assert ep.maximize_iou(np.zeros((4, 4), dtype=bool), np.ones((4, 4), dtype=int)) == (0, 0, [])
 
 
 @pytest.mark.parametrize('shape, cells', [((480, 640), 60), ((100, 100), 1), ((50, 300), 17), ((7, 5), 500)])
@@ -93,7 +94,7 @@ def test_a_broken_dataset_does_not_stop_the_others(tmp_path, monkeypatch, capsys
             raise FileNotFoundError('missing annotations')
         return [(ep.summarize(name, 'folder', 40, 40, [], args), [])]
     monkeypatch.setattr(ep, 'evaluate_dataset', evaluate)
-    args = ep.parser().parse_args(['--config', 'bad', 'good', '--output-dir', str(tmp_path)])
+    args = ep.parser().parse_args(['--config', 'bad', 'good', '--output-dir', str(tmp_path), '--no-plots'])
     verdicts = {item['config']: item['verdict'] for item in ep.run(args)}
     assert verdicts['bad'] == ep.ERROR
     assert verdicts['good'] == ep.SKIP
@@ -117,3 +118,47 @@ def test_all_sam_finds_each_partition_folder_of_the_dataset(tmp_path, monkeypatc
     monkeypatch.setattr(ep, 'partition_path', lambda _: tmp_path / 'CAMO_sam2_tiny_62')
     assert [path.name for path in ep.partition_folders({}, True)] == ['CAMO_sam1_vit_b_62', 'CAMO_sam2_tiny_62']
     assert [path.name for path in ep.partition_folders({}, False)] == ['CAMO_sam2_tiny_62']
+
+
+def test_the_default_uses_every_completed_partition():
+    assert ep.parser().parse_args([]).limit is None
+
+
+@pytest.mark.parametrize('seed', range(5))
+def test_selected_cells_reproduce_the_reported_iou(seed):
+    rng = np.random.default_rng(seed)
+    partition = rng.integers(0, 12, (30, 30))
+    gt = rng.random((30, 30)) < .4
+    iou, coverage, cells = ep.maximize_iou(gt, partition)
+    selected = np.isin(partition, cells)
+    assert iou == pytest.approx((selected & gt).sum() / (selected | gt).sum())
+    assert coverage == pytest.approx((selected & gt).sum() / gt.sum() * 100)
+
+
+def test_examples_are_the_highest_middle_and_lowest_images():
+    rows = [{'image_id': image, 'best_iou': iou} for image, iou in
+            [('a', .9), ('a', .7), ('b', .1), ('c', .5), ('d', .6), ('e', .2)]]
+    assert ep.example_ids(rows) == {'Highest IoU': 'a', 'Middle IoU': 'c', 'Lowest IoU': 'b'}
+
+
+def test_case_maps_and_plots_on_a_small_dataset(tmp_path, monkeypatch):
+    Image.fromarray(np.zeros((8, 8, 3), dtype=np.uint8)).save(tmp_path / 'a.png')
+    partition = np.repeat(np.repeat(np.array([[1, 2], [3, 0]], dtype=np.uint16), 4, 0), 4, 1)
+    np.save(tmp_path / 'a_compact.npy', partition)
+    first, second = partition == 1, partition == 3
+    monkeypatch.setattr(ep, 'gt_objects', lambda *_: [('x', first, None), ('y', second, None)])
+    case = ep.case_maps({}, tmp_path / 'a.png', tmp_path / 'a_compact.npy')
+    assert case['objects'] == 2 and case['cells'] == 3 and case['mean_iou'] == 1
+    assert (case['subsets'] == first + 2 * second).all()
+    assert (case['closest'] == case['gt']).all()
+
+    plots.plot_examples({'Highest IoU': case}, 'Toy SAM1', tmp_path / 'examples')
+    args = ep.parser().parse_args(['--output-dir', str(tmp_path / 'plots')])
+    args.output_dir.mkdir()
+    rows = [{'config': name, 'best_iou': value, 'gt_coverage': value * 100} for name in 'AB' for value in (.2, .6, .9)]
+    summaries = [{**ep.summarize(name, 'folder', 40, 40, [], args), 'verdict': ep.USE} for name in 'AB']
+    plots.plot_all([*summaries, {**summaries[0], 'config': 'C', 'verdict': ep.NEED_PARTITIONS}], rows, args)
+    made = {path.name for path in args.output_dir.glob('*.png')}
+    assert made == {'best_iou_boxplot.png', 'best_iou_violin.png', 'gt_coverage_boxplot.png', 'gt_coverage_violin.png',
+                    'iou_thresholds.png', 'overview.png'}
+    assert (tmp_path / 'examples' / 'Toy_SAM1.png').is_file()

@@ -6,27 +6,37 @@ For each GT object or part, it finds the union of partition cells with the highe
 
 ## Run it
 
-From the repository root, in your EPITO environment:
+From the repository root, in your EPITO GPU session:
 
 ```bash
 python src/scripts/evaluate_partitions.py --all-sam
 ```
 
-This scores up to 300 images with GT from each dataset, for every SAM partition folder. Common changes:
+This scores every completed partition with GT, for every dataset and every SAM folder. Common changes:
 
 ```bash
 python src/scripts/evaluate_partitions.py                                    # Only the folder each config selects
 python src/scripts/evaluate_partitions.py --config CAMO_epito PACO_epito     # Selected datasets
-python src/scripts/evaluate_partitions.py --limit 1000                       # More images
+python src/scripts/evaluate_partitions.py --limit 100                        # Quick check on fewer images
+python src/scripts/evaluate_partitions.py --no-plots                         # Tables only
 ```
 
-It prints a table and saves these in `results/evaluations/partition_quality/`:
+## Outputs
 
-| File | Contents |
-| --- | --- |
-| `conclusion.md` | The verdict for each dataset, with the reason |
-| `partition_quality_summary.csv` | All summary numbers |
-| `partition_quality_objects.csv` | Best IoU, grid IoU, and coverage for each GT object |
+Saved in `results/evaluations/partition_quality/`:
+
+| File | Contents | Thesis equivalent |
+| --- | --- | --- |
+| `conclusion.md` | Verdict and reason for each dataset | |
+| `partition_quality_summary.csv` | Mean, SD, and median of best IoU and GT coverage; share at each IoU level | Tables 4.8 and 4.10 |
+| `partition_quality_objects.csv` | Best IoU, grid IoU, and coverage for each GT object | |
+| `overview` | Median best IoU against the grid, the limits, and the verdict | |
+| `best_iou_boxplot`, `best_iou_violin` | Best IoU distribution; the triangle is the mean | Figure 4.8 |
+| `gt_coverage_boxplot`, `gt_coverage_violin` | GT coverage distribution | Figure 4.9 |
+| `iou_thresholds` | Share of objects at IoU 0.5, 0.75, and 0.9 | Table 4.10 |
+| `examples/<dataset>.png` | Highest, middle, and lowest IoU images: GT, partition, optimal subsets, and masks → GT | Figures 4.10 to 4.12 |
+
+Plots are saved as PNG and SVG, except the examples, which are PNG. Datasets with too few images for a verdict are left out of the plots but stay in the tables.
 
 ## Verdicts
 
@@ -45,5 +55,6 @@ The limits are starting values, set just below the MS-COCO reference from the no
 
 - `USE` means that good regions exist. It does not show that the model relies on them, or that attributions will match the GT.
 - Part datasets contain many small GT objects, so they score lower than whole-object datasets. A low score there can reflect the task rather than poor partitions.
+- High coverage with low IoU means one large cell contains the object, so the partition does not follow its boundary. Check `examples/` for this.
 - `Coverage` is the share of the GT inside the best union of cells. Cell 0 is background and is never selected.
 - Results for COCO use each non-crowd annotation, as in the notebook. Other datasets use each label in the GT map, so overlapping parts count only where they are visible.

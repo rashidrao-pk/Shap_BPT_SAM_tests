@@ -251,8 +251,9 @@ def _load_coco_parts(settings, image_path, shape, selected_part, dataset='PartIm
         return _empty(shape, f'{dataset} parts', 'annotation not available', scope='annotated_parts')
     categories = coco.loadCats(coco.getCatIds())
     all_parts = selected_part in {None, 'all', 'foreground'}
-    # PACO stores whole objects beside parts; the default GT must contain parts only.
-    default = [item for item in categories if item.get('supercategory', 'PART') == 'PART']
+    # PACO stores whole objects beside parts, so its default GT keeps only parts. PartImageNet
+    # categories are all parts, grouped under names such as Quadruped.
+    default = [item for item in categories if item.get('supercategory') == 'PART'] or categories
     ids = [item['id'] for item in default] if all_parts else [
         item['id'] for item in categories
         if str(item['id']) == str(selected_part) or item['name'].lower() == str(selected_part).lower()]

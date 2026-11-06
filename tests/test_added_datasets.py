@@ -85,6 +85,19 @@ def paco(tmp_path):
     return data, images / '000000000007.jpg'
 
 
+def test_partimagenet_default_gt_keeps_categories_grouped_by_object_type(tmp_path):
+    data, image = paco(tmp_path)
+    annotation = Path(data['annotation_file'])
+    content = json.loads(annotation.read_text())
+    content['categories'] = [{'id': 1, 'name': 'Quadruped Body', 'supercategory': 'Quadruped'},
+                             {'id': 2, 'name': 'Quadruped Head', 'supercategory': 'Quadruped'},
+                             {'id': 3, 'name': 'Bird Wing', 'supercategory': 'Bird'}]
+    annotation.write_text(json.dumps(content))
+    settings = {**data['ground_truth'], 'format': 'partimagenet'}
+    parts = load_ground_truth({'data': {**data, 'name': 'PartImageNet', 'ground_truth': settings}}, image, (16, 16, 3))
+    assert sorted(parts['part_names']) == ['Bird Wing', 'Quadruped Body', 'Quadruped Head']
+
+
 def test_paco_lists_split_images_with_their_subfolder(tmp_path):
     data, _ = paco(tmp_path)
     assert [(item['id'], item['file_name']) for item in collect_images(data)] == [

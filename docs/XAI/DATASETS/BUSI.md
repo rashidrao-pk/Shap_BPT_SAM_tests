@@ -1,5 +1,7 @@
 # BUSI explanations with all methods
 
+Model: [BUSI SigLIP](../../MODELS/BUSI_SIGLIP.md)
+
 One-time downloads: [BUSI setup](../Partitions/DATASETS/BUSI_SETUP.md). First [generate compact partitions](../Partitions/DATASETS/BUSI.md). The all-method workflow reuses those partitions and the frozen SigLIP checkpoint in `checkpoints/busi_siglip`.
 
 ## Same shared workflow as DETR and the other datasets

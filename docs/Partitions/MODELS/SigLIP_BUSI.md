@@ -20,7 +20,7 @@ python - <<'PY'
 from pathlib import Path
 from transformers import AutoModelForImageClassification
 name = 'ghostsas001/busi-breast-ultrasound-siglip'
-folder = Path('checkpoints/busi-siglip')
+folder = Path('checkpoints/busi_siglip')
 model = AutoModelForImageClassification.from_pretrained(name)
 model.save_pretrained(folder)
 print('Saved:', folder.resolve())
@@ -32,7 +32,7 @@ Use this local copy for subsequent experiments:
 
 ```bash
 python src/scripts/explanations/OC_BUSI.py \
-  --config BUSI_epito --checkpoint checkpoints/busi-siglip \
+  --config BUSI_epito --checkpoint checkpoints/busi_siglip \
   --local-files-only --show-gt --limit 2 --budget 1000 --no-heatmaps
 ```
 

@@ -1,5 +1,7 @@
 # YOLO explanations from MS-COCO partitions
 
+Model: [YOLO11s](../../MODELS/YOLO.md)
+
 [OD_yolo.py](../../src/scripts/explanations/OD_yolo.py) is a separate copy of
 `run_yolo_full_all.py`. The original is unchanged. It retains YOLO prediction,
 ShapBPT/region Kernel SHAP, deletion/insertion AUC, faithfulness metrics,

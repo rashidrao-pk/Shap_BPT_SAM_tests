@@ -106,7 +106,7 @@ class AllMethodsTest(unittest.TestCase):
         self.assertEqual(float(restored[0, 16, 0]), 0.)
         self.assertGreater(float(restored[0, 16, 32]), 0.)
         adapter.name = 'vit_b_16'
-        with self.assertRaisesRegex(allx.UnsupportedMethod, 'transformer-specific'):
+        with self.assertRaisesRegex(allx.UnsupportedMethod, 'relevance backend'):
             engine.compute('LRP', 0)
 
     def test_notebook_style_and_asymmetric_gt_boundaries(self):

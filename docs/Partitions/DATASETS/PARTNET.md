@@ -1,5 +1,8 @@
 # PartImageNet on EPITO
 
+- [Download the dataset](../../DATASETS/PARTIMAGENET.md)
+- Download checkpoints: [SAM-1](../../MODELS/SAM1.md), [SAM-2](../../MODELS/SAM2.md)
+
 This document covers **PartImageNet (2D images)**. First follow [one-time setup](PARTIMAGENET_SETUP.md) to download the dataset and ResNet50 classifier and set the config paths.
 
 ## Generate partitions
@@ -64,7 +67,7 @@ python src/scripts/view_partitions.py \
 
 The config supplies image, partition, ground-truth, and preview output paths. PartImageNet previews use the same annotation-based image resolver as generation and XAI. Duplicate basenames elsewhere in the extraction do not override an exact annotated path; unresolved ambiguity remains an error. Batch previews are restricted to the selected annotation split. `--gt-class` optionally selects an annotation category name or ID.
 
-Next: [PartImageNet XAI](../../XAI/PARTIMAGENET.md).
+Next: [PartImageNet XAI](../../XAI/DATASETS/PARTIMAGENET.md).
 
 ## Check progress
 

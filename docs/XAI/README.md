@@ -7,6 +7,10 @@ SAM_c reads the saved `*_compact.npy` partition maps.
 
 All runners default to **`--bg-type full`**, averaging black, gray, white, blurred and noise replacements. New results use `bg_full_B<budget>` folders.
 
+## Dataset guides
+
+[MS-COCO](DATASETS/MSCOCO.md), [ImageNet](DATASETS/IMAGENET.md), [CAMO](DATASETS/CAMO.md), [BUSI](DATASETS/BUSI.md), [CelebA](DATASETS/CELEBA.md), [PartImageNet](DATASETS/PARTIMAGENET.md), [FunnyBirds](DATASETS/FUNNYBIRDS.md), [PACO](DATASETS/PACO.md), [Kvasir-SEG](DATASETS/KVASIR_SEG.md), [ISIC 2018](DATASETS/ISIC2018.md)
+
 ## Before running
 
 Activate your EPITO GPU environment and work from the repository root. In the

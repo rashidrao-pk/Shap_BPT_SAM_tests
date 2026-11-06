@@ -1,6 +1,8 @@
 ## Generate Partitions for `ImagNet` Dataset
 
 - [Connect first](/docs/Partitions/EPITO.md#1-start-a-gpu-session)
+- [Download the dataset](../../DATASETS/ImageNet.md)
+- Download checkpoints: [SAM-1](../../MODELS/SAM1.md), [SAM-2](../../MODELS/SAM2.md)
 
 ### SAM-1
 

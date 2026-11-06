@@ -1,7 +1,13 @@
 ### DATASETS
 
 - [BUSI](BUSI_SETUP.md)
-- [Kvasir-SEG](../../DATASETS/KVASIR_SEG.md)
+- [MS-COCO](MSCOCO_EPITO.md)
+- [ImageNet](ImageNet.md)
+- [CAMO](CAMO_EPITO.md)
+- [FunnyBirds](FUNNYBIRDS.md)
+- [PACO](PACO.md)
+- [Kvasir-SEG](KVASIR_SEG.md)
+- [ISIC 2018](ISIC2018.md)
 - [All datasets](../../DATASETS/README.md)
 
 ```bash

@@ -1,5 +1,7 @@
 # CelebA-HQ attribute explanations on EPITO
 
+Model: [CelebA CNN](../../MODELS/CELEBA_CNN.md)
+
 This runner uses the custom **CelebModel** and checkpoint from
 [the E5 notebook](https://github.com/rashidrao-pk/shap_bpt_tests/blob/main/notebooks/E5_CelebA/N1_Run_experiments_CelebA.ipynb).
 It predicts 40 independent facial attributes. XAI explains the raw attribute

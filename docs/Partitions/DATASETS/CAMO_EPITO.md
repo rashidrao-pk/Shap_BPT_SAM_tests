@@ -1,5 +1,8 @@
 # EPITO: CAMO Train partitions
 
+- [Download the dataset](../../DATASETS/CAMO.md)
+- Download checkpoints: [SAM-1](../../MODELS/SAM1.md), [SAM-2](../../MODELS/SAM2.md)
+
 Use the existing SAM GPU environment from [EPITO.md](../EPITO.md#1-start-a-gpu-session).
 Sync `generate_camo_partitions.py` and `src/configs/CAMO_epito.yaml` to EPITO,
 along with the shared generation scripts if they are not current.

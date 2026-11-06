@@ -1,5 +1,8 @@
 # BUSI partitions on EPITO
 
+- [Download the dataset](../../DATASETS/BUSI.md)
+- Download checkpoints: [SAM-1](../../MODELS/SAM1.md), [SAM-2](../../MODELS/SAM2.md)
+
 First time: [download the dataset, classifier, and SAM checkpoints](BUSI_SETUP.md). The commands below are for routine generation after setup.
 
 ## SAM1
@@ -26,7 +29,7 @@ python src/scripts/generate_busi_partitions.py \
   --save-partitions sam compact --limit 1000
 ```
 
-Next: [SigLIP checkpoint](../MODELS/SigLIP_BUSI.md) and [BUSI explanations](../../XAI/BUSI.md).
+Next: [SigLIP checkpoint](../MODELS/SigLIP_BUSI.md) and [BUSI explanations](../../XAI/DATASETS/BUSI.md).
 
 ## Preview saved partitions
 

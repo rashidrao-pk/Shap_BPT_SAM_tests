@@ -264,7 +264,7 @@ class GradientMethods:
         with torch.enable_grad(), seeded(torch, args.explanation_seed):
             if method == 'LRP':
                 if getattr(self.adapter, 'name', '') not in {'resnet50', 'celeba_cnn', 'vgg16'}:
-                    raise UnsupportedMethod('LRP for this transformer architecture needs a transformer-specific relevance backend; no substitute map is generated')
+                    raise UnsupportedMethod('LRP for this architecture needs a dedicated relevance backend; no substitute map is generated')
                 from captum.attr import LRP
                 model = lrp_model(self.model)
                 try:

@@ -1,5 +1,8 @@
 # EPITO: CelebA-HQ partitions
 
+- [Download the dataset](../../DATASETS/CelebAHQ.md)
+- Download checkpoints: [SAM-1](../../MODELS/SAM1.md), [SAM-2](../../MODELS/SAM2.md)
+
 Use your existing SAM environment and GPU allocation from
 [EPITO.md](../EPITO.md#1-start-a-gpu-session). Sync the new script and
 `src/configs/CelebAHQ_epito.yaml` to EPITO, together with the shared generation
@@ -84,5 +87,5 @@ written under `output.evaluations` in
 `previews/CelebAHQ_sam2_tiny_62_compact-sam_50/`. No GPU is needed for viewing.
 
 Generated labels are regions, not semantic face-part names. For attribute
-explanations, use [OC_CelebA](../../XAI/CELEBA.md) after selecting the generated
+explanations, use [OC_CelebA](../../XAI/DATASETS/CELEBA.md) after selecting the generated
 partition folder in the config.

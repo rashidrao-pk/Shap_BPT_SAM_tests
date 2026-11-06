@@ -1,0 +1,19 @@
+# Both annotation paths must select the same split.
+device: cuda
+data:
+  name: PACO
+  input_format: directory
+  image_dir: /beegfs/home/mrashid/datasets/PACO/images
+  annotation_file: /beegfs/home/mrashid/datasets/PACO/annotations/paco_lvis_v1_val.json
+  mask_dir_final: PACO_sam2_tiny_62_compact-sam_50
+  ground_truth:
+    format: paco
+    root: /beegfs/home/mrashid/datasets/PACO
+    annotation_file: /beegfs/home/mrashid/datasets/PACO/annotations/paco_lvis_v1_val.json
+output:
+  partitions: /beegfs/home/mrashid/datasets/SAM_BPT
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/evaluations
+
+evaluation:
+  bg-type: "full"

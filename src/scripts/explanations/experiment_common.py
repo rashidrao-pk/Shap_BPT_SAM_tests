@@ -24,9 +24,23 @@ from auc_export import auc_columns, enrich_auc_rows
 
 METHODS = ['BPT', 'SAM_c', 'SAM_c_kernelshap']
 DEFAULT_CONFIGS = {'OC_VGG': 'ImageNet_epito', 'OC_PartImageNet': 'PartImageNet_epito', 'OC_BUSI': 'BUSI_epito', 'OD_DETR': 'MSCOCO_epito', 'OC_ResNet': 'ImageNet_epito',
-                   'OC_ViT': 'ImageNet_epito', 'COD_ViT': 'CAMO_epito', 'OC_CelebA': 'CelebAHQ_epito'}
+                   'OC_ViT': 'ImageNet_epito', 'COD_ViT': 'CAMO_epito', 'OC_CelebA': 'CelebAHQ_epito',
+                   'OC_FunnyBirds': 'FunnyBirds_epito', 'OC_PACO': 'PACO_epito',
+                   'OC_KvasirSEG': 'KvasirSEG_epito', 'OC_ISIC2018': 'ISIC2018_epito'}
 MODEL_NAMES = {'OC_VGG': 'vgg16', 'OC_PartImageNet': 'resnet50', 'OC_BUSI': 'ghostsas001/busi-breast-ultrasound-siglip', 'OD_DETR': 'facebook/detr-resnet-50', 'OC_ResNet': 'resnet50',
-               'OC_ViT': 'vit_b_16', 'COD_ViT': 'vit_b_16', 'OC_CelebA': 'celeba_cnn'}
+               'OC_ViT': 'vit_b_16', 'COD_ViT': 'vit_b_16', 'OC_CelebA': 'celeba_cnn',
+               'OC_FunnyBirds': 'resnet50', 'OC_PACO': 'resnet50',
+               'OC_KvasirSEG': 'mmuratarat/kvasir-v2-classifier',
+               'OC_ISIC2018': 'adeIaide/skin-lesion-7class-efficientnet'}
+# Runners that are not ImageNet classifiers, by the data.name their config must declare.
+EXPECTED_DATASETS = {'OD_DETR': 'mscoco', 'COD_ViT': 'camo', 'OC_CelebA': 'celebahq', 'OC_BUSI': 'busi',
+                     'OC_PartImageNet': 'partimagenet', 'OC_FunnyBirds': 'funnybirds', 'OC_PACO': 'paco',
+                     'OC_KvasirSEG': 'kvasirseg', 'OC_ISIC2018': 'isic2018'}
+# These load a local checkpoint from --checkpoint or the config's model.checkpoint.
+CHECKPOINT_HELP = {'OC_CelebA': 'download_celeba_checkpoint.py',
+                   **{kind: f'download_datasets.py --dataset {name} --assets model' for kind, name in
+                      [('OC_FunnyBirds', 'funnybirds'), ('OC_KvasirSEG', 'kvasirseg'), ('OC_ISIC2018', 'isic2018')]}}
+LESION_RUNNERS = {'OC_BUSI', 'OC_KvasirSEG', 'OC_ISIC2018'}
 
 
 def create_parser(kind):
@@ -102,15 +116,15 @@ def prepare_inputs(kind, args):
         validate(args)
     config = load_path_config(args.config)
     data = config['data']
-    expected = 'mscoco' if kind == 'OD_DETR' else 'camo' if kind == 'COD_ViT' else 'celebahq' if kind == 'OC_CelebA' else 'busi' if kind == 'OC_BUSI' else 'partimagenet' if kind == 'OC_PartImageNet' else 'imagenet'
+    expected = EXPECTED_DATASETS.get(kind, 'imagenet')
     if data.get('name', '').replace('_', '').lower() != expected:
         raise ValueError(f'{kind} requires the {expected} dataset config')
     if args.gt_only and (not args.show_gt or expected != 'imagenet'):
         raise ValueError('--gt-only requires an ImageNet runner with --show-gt')
-    if expected == 'partimagenet' and args.show_gt:
+    if expected in {'partimagenet', 'paco'} and args.show_gt:
         gt_annotation = data.get('ground_truth', {}).get('annotation_file')
         if not gt_annotation or resolve_path(gt_annotation) != resolve_path(data['annotation_file']):
-            raise ValueError('PartImageNet data.annotation_file and ground_truth.annotation_file must select the same split')
+            raise ValueError(f"{data['name']} data.annotation_file and ground_truth.annotation_file must select the same split")
     if args.show_gt and kind != 'OD_DETR':
         from ground_truth import validate_config
         validate_config(config)
@@ -135,7 +149,7 @@ def prepare_inputs(kind, args):
         annotation_file = resolve_path(data['annotation_file'])
         items = json.loads(annotation_file.read_text())['images']
         images = {f"{int(item['id']):012d}": image_dir / item['file_name'] for item in items}
-    elif expected == 'partimagenet':
+    elif expected in {'partimagenet', 'paco'}:
         from partimagenet_data import collect_images
         images = {item['id']: image_dir / item['file_name'] for item in collect_images(data)}
     elif expected == 'busi':
@@ -201,10 +215,11 @@ def prepare_inputs(kind, args):
                         'partition_metadata': completed[image_id]})
     if args.attribute and kind != 'OC_CelebA':
         raise ValueError('--attribute is for OC_CelebA')
-    if kind == 'OC_CelebA':
+    if kind in CHECKPOINT_HELP:
         args.checkpoint = args.checkpoint or config.get('model', {}).get('checkpoint')
         if not args.checkpoint:
-            raise ValueError('Set --checkpoint or model.checkpoint; run download_celeba_checkpoint.py first')
+            raise ValueError(f'Set --checkpoint or model.checkpoint; run {CHECKPOINT_HELP[kind]} first')
+    if kind == 'OC_CelebA':
         if args.attribute and args.target_class is not None:
             raise ValueError('Choose --attribute or --target-class, not both')
     for name in ['checkpoint', 'class_names', 'attribute_file']:
@@ -667,7 +682,7 @@ def run(kind, args, adapter=None):
                         statuses[method].update(result)
                         next(row for row in image_rows if row['method'] == method).update(result)
                 write_json(folder / f'{image_id}_method_status.json', statuses)
-            if kind == 'OC_BUSI' and ground_truth is not None:
+            if kind in LESION_RUNNERS and ground_truth is not None:
                 from src.medical.evaluation import pointing_accuracy
                 from all_methods import best_iou
                 for method, values in attributions.items():

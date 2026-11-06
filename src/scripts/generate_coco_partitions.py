@@ -80,7 +80,7 @@ def parse_args():
 
 def collect_images(data):
     """Read COCO records or scan an image directory without decoding images."""
-    if data.get("name", "").lower() == "partimagenet":
+    if data.get("name", "").lower() in {"partimagenet", "paco"}:
         from partimagenet_data import collect_images as collect_parts
         return collect_parts(data)
     if data.get("name", "").lower() == "busi":

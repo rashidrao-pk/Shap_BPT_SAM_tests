@@ -1,0 +1,18 @@
+device: cuda
+data:
+  name: KvasirSEG
+  input_format: directory
+  image_dir: /beegfs/home/mrashid/datasets/Kvasir-SEG/images
+  mask_dir_final: KvasirSEG_sam2_tiny_62_compact-sam_50
+  ground_truth:
+    format: kvasir_seg
+    root: /beegfs/home/mrashid/datasets/Kvasir-SEG/masks
+model:
+  checkpoint: checkpoints/kvasir_vit
+output:
+  partitions: /beegfs/home/mrashid/datasets/SAM_BPT
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/evaluations
+
+evaluation:
+  bg-type: "full"

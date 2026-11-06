@@ -286,6 +286,9 @@ class GradientMethods:
                 elif getattr(self.adapter, 'name', '') == 'celeba_cnn':
                     values = LayerGradCam(self.forward, self.model.unit8.conv).attribute(
                         x, target=target, relu_attributions=True)
+                elif getattr(self.adapter, 'name', '') == 'efficientnet_b0_isic':
+                    values = LayerGradCam(self.forward, self.model.encoder[0][-1]).attribute(
+                        x, target=target, relu_attributions=True)
                 elif getattr(self.adapter, 'name', '') == 'siglip_busi':
                     # SigLIP has patch tokens and mean pooling, without a CLS token.
                     layer = self.model.vision_model.encoder.layers[-1].layer_norm1
@@ -303,9 +306,10 @@ class GradientMethods:
                         values = (features * weights).sum(dim=-1).relu().reshape(1, 1, height, width)
                     finally:
                         hook.remove()
-                elif getattr(self.adapter, 'name', '') == 'vit_b_16':
+                elif getattr(self.adapter, 'name', '') in {'vit_b_16', 'vit_kvasir'}:
                     # Patch tokens before the last attention block still influence CLS.
-                    layer = self.model.encoder.layers[-1].ln_1
+                    layer = (self.model.vit.encoder.layer[-1].layernorm_before
+                             if self.adapter.name == 'vit_kvasir' else self.model.encoder.layers[-1].ln_1)
                     saved = []
                     def capture(_, __, output):
                         saved.append(output)

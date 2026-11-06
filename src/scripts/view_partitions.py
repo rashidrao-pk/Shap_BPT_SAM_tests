@@ -141,10 +141,10 @@ def resolve_paths(args, image_index=None):
             partitions = [partition_dir / f'{image_id}_{method}.npy' for method in args.methods]
         if image is None:
             image_dir = rooted(data['image_dir'])
-            if data.get('name', '').lower() == 'partimagenet':
+            if data.get('name', '').lower() in {'partimagenet', 'paco'}:
                 images = image_index if image_index is not None else partimagenet_image_index(config)
                 if image_id not in images:
-                    raise ValueError(f'{image_id}: not listed in the selected PartImageNet annotation split')
+                    raise ValueError(f'{image_id}: not listed in the selected annotation split')
                 image = images[image_id]
             else:
                 extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp'}
@@ -191,7 +191,7 @@ def main():
         if args.limit is not None:
             _, config = load_view_config(args.config)
             image_index = (partimagenet_image_index(config)
-                           if config['data'].get('name', '').lower() == 'partimagenet' else None)
+                           if config['data'].get('name', '').lower() in {'partimagenet', 'paco'} else None)
             for image_id in discover_image_ids(args.config, args.methods, args.limit, image_index):
                 selected = copy.copy(args)
                 selected.image_id = image_id

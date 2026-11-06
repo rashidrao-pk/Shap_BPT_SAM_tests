@@ -1,4 +1,4 @@
-"""Dataset GT loaders for CAMO, CelebAMask-HQ, ImageNet-S, and COCO previews."""
+"""Dataset GT loaders for CAMO, CelebAMask-HQ, ImageNet-S, part datasets, lesion masks, and COCO previews."""
 from functools import lru_cache
 import importlib.util
 import json
@@ -30,6 +30,18 @@ CELEBA_ATTRIBUTE_PARTS = {
     'Narrow_Eyes': ['l_eye', 'r_eye'], 'Wearing_Earrings': ['ear_r'],
     'Wearing_Necklace': ['neck_l'],
 }
+
+# Exact part-map colours. Anti-aliased edge colours stay unlabeled, matching the FunnyBirds framework;
+# (204, 204, *) marks background distractors, never bird parts.
+FUNNYBIRDS_COLORS = {(255, 255, 253): 'eye', (255, 255, 254): 'eye', (255, 255, 0): 'beak',
+                     (255, 0, 1): 'foot', (255, 0, 2): 'foot', (0, 255, 1): 'wing',
+                     (0, 255, 2): 'wing', (0, 0, 255): 'tail', (170, 170, 170): 'body'}
+FUNNYBIRDS_LABELS = ['beak', 'eye', 'foot', 'tail', 'wing', 'body']
+# The body is shared by all classes, so the default GT keeps only class-defining parts.
+FUNNYBIRDS_CLASS_PARTS = FUNNYBIRDS_LABELS[:5]
+# Format -> (mask filename suffix after the image stem, display name).
+LESION_MASKS = {'kvasir_seg': ('.jpg', 'Polyp'), 'isic2018': ('_segmentation.png', 'Skin lesion')}
+
 
 def title(gt):
     count = gt.get('display_count', gt.get('instance_count', 0))
@@ -226,23 +238,26 @@ def _partimagenet_index(annotation_file):
     for item in coco.dataset['images']:
         stem = Path(item['file_name']).stem
         if stem in index:
-            raise ValueError(f'Duplicate PartImageNet annotation stem: {stem}')
+            raise ValueError(f'Duplicate annotation stem: {stem}')
         index[stem] = item
     return coco, index
 
 
-def _load_partimagenet(settings, root, image_path, shape, selected_part):
+def _load_coco_parts(settings, image_path, shape, selected_part, dataset='PartImageNet'):
     annotation = resolve_path(settings['annotation_file'])
     coco, index = _partimagenet_index(str(annotation))
     record = index.get(Path(image_path).stem)
     if record is None:
-        return _empty(shape, 'PartImageNet parts', 'annotation not available', scope='annotated_parts')
+        return _empty(shape, f'{dataset} parts', 'annotation not available', scope='annotated_parts')
     categories = coco.loadCats(coco.getCatIds())
     all_parts = selected_part in {None, 'all', 'foreground'}
-    ids = [item['id'] for item in categories if all_parts or
-           str(item['id']) == str(selected_part) or item['name'].lower() == str(selected_part).lower()]
+    # PACO stores whole objects beside parts; the default GT must contain parts only.
+    default = [item for item in categories if item.get('supercategory', 'PART') == 'PART']
+    ids = [item['id'] for item in default] if all_parts else [
+        item['id'] for item in categories
+        if str(item['id']) == str(selected_part) or item['name'].lower() == str(selected_part).lower()]
     if not ids:
-        raise ValueError(f'Unknown PartImageNet part: {selected_part}; choose a category name or ID from the annotation JSON')
+        raise ValueError(f'Unknown {dataset} part: {selected_part}; choose a category name or ID from the annotation JSON')
     labels = np.zeros((record['height'], record['width']), dtype=np.uint16)
     used, names = [], []
     category_names = {item['id']: item['name'] for item in categories}
@@ -251,13 +266,51 @@ def _load_partimagenet(settings, root, image_path, shape, selected_part):
             labels[np.asarray(coco.annToMask(ann), dtype=bool)] = len(used) + 1
             used.append(ann['id'])
             names.append(category_names[ann['category_id']])
-    return _result(labels, shape, 'PartImageNet annotated parts' if all_parts else str(selected_part),
+    return _result(labels, shape, f'{dataset} annotated parts' if all_parts else str(selected_part),
                    [annotation], 'matched' if used else 'no matching part segmentation',
                    annotation_ids=used, part_names=names, category_ids=ids, semantic_labels=True,
                    label_names={i+1: name for i, name in enumerate(names)},
                    semantic_classes=sorted(set(category_names.values())),
                    scope='annotated_parts' if all_parts else 'selected_part',
                    instance_count=len(used), display_count=len(set(names)), count_label='part classes')
+
+
+def _load_funnybirds(settings, root, image_path, shape, gt_class):
+    image_path = Path(image_path)
+    path = root / f"{settings.get('split', 'test')}_part_map" / image_path.parent.name / image_path.name
+    if not path.is_file():
+        return _empty(shape, 'FunnyBirds parts', 'annotation not available', scope='annotated_parts')
+    all_parts = gt_class in {None, 'all', 'foreground'}
+    selected = FUNNYBIRDS_CLASS_PARTS if all_parts else [str(gt_class).lower()]
+    if set(selected) - set(FUNNYBIRDS_LABELS):
+        raise ValueError(f'Unknown FunnyBirds part: {gt_class}; supported: {FUNNYBIRDS_LABELS}')
+    with Image.open(path) as source:
+        colors = np.asarray(source.convert('RGB'))
+    labels = np.zeros(colors.shape[:2], dtype=np.uint16)
+    for color, part in FUNNYBIRDS_COLORS.items():
+        labels[(colors == color).all(axis=-1)] = FUNNYBIRDS_LABELS.index(part) + 1
+    ids = [FUNNYBIRDS_LABELS.index(part) + 1 for part in selected]
+    present = [FUNNYBIRDS_LABELS[value - 1] for value in ids if (labels == value).any()]
+    return _result(labels, shape, 'FunnyBirds class-defining parts' if all_parts else selected[0], [path],
+                   'matched' if present else 'selected part not visible', selected=ids,
+                   scope='annotated_parts' if all_parts else 'selected_part', part_names=present,
+                   semantic_labels=True, semantic_classes=FUNNYBIRDS_LABELS,
+                   label_names={index + 1: part for index, part in enumerate(FUNNYBIRDS_LABELS)},
+                   dataset_class=image_path.parent.name, display_count=len(present), count_label='parts')
+
+
+def _load_lesion_mask(format_name, root, stem, shape, gt_class, predicted_class):
+    suffix, name = LESION_MASKS[format_name]
+    if gt_class not in {None, 'all', 'foreground'}:
+        raise ValueError(f'{name} GT is binary; use --gt-class foreground')
+    path = root / f'{stem}{suffix}'
+    if not path.is_file():
+        return _empty(shape, name, 'annotation not available', scope='lesion_region')
+    with Image.open(path) as source:
+        # Kvasir-SEG masks are JPEGs: compression leaves faint non-zero pixels beyond the true edge.
+        mask = np.asarray(source.convert('L')) >= 128
+    return _result(mask.astype(np.uint8), shape, name, [path], 'matched' if mask.any() else 'annotated empty lesion mask',
+                   scope='lesion_region', predicted_class=predicted_class)
 
 
 def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_index=None, label_space=None,
@@ -288,7 +341,13 @@ def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_
     settings, root = validate_config(config)
     format_name = settings['format'].lower()
     if format_name == 'partimagenet':
-        return _load_partimagenet(settings, root, image_path, image_shape, gt_class)
+        return _load_coco_parts(settings, image_path, image_shape, gt_class)
+    if format_name == 'paco':
+        return _load_coco_parts(settings, image_path, image_shape, gt_class, dataset='PACO')
+    if format_name == 'funnybirds':
+        return _load_funnybirds(settings, root, image_path, image_shape, gt_class)
+    if format_name in LESION_MASKS:
+        return _load_lesion_mask(format_name, root, stem, image_shape, gt_class, predicted_class)
     if format_name == 'busi':
         from src.medical.datasets import lesion_mask
         path = Path(image_path)

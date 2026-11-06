@@ -18,9 +18,12 @@ from config_paths import output_path, resolve_path
 from auc_export import auc_columns
 
 RUNNERS = ['OC_ResNet', 'OC_VGG', 'OC_ViT', 'COD_ViT', 'OD_DETR', 'OD_yolo',
-           'OC_CelebA', 'OC_BUSI', 'OC_PartImageNet']
+           'OC_CelebA', 'OC_BUSI', 'OC_PartImageNet', 'OC_FunnyBirds', 'OC_PACO',
+           'OC_KvasirSEG', 'OC_ISIC2018']
 METHODS = ['BPT', 'BPT+SAM_c', 'SAM_c+KernelSHAP']
 DEFAULT_METHODS = ['BPT', 'BPT+SAM_c']
+DEFAULT_BUDGETS = [1000, 2000, 4000, 6000]
+DEFAULT_REFERENCE_BUDGET = 8000
 
 
 def parser(argv=None):
@@ -32,8 +35,8 @@ def parser(argv=None):
         result.set_defaults(model='yolo11s')
     result.description = __doc__
     result.add_argument('--runner', choices=RUNNERS, default=runner)
-    result.add_argument('--budgets', nargs='+', type=int, default=[100, 200, 500, 1000, 2000])
-    result.add_argument('--reference-budget', type=int, default=4000)
+    result.add_argument('--budgets', nargs='+', type=int, default=DEFAULT_BUDGETS)
+    result.add_argument('--reference-budget', type=int, default=DEFAULT_REFERENCE_BUDGET)
     result.add_argument('--stop-after-images', type=int, help='Save an interim report after the first N fixed pilot images')
     result.add_argument('--repeats', type=int, default=3)
     result.add_argument('--pilot-seed', type=int, default=0)
@@ -154,20 +157,21 @@ def evaluate_map(runtime, args, image, labels, predict, explainer, target, trees
                 print(f"  CACHED {cache.parent.parent.name} | {method} | B={budget} | seed={seed}", flush=True)
                 return values, saved
     if args.resume and getattr(args, '_reuse_source', None):
-        source = args._reuse_source / cache.relative_to(args._pilot_folder)
-        source_marker, source_archive = source.with_suffix('.json'), source.with_suffix('.npz')
-        if source_marker.is_file() and source_archive.is_file():
-            saved = json.loads(source_marker.read_text())
-            if saved.get('signature') == args._reuse_signature:
-                with np.load(source_archive, allow_pickle=False) as data:
-                    values = data['values']
-                if values.shape == image.shape[:2] and np.isfinite(values).all():
-                    saved = dict(saved, signature=signature, reused_from=str(source))
-                    cache.parent.mkdir(parents=True, exist_ok=True)
-                    np.savez_compressed(archive, values=values)
-                    common.write_json(marker, saved)
-                    print(f"  REUSED {cache.parent.parent.name} | {method} | B={budget} | seed={seed}", flush=True)
-                    return values, saved
+        from budget_reuse import find_reusable_cache
+        directory = args._reuse_source / cache.parent.relative_to(args._pilot_folder)
+        reused = find_reusable_cache(directory, args._reuse_signature, method, budget, seed)
+        if reused is not None:
+            source_marker, saved = reused
+            with np.load(source_marker.with_suffix('.npz'), allow_pickle=False) as data:
+                values = data['values']
+            if values.shape == image.shape[:2] and np.isfinite(values).all():
+                saved = dict(saved, signature=signature, seed=seed, source_seed=saved['seed'],
+                             reused_from=str(source_marker.with_suffix('')))
+                cache.parent.mkdir(parents=True, exist_ok=True)
+                np.savez_compressed(archive, values=values)
+                common.write_json(marker, saved)
+                print(f"  REUSED {cache.parent.parent.name} | {method} | B={budget} | seed={seed}", flush=True)
+                return values, saved
     print(f"  {image.shape[1]}x{image.shape[0]} {method}: B={budget}, seed={seed}", flush=True)
     started, before = time.perf_counter(), counters['masks']
     with fixed_seed(runtime.torch, seed):
@@ -381,7 +385,8 @@ def run(args, adapter=None):
              'settings': common.jsonable({key: value for key, value in vars(args).items() if not key.startswith('_')}),
              'inputs': [common.input_stamp(record) for record in records]}
     if args.statistical_test:
-        study['statistical_protocol'] = {'budgets': args.budgets, 'bootstrap_resamples': 20000,
+        study['statistical_protocol'] = {'budgets': args.budgets, 'reference_budget': args.reference_budget,
+            'bootstrap_resamples': 20000,
             'alpha': .05, 'seed': args.pilot_seed,
             'margins': {'relative_l1': args.max_relative_l1, 'spearman_loss': 1-args.min_spearman,
                         'top_jaccard_loss': 1-args.min_top_jaccard,

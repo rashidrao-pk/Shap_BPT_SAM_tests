@@ -137,13 +137,16 @@ def load_adapter(kind, args, device):
         adapter = ClassifierAdapter(args, device, 'vgg16')
         adapter.model.requires_grad_(False)
         return adapter
-    if kind == 'OC_PartImageNet':
+    if kind in {'OC_PartImageNet', 'OC_PACO'}:
         adapter = ClassifierAdapter(args, device, 'resnet50')
         adapter.model.requires_grad_(False)
         return adapter
     if kind == 'OC_BUSI':
         from src.medical.classifier import BusiAdapter
         return BusiAdapter(args, device)
+    if kind in {'OC_FunnyBirds', 'OC_KvasirSEG', 'OC_ISIC2018'}:
+        from dataset_adapters import ADAPTERS
+        return ADAPTERS[kind](args, device)
     if kind == 'OC_CelebA':
         from celeba_model import CelebaAdapter
         return CelebaAdapter(args, device)

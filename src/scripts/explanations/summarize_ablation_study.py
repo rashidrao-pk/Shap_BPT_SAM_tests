@@ -18,7 +18,8 @@ from budget_ablation import write_reports
 
 DATASETS = {'OC_ResNet': 'ImageNet', 'OC_VGG': 'ImageNet', 'OC_ViT': 'ImageNet',
     'COD_ViT': 'CAMO', 'OC_BUSI': 'BUSI', 'OC_CelebA': 'CelebA-HQ',
-    'OC_PartImageNet': 'PartImageNet', 'OD_DETR': 'MS-COCO', 'OD_yolo': 'MS-COCO'}
+    'OC_PartImageNet': 'PartImageNet', 'OC_FunnyBirds': 'FunnyBirds', 'OC_PACO': 'PACO',
+    'OC_KvasirSEG': 'Kvasir-SEG', 'OC_ISIC2018': 'ISIC 2018', 'OD_DETR': 'MS-COCO', 'OD_yolo': 'MS-COCO'}
 
 
 def locate(home, manifest, task):

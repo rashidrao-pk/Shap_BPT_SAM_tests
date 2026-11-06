@@ -2,7 +2,7 @@
 
 Test **BPT** and **BPT+SAM_c** only. KernelSHAP is excluded. Use **full** background replacement throughout. Run these Python commands yourself inside an allocated EPITO GPU session; no batch job is submitted by this workflow.
 
-The previous three-image pilot finished. Its compatible BPT maps can be reused, so you do not need to repeat that inference. Results from this two-method workflow are saved in a new sibling folder named `interactive_bpt_two_methods`; the earlier study remains intact.
+The previous three-image pilot finished. Its compatible BPT maps can be reused, so you do not need to repeat that inference. Results from this two-method workflow are saved in a new sibling folder named `interactive_bpt_r8000`; the earlier study remains intact.
 
 ## 1. Select the existing source study
 
@@ -15,7 +15,7 @@ python -u src/scripts/explanations/budget_interactive.py \
   --source-study "$SOURCE_STUDY" --images 3 --dry-run
 ```
 
-This preserves the source's fixed 20 images, original 12-calibration/8-validation split, YOLO checkpoint, SAM1 partitions, background, budget grid and reference. Reuse checks source inputs, checkpoint stamps, package versions and scoring settings before loading a model. Changing those settings requires a fresh compatible study. If the scorer implementation itself changes, do not reuse old evaluations.
+This preserves the source's fixed 20 images, original 12-calibration/8-validation split, YOLO checkpoint, SAM1 partitions and background. The new candidate grid is **1000, 2000, 4000, 6000**, with **8000 as the reference**. Reuse checks source inputs, checkpoint stamps, package versions and scoring settings before loading a model. The new reference uses a separate study name. Cached maps at matching budgets can be reused; all map comparisons and reference means are recomputed against 8000. The old 4000 reference may be reused as a 4000 candidate for deterministic BPT, never as an 8000 reference. Changing image/model/scoring settings prevents reuse. If the scorer implementation itself changes, do not reuse old evaluations.
 
 ## 2. Run a small checkpoint
 
@@ -42,6 +42,23 @@ Run one command at a time. Previously completed maps are reused. Keep the same s
 
 These stages use only the original calibration images. Intermediate inspection is exploratory: do not interpret repeated checks as repeated independent significance tests, and do not change tolerances or select favorable images after seeing their outcomes.
 
+## Optional: refine the budget range
+
+Use the calibration results to decide which interval needs more points. For example, add 2500 and 3000 while retaining 8000 as reference:
+
+```bash
+export COARSE_STUDY="${SOURCE_STUDY%/*}/interactive_bpt_r8000"
+
+python -u src/scripts/explanations/budget_interactive.py \
+  --source-study "$COARSE_STUDY" --images 3 \
+  --budgets 1000 2000 2500 3000 4000 6000 \
+  --reference-budget 8000 --study-name interactive_bpt_refined_r8000
+```
+
+Use the completed coarse study as the source to reuse its matching 8000-reference and candidate evaluations. Changing a grid requires a new study name; existing results are not overwritten. The three repetitions and image split stay fixed. You can similarly add 5000 or 7000 if that is the unresolved interval. Every candidate must be strictly below 8000.
+
+Record the refinement rule before collecting new calibration results. Keep the held-out images untouched. After choosing a grid, repeat exactly the same source, grid, reference and study-name arguments for later stages and `--final`; do not silently switch back to the coarse defaults.
+
 ## 4. Final paired non-inferiority test
 
 When you decide to finish the predeclared design:
@@ -59,7 +76,7 @@ Read the printed **`statistical_conclusion.md`**. Full bounds are in `statistica
 
 Following the attached ChatGPT discussion, require evidence that a smaller budget is sufficiently close to the high-budget reference, rather than treating a nonsignificant difference as equivalence.
 
-Budgets: **100, 200, 500, 1000, 2000**. Approximate reference: **4000**. AUC resolution stays fixed at 200; it is not swept.
+Default coarse budgets: **1000, 2000, 4000, 6000**. Approximate reference: **8000**. AUC resolution stays fixed at 200; it is not swept.
 
 | Paired loss against the reference | Acceptable mean loss |
 | --- | ---: |
@@ -71,6 +88,6 @@ Budgets: **100, 200, 500, 1000, 2000**. Approximate reference: **4000**. AUC res
 
 For each loss, test **H0: mean loss ≥ margin** against **H1: mean loss < margin**. Average repeats within each image, resample paired images 20,000 times, and form simultaneous one-sided 95% upper bounds across budgets, both methods and metrics. A budget passes when every bound is below its margin, reference checks pass, and all larger tested budgets also pass. Choose on calibration, then accept or reject once on the held-out set without escalating the budget from validation outcomes.
 
-These bootstrap bounds have approximate coverage and the pilot is small. A positive result means mean agreement with an approximate reference under the tested settings, not exact Shapley values, ground-truth correctness, or a guarantee for every image. No passing budget means **no budget is validated**; do not automatically choose 1000 or 2000.
+These bootstrap bounds have approximate coverage and the pilot is small. A positive result means mean agreement with an approximate reference under the tested settings, not exact Shapley values, ground-truth correctness, or a guarantee for every image. No passing budget means **no budget is validated**; do not automatically choose 4000 or 6000.
 
 Any recommendation applies only to **BPT and BPT+SAM_c on the tested YOLO/SAM1 MS-COCO setup**. It does not cover KernelSHAP, LIME, gradients, SAM2, DETR or other datasets. The ordinary all-method XAI runner still includes other methods; this ablation does not supply a validated budget for them.

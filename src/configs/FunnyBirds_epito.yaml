@@ -1,0 +1,20 @@
+# image_dir selects the split; ground_truth.split must match it.
+device: cuda
+data:
+  name: FunnyBirds
+  input_format: directory
+  image_dir: /beegfs/home/mrashid/datasets/FunnyBirds/test
+  mask_dir_final: FunnyBirds_sam2_tiny_62_compact-sam_50
+  ground_truth:
+    format: funnybirds
+    root: /beegfs/home/mrashid/datasets/FunnyBirds
+    split: test
+model:
+  checkpoint: checkpoints/funnybirds/resnet50_final_0_checkpoint_best.pth.tar
+output:
+  partitions: /beegfs/home/mrashid/datasets/SAM_BPT
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/evaluations
+
+evaluation:
+  bg-type: "full"

@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'src/scripts/explanations'))
 from budget_interactive import build_args, statistical_report
-from budget_reuse import validate_reuse
+from budget_reuse import validate_reuse, find_reusable_cache
 import budget_ablation as pilot
 from test_budget_noninferiority import fixture
 
@@ -22,6 +22,10 @@ def test_builder_keeps_original_plan_and_excludes_kernelshap(tmp_path):
     assert args.methods == ['BPT', 'BPT+SAM_c']
     assert args.limit == 20 and args.image_ids == source['settings']['image_ids']
     assert args.stop_after_images == 3 and args.statistical_test
+    assert args.reference_budget == 8000 and args.budgets == [1000, 2000, 4000, 6000]
+    assert args.study_name == 'interactive_bpt_r8000'
+    refined = build_args(folder, budgets=[2000, 2500, 3000, 4000], reference_budget=8000)
+    assert refined.budgets == [2000, 2500, 3000, 4000]
     assert build_args(folder, final=True).stop_after_images is None
     with pytest.raises(ValueError, match='--final'):
         build_args(folder, images=13)
@@ -33,6 +37,9 @@ def test_reuse_rejects_changed_scoring_or_inputs(tmp_path):
     source['signature'] = 'original'
     (tmp_path/'study.json').write_text(json.dumps(source))
     current = copy.deepcopy(source)
+    assert validate_reuse(current, tmp_path)['signature'] == 'original'
+    current['reference_budget'] = 8000
+    current['budgets'] = [1000, 2000, 4000]
     assert validate_reuse(current, tmp_path)['signature'] == 'original'
     current['settings']['threshold'] = .5
     with pytest.raises(ValueError, match='settings.threshold'):
@@ -50,3 +57,14 @@ def test_statistical_report_is_limited_to_actual_methods(tmp_path):
     assert (tmp_path/'statistical_bounds.csv').is_file()
     assert 'not attribution correctness' in (tmp_path/'statistical_conclusion.md').read_text()
     assert pilot.parser([]).methods == ['BPT', 'BPT+SAM_c']
+
+
+def test_reference_role_reuse_checks_actual_budget_and_stochastic_seed(tmp_path):
+    path = tmp_path/'reference_s0.json'
+    row = {'signature': 'old', 'method': 'BPT', 'budget': 4000, 'seed': 100000}
+    path.write_text(json.dumps(row)); path.with_suffix('.npz').touch()
+    assert find_reusable_cache(tmp_path, 'old', 'BPT', 8000, 100000) is None
+    assert find_reusable_cache(tmp_path, 'old', 'BPT', 4000, 0)[0] == path
+    row['method'] = 'SAM_c+KernelSHAP'; path.write_text(json.dumps(row))
+    assert find_reusable_cache(tmp_path, 'old', 'SAM_c+KernelSHAP', 4000, 0) is None
+    assert find_reusable_cache(tmp_path, 'old', 'SAM_c+KernelSHAP', 4000, 100000)[0] == path

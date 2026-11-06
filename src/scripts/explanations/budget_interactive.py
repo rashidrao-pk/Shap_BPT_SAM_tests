@@ -20,7 +20,7 @@ def statistical_report(folder, study):
     (folder/'statistical_selection.json').write_text(json.dumps(result, indent=2)+'\n')
     lines = ['# Paired non-inferiority budget conclusion', '', conclusion, '',
         f"Status: {result['status']}. Methods: {', '.join(study['methods'])}. Background: {study['background']}.", '',
-        'This tests mean agreement with a 4000-budget approximation, not attribution correctness. '
+        f"This tests mean agreement with a {study['reference_budget']}-budget approximation, not attribution correctness. "
         'It does not select a budget for KernelSHAP, LIME, gradient methods or untested datasets/models.', '',
         'Images are the bootstrap unit. Repeated deterministic BPT maps are not independent samples. '
         'Calibration checkpoints are descriptive; the fixed held-out set is tested once at the final stage. '
@@ -44,7 +44,8 @@ def statistical_report(folder, study):
     return result
 
 
-def build_args(source_folder, images=3, final=False, study_name='interactive_bpt_two_methods'):
+def build_args(source_folder, images=3, final=False, study_name='interactive_bpt_r8000',
+               budgets=None, reference_budget=8000):
     import budget_ablation as pilot
     source_folder = Path(source_folder).resolve()
     source = json.loads((source_folder/'study.json').read_text())
@@ -57,6 +58,8 @@ def build_args(source_folder, images=3, final=False, study_name='interactive_bpt
         if hasattr(args, key):
             setattr(args, key, value)
     args.methods = list(pilot.DEFAULT_METHODS)
+    args.budgets = list(pilot.DEFAULT_BUDGETS if budgets is None else budgets)
+    args.reference_budget = reference_budget
     args.study_name = study_name
     args.reuse_study = source_folder
     args.progress_every_image = True
@@ -76,10 +79,13 @@ def main():
     stage = parser.add_mutually_exclusive_group()
     stage.add_argument('--images', type=int, default=3, help='First N original calibration images; default: 3')
     stage.add_argument('--final', action='store_true', help='Finish the original fixed design and perform held-out testing')
-    parser.add_argument('--study-name', default='interactive_bpt_two_methods')
+    parser.add_argument('--study-name', default='interactive_bpt_r8000')
+    parser.add_argument('--budgets', nargs='+', type=int, help='Candidate budgets; default: 1000 2000 4000 6000')
+    parser.add_argument('--reference-budget', type=int, default=8000)
     parser.add_argument('--dry-run', action='store_true')
     cli = parser.parse_args()
-    args = build_args(cli.source_study, cli.images, cli.final, cli.study_name)
+    args = build_args(cli.source_study, cli.images, cli.final, cli.study_name,
+                      cli.budgets, cli.reference_budget)
     args.dry_run = cli.dry_run
     print('Methods: BPT, BPT+SAM_c. KernelSHAP excluded. Background: full.', flush=True)
     print('Stage: '+('final fixed-design validation' if cli.final else f'first {cli.images} calibration images; descriptive checkpoint'), flush=True)

@@ -16,7 +16,13 @@ MODELS = {
     'CAMO': [('COD_ViT', 'vit_b_16')],
     'BUSI': [('OC_BUSI', 'ghostsas001/busi-breast-ultrasound-siglip')],
     'PartImageNet': [('OC_PartImageNet', 'resnet50')],
+    'FunnyBirds': [('OC_FunnyBirds', 'resnet50')],
+    'PACO': [('OC_PACO', 'resnet50')],
+    'KvasirSEG': [('OC_KvasirSEG', 'mmuratarat/kvasir-v2-classifier')],
+    'ISIC2018': [('OC_ISIC2018', 'adeIaide/skin-lesion-7class-efficientnet')],
 }
+# Later datasets are opt-in through --datasets, so preparing the original study needs no new partitions.
+DEFAULT_DATASETS = ['MSCOCO', 'ImageNet', 'CelebAHQ', 'CAMO', 'BUSI', 'PartImageNet']
 
 
 def digest(path):
@@ -103,7 +109,7 @@ def prepare(repo, home, datasets, size=20):
                     args += ['--checkpoint', str(repo / 'src/checkpoints/yolo11s.pt')]
                 if runner == 'OC_BUSI':
                     args += ['--checkpoint', str(repo / 'checkpoints/busi_siglip')]
-                if runner == 'OC_PartImageNet':
+                if runner in {'OC_PartImageNet', 'OC_PACO'}:
                     args += ['--checkpoint', str(repo / 'checkpoints/partimagenet/resnet50-11ad3fa6.pth'),
                              '--weights', 'IMAGENET1K_V2']
                 if runner == 'OC_CelebA':
@@ -136,7 +142,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', required=True, type=Path)
     parser.add_argument('--study', required=True, type=Path)
-    parser.add_argument('--datasets', nargs='+', choices=list(MODELS), default=list(MODELS))
+    parser.add_argument('--datasets', nargs='+', choices=list(MODELS), default=DEFAULT_DATASETS)
     parser.add_argument('--images', type=int, default=20)
     args = parser.parse_args()
     result = prepare(args.repo.resolve(), args.study.resolve(), args.datasets, args.images)

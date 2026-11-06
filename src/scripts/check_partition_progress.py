@@ -12,7 +12,8 @@ from config_paths import output_path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIGS = ['MSCOCO_epito', 'ImageNet_epito', 'CelebAHQ_epito', 'CAMO_epito',
-                   'BUSI_epito', 'PartImageNet_epito']
+                   'BUSI_epito', 'PartImageNet_epito', 'FunnyBirds_epito', 'PACO_epito',
+                   'KvasirSEG_epito', 'ISIC2018_epito']
 STAGES = ['boosted_filled', 'refined_filled', 'compact_selection', 'greedy_selection',
           'sam', 'refined', 'compact', 'boosted', 'filled', 'coverage']
 
@@ -41,7 +42,7 @@ def source_ids(data, limit=None, gt_only=False):
             sys.path.insert(0, str(ROOT))
         from src.medical.datasets import discover_images
         ids = [item['id'] for item in discover_images(rooted(data['image_dir']))]
-    elif data.get('name', '').lower() == 'partimagenet':
+    elif data.get('name', '').lower() in {'partimagenet', 'paco'}:
         from partimagenet_data import collect_images
         ids = [item['id'] for item in collect_images(data)]
     elif data.get('input_format', 'coco') == 'directory':

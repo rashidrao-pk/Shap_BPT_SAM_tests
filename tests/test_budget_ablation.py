@@ -155,6 +155,24 @@ class BudgetAblationTest(unittest.TestCase):
                     np.load(Path(record['reused_from']).with_suffix('.npz'))['values'])
             reuse_args.stop_after_images = None
             self.assertEqual(pilot.run(reuse_args, adapter=Adapter())['status'], 'insufficient_images')
+            reuse_args.study_name = 'expanded_reference'
+            reuse_args.budgets = [4, 8, 16, 24]
+            reuse_args.reference_budget = 32
+            reuse_args.stop_after_images = 2
+            pilot.run(reuse_args, adapter=Adapter())
+            expanded = folder.parent/'expanded_reference'
+            promoted = list(expanded.glob('**/B16_s0.json'))
+            self.assertTrue(promoted)
+            for marker in promoted:
+                metadata = json.loads(marker.read_text())
+                self.assertEqual(metadata['budget'], 16)
+                self.assertEqual(metadata['seed'], 0)
+                self.assertEqual(metadata['source_seed'], 100000)
+                self.assertIn('reference_s', metadata['reused_from'])
+            for marker in expanded.glob('**/reference_s*.json'):
+                metadata = json.loads(marker.read_text())
+                self.assertEqual(metadata['budget'], 32)
+                self.assertNotIn('reused_from', metadata)
 
 
 if __name__=='__main__':

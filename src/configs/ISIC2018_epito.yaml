@@ -1,0 +1,19 @@
+# Task 1 images with lesion masks, prepared by download_datasets.py --dataset isic2018.
+device: cuda
+data:
+  name: ISIC2018
+  input_format: directory
+  image_dir: /beegfs/home/mrashid/datasets/ISIC2018/prepared_1024/validation/images
+  mask_dir_final: ISIC2018_sam2_tiny_62_compact-sam_50
+  ground_truth:
+    format: isic2018
+    root: /beegfs/home/mrashid/datasets/ISIC2018/prepared_1024/validation/masks
+model:
+  checkpoint: checkpoints/isic2018_efficientnet_b0
+output:
+  partitions: /beegfs/home/mrashid/datasets/SAM_BPT
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/evaluations
+
+evaluation:
+  bg-type: "full"

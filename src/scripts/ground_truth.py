@@ -243,6 +243,20 @@ def _partimagenet_index(annotation_file):
     return coco, index
 
 
+def annotation_mask(coco, annotation):
+    """Boolean mask for one COCO-style annotation, or None if nothing can be drawn.
+
+    A polygon needs at least 3 points. PartImageNet has 2-point polygons, which pycocotools
+    mistakes for boxes and rejects with a TypeError.
+    """
+    segmentation = annotation.get('segmentation')
+    if isinstance(segmentation, list):
+        segmentation = [polygon for polygon in segmentation if len(polygon) >= 6]
+    if not segmentation:
+        return None
+    return np.asarray(coco.annToMask({**annotation, 'segmentation': segmentation}), dtype=bool)
+
+
 def _load_coco_parts(settings, image_path, shape, selected_part, dataset='PartImageNet'):
     annotation = resolve_path(settings['annotation_file'])
     coco, index = _partimagenet_index(str(annotation))
@@ -263,8 +277,9 @@ def _load_coco_parts(settings, image_path, shape, selected_part, dataset='PartIm
     used, names = [], []
     category_names = {item['id']: item['name'] for item in categories}
     for ann in coco.loadAnns(coco.getAnnIds(imgIds=[record['id']], catIds=ids)):
-        if ann.get('segmentation'):
-            labels[np.asarray(coco.annToMask(ann), dtype=bool)] = len(used) + 1
+        mask = annotation_mask(coco, ann)
+        if mask is not None:
+            labels[mask] = len(used) + 1
             used.append(ann['id'])
             names.append(category_names[ann['category_id']])
     return _result(labels, shape, f'{dataset} annotated parts' if all_parts else str(selected_part),

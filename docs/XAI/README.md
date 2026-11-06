@@ -7,6 +7,8 @@ SAM_c reads the saved `*_compact.npy` partition maps.
 
 All runners default to **`--bg-type full`**, averaging black, gray, white, blurred and noise replacements. New results use `bg_full_B<budget>` folders.
 
+AUC and the other faithfulness metrics use the same background as the explanation. To evaluate with a different one, add `--auc-bg-type`, for example `--bg-type full --auc-bg-type black`. `f_S` and `f_0` are then measured with that background, and results go to a separate `bg_full_auc_black_B<budget>` folder. The budget studies do not accept this option.
+
 ## Dataset guides
 
 [MS-COCO](DATASETS/MSCOCO.md), [ImageNet](DATASETS/IMAGENET.md), [CAMO](DATASETS/CAMO.md), [BUSI](DATASETS/BUSI.md), [CelebA](DATASETS/CELEBA.md), [PartImageNet](DATASETS/PARTIMAGENET.md), [FunnyBirds](DATASETS/FUNNYBIRDS.md), [PACO](DATASETS/PACO.md), [Kvasir-SEG](DATASETS/KVASIR_SEG.md), [ISIC 2018](DATASETS/ISIC2018.md)

@@ -30,7 +30,7 @@ def parser(argv=None):
     preliminary = argparse.ArgumentParser(add_help=False)
     preliminary.add_argument('--runner', choices=RUNNERS, default='OC_ResNet')
     runner = preliminary.parse_known_args(argv)[0].runner
-    result = common.create_parser('OD_DETR' if runner == 'OD_yolo' else runner)
+    result = common.create_parser('OD_DETR' if runner == 'OD_yolo' else runner, auc_background=False)
     if runner == 'OD_yolo':
         result.set_defaults(model='yolo11s')
     result.description = __doc__

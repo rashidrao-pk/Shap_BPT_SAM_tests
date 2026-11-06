@@ -30,6 +30,11 @@ Saved in `results/evaluations/partition_quality/`:
 | `conclusion.md` | Verdict and reason for each dataset | |
 | `partition_quality_summary.csv` | Mean, SD, and median of best IoU and GT coverage; share at each IoU level | Tables 4.8 and 4.10 |
 | `partition_quality_objects.csv` | Best IoU, grid IoU, and coverage for each GT object | |
+| `diagnosis.md` | For each dataset: why objects score low, by cause, size, and class, plus its worst images | |
+| `partition_quality_images.csv` | Every image, worst first, with its main cause | |
+| `failure_causes` | Share of objects below IoU 0.5, split by cause | |
+| `iou_by_object_size` | Median best IoU by object size | |
+| `worst/<dataset>.png` | The worst images, set by `--worst` (default 6) | |
 | `overview` | Median best IoU against the grid, the limits, and the verdict | |
 | `best_iou_boxplot`, `best_iou_violin` | Best IoU distribution; the triangle is the mean | Figure 4.8 |
 | `gt_coverage_boxplot`, `gt_coverage_violin` | GT coverage distribution | Figure 4.9 |
@@ -50,6 +55,22 @@ Plots are saved as PNG and SVG, except the examples, which are PNG. Datasets wit
 | `ERROR` | The dataset could not be read; the reason gives the error |
 
 The limits are starting values, set just below the MS-COCO reference from the notebook: median IoU 0.825 and 79.3% of objects at IoU 0.5. They have not been checked against XAI results. Change them with `--use-median-iou`, `--use-iou-50`, `--skip-median-iou`, `--min-gain`, and `--min-images`.
+
+## Why objects score low
+
+An object below IoU 0.5 gets one cause:
+
+| Cause | Meaning | What to check |
+| --- | --- | --- |
+| `Unassigned` | At least half of the object is in cell 0, which is never selected | SAM found no mask there, as with dark, low-contrast regions |
+| `Merged` | The selected cells are mostly outside the object | The object has no boundary of its own, which is common for tiny objects |
+| `Partial` | The cells that fit cover only part of the object | The object is split among cells that are mostly outside it |
+
+Sizes are the object's share of the image: tiny below 0.1%, small below 1%, medium below 10%, and large above that.
+
+CelebA parts are combined into one face object by default. Add `--split-parts` to score each part alone. A face covers most of the image, so even a plain grid scores high there.
+
+If an image cannot be read, it is skipped and counted, and the verdict reason says how many.
 
 ## Reading the results
 

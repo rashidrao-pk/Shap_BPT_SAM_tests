@@ -11,6 +11,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src/scripts'))
 import evaluate_partitions as ep
+import partition_diagnosis as diagnosis
 import partition_quality_plots as plots
 
 
@@ -81,6 +82,11 @@ def summary(**changes):
 ])
 def test_verdict(changes, expected):
     assert ep.decide(summary(**changes), settings())[0] == expected
+
+
+def object_row(config, image_id, iou, share, cause, name='cat'):
+    return {'config': config, 'image_id': image_id, 'object': name, 'best_iou': iou, 'grid_iou': .2, 'gt_coverage': iou * 100, 'gt_share': share,
+            'size': diagnosis.size_band(share), 'cells': 10, 'cause': cause}
 
 
 def test_notebook_coco_reference_counts_as_use():
@@ -155,10 +161,75 @@ def test_case_maps_and_plots_on_a_small_dataset(tmp_path, monkeypatch):
     plots.plot_examples({'Highest IoU': case}, 'Toy SAM1', tmp_path / 'examples')
     args = ep.parser().parse_args(['--output-dir', str(tmp_path / 'plots')])
     args.output_dir.mkdir()
-    rows = [{'config': name, 'best_iou': value, 'gt_coverage': value * 100} for name in 'AB' for value in (.2, .6, .9)]
+    rows = [object_row(name, 'i', value, 5., 'Merged' if value < .5 else '') for name in 'AB' for value in (.2, .6, .9)]
     summaries = [{**ep.summarize(name, 'folder', 40, 40, [], args), 'verdict': ep.USE} for name in 'AB']
-    plots.plot_all([*summaries, {**summaries[0], 'config': 'C', 'verdict': ep.NEED_PARTITIONS}], rows, args)
+    diagnoses = {name: diagnosis.diagnose([row for row in rows if row['config'] == name]) for name in 'AB'}
+    plots.plot_all([*summaries, {**summaries[0], 'config': 'C', 'verdict': ep.NEED_PARTITIONS}], rows, args, diagnoses)
     made = {path.name for path in args.output_dir.glob('*.png')}
     assert made == {'best_iou_boxplot.png', 'best_iou_violin.png', 'gt_coverage_boxplot.png', 'gt_coverage_violin.png',
-                    'iou_thresholds.png', 'overview.png'}
+                    'iou_thresholds.png', 'overview.png', 'failure_causes.png', 'iou_by_object_size.png'}
     assert (tmp_path / 'examples' / 'Toy_SAM1.png').is_file()
+
+
+@pytest.mark.parametrize('share, expected', [(.05, 'Tiny (<0.1%)'), (.1, 'Small (0.1-1%)'), (5, 'Medium (1-10%)'), (40, 'Large (>10%)')])
+def test_size_bands(share, expected):
+    assert diagnosis.size_band(share) == expected
+
+
+@pytest.mark.parametrize('iou, precision, unassigned, expected', [
+    (.8, .9, 0, ''), (.2, .9, .7, 'Unassigned'), (.2, .1, 0, 'Merged'), (.3, .8, 0, 'Partial')])
+def test_failure_cause(iou, precision, unassigned, expected):
+    assert diagnosis.failure_cause(iou, precision, unassigned) == expected
+
+
+def test_diagnosis_reports_causes_sizes_classes_and_worst_images():
+    rows = [object_row('A', 'bad', .1, .05, 'Merged', 'kite') for _ in range(15)]
+    rows += [object_row('A', 'good', .9, 20, '', 'bus') for _ in range(15)]
+    result = diagnosis.diagnose(rows)
+    assert result['low'] == 15 and result['causes']['Merged'] == 1
+    assert result['groups'][0]['group'] == 'kite'
+    assert result['images'][0]['image_id'] == 'bad' and result['images'][0]['main_cause'] == 'Merged'
+    assert result['larger_median'] == pytest.approx(.9)
+    text = diagnosis.report([{'config': 'A', 'verdict': ep.CAUTION, 'reason': 'low', 'median_iou': .5, 'iou_50': .5, 'gain': .3}], {'A': result}, 1)
+    assert 'Merged' in text and 'kite' in text and '| bad |' in text
+
+
+def test_a_two_point_polygon_is_dropped_instead_of_crashing():
+    from pycocotools.coco import COCO
+    coco = COCO()
+    coco.dataset = {'images': [{'id': 1, 'height': 10, 'width': 10}], 'categories': [], 'annotations': []}
+    coco.createIndex()
+    square = [1, 1, 8, 1, 8, 8, 1, 8]
+    assert ep.annotation_mask(coco, {'image_id': 1, 'segmentation': [[1, 1, 2, 2]]}) is None
+    assert ep.annotation_mask(coco, {'image_id': 1, 'segmentation': [[1, 1, 2, 2], square]}).any()
+
+
+def test_celeba_parts_are_combined_unless_split(monkeypatch):
+    labels = np.array([[1, 1, 2, 2], [0, 0, 0, 0]])
+    monkeypatch.setattr(ep, 'load_ground_truth', lambda *_: {'mask': labels > 0, 'label_map': labels, 'label_names': {}})
+    config = {'data': {'name': 'CelebAHQ'}}
+    assert [name for name, _, _ in ep.gt_objects(config, Path('a.jpg'), labels.shape, True)] == ['face']
+    assert len(list(ep.gt_objects(config, Path('a.jpg'), labels.shape, False))) == 2
+    assert ep.combines_parts(config, ep.parser().parse_args([]))
+    assert not ep.combines_parts(config, ep.parser().parse_args(['--split-parts']))
+    assert not ep.combines_parts({'data': {'name': 'CAMO'}}, ep.parser().parse_args([]))
+
+
+def test_one_unreadable_image_does_not_lose_the_dataset(tmp_path, monkeypatch, capsys):
+    calls = []
+
+    def evaluate(config, label, image_id, *_):
+        calls.append(image_id)
+        if len(calls) == 1:
+            raise TypeError('bad polygon')
+        return [object_row(label, image_id, .9, 5., '')]
+    for number in range(3):
+        np.save(tmp_path / f'{number}_compact.npy', np.ones((2, 2), dtype=np.uint16))
+    monkeypatch.setattr(ep, 'evaluate_image', evaluate)
+    monkeypatch.setattr(ep, 'load_path_config', lambda _: {'data': {'name': 'CAMO'}})
+    monkeypatch.setattr(ep, 'partition_path', lambda _: tmp_path)
+    monkeypatch.setattr(ep, 'image_paths', lambda _: {str(number): Path(f'{number}.png') for number in range(3)})
+    args = ep.parser().parse_args(['--no-plots', '--min-images', '1'])
+    summary, rows = ep.evaluate_dataset('CAMO_epito', args)[0]
+    assert (summary['failed'], summary['images'], len(rows)) == (1, 2, 2)
+    assert 'could not be read' in summary['reason']

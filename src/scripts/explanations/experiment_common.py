@@ -43,7 +43,7 @@ CHECKPOINT_HELP = {'OC_CelebA': 'download_celeba_checkpoint.py',
 LESION_RUNNERS = {'OC_BUSI', 'OC_KvasirSEG', 'OC_ISIC2018'}
 
 
-def create_parser(kind):
+def create_parser(kind, auc_background=True):
     parser = argparse.ArgumentParser(description=f'{kind}: BPT, BPT+SAM_c, SAM_c+Kernel SHAP')
     parser.add_argument('--config', default=DEFAULT_CONFIGS[kind])
     parser.add_argument('--dry-run', action='store_true')
@@ -67,6 +67,9 @@ def create_parser(kind):
                          help='Requested points per insertion/deletion curve; repeated masks are deduplicated')
     parser.add_argument('--bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'], 
                         default='full', help='Background replacement for masked pixels (default: full)')
+    if auc_background:
+        parser.add_argument('--auc-bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'],
+                            help='Background for AUC and other faithfulness metrics; default: same as --bg-type')
     parser.add_argument('--class-aggregation', choices=['sum', 'max'], default='sum')
     parser.add_argument('--threshold', type=float, default=0.0,
                         help='DETR scoring threshold (default: 0 for continuous masked scores)')
@@ -235,12 +238,34 @@ def prepare_inputs(kind, args):
         if not attribute_folder.replace('_', '').isalnum():
             raise ValueError('Attribute names must contain letters, numbers, and underscores')
         base = base / attribute_folder
-    run_dir = base / f'bg_{args.bg_type}_B{args.max_evals}'
+    run_dir = base / run_folder(args)
     return {'config': config, 'records': records, 'partition_dir': folder,
             'run_dir': run_dir, 'evaluation_dir': evaluation_path(config, run_dir),
             'annotation_file': annotation_file, 'methods': comparison_names(args) if args.explain_all else list(METHODS),
             'ground_truth': ({'format': 'coco', 'annotation_file': annotation_file}
                              if expected == 'mscoco' else data.get('ground_truth')) if args.show_gt else None}
+
+
+def auc_background(args):
+    """The AUC background when it differs from the explanation's, otherwise None."""
+    value = getattr(args, 'auc_bg_type', None)
+    return None if value == args.bg_type else value
+
+
+def run_folder(args):
+    auc = auc_background(args)
+    return f"bg_{args.bg_type}{f'_auc_{auc}' if auc else ''}_B{args.max_evals}"
+
+
+def auc_scoring(adapter, image, args, target, predict, f_s, f_0):
+    """Predictor and baseline scores for evaluation; f_0 depends on the background used."""
+    mode = auc_background(args)
+    if mode is None:
+        return predict, f_s, f_0
+    scoring = make_masked_predictor(adapter, image, backgrounds(image, mode), args.model_batch_size)
+    keep_all = np.ones(image.shape[:2], dtype=bool)
+    scores = scoring(np.stack([keep_all, ~keep_all]))[:, target]
+    return scoring, float(scores[0]), float(scores[1])
 
 
 def backgrounds(image, mode):
@@ -335,6 +360,8 @@ def run_signature(kind, args, config=None):
     for option in ['attribute', 'attribute_file', 'budget_selection']:
         if settings.get(option) is None:
             settings.pop(option, None)
+    if auc_background(args) is None:
+        settings.pop('auc_bg_type', None)  # Preserve signatures from before this option existed.
     if settings.get('gt_class') is None:
         settings.pop('gt_class', None)
     if args.show_gt and config and config['data'].get('ground_truth'):
@@ -549,7 +576,8 @@ def run(kind, args, adapter=None):
     write_json(run_dir / 'run_info.json', {'runner': kind, 'model': args.model, 'signature': signature,
                'methods': inputs['methods'], 'config': args.config, 'masks_base_path': str(inputs['partition_dir']),
                'image_ids': [record['image_id'] for record in inputs['records']],
-               'background_replacement_values': args.bg_type, 'max_evals': args.max_evals,
+               'background_replacement_values': args.bg_type, 'auc_background': auc_background(args) or args.bg_type,
+               'max_evals': args.max_evals,
                'results_dir': run_dir, 'evaluations_dir': evaluations, 'settings': vars(args),
                'ground_truth': inputs['ground_truth'],
                'score_type': 'detection confidence' if kind == 'OD_DETR' else 'attribute logit' if kind == 'OC_CelebA' else 'classification probability'})
@@ -590,6 +618,7 @@ def run(kind, args, adapter=None):
             explainer = runtime.shap_bpt.Explainer(predict, image, num_explained_classes=None,
                                                   explained_class_ids=[target], verbose=args.verbose_level == 'high')
             f_s, f_0 = float(explainer.base_nuN[0]), float(explainer.base_nu0[0])
+            auc_predict, auc_f_s, auc_f_0 = auc_scoring(adapter, image, args, target, predict, f_s, f_0)
             prediction = {'image_id': image_id, 'source_image': str(record['image_path']),
                           'fixed_category': adapter.class_names[target], 'explained_class': adapter.class_names[target],
                           'predicted_class_id': target, 'f_S': f_s, 'f_0': f_0,
@@ -642,7 +671,7 @@ def run(kind, args, adapter=None):
                        'fixed_category': prediction['explained_class'], 'f_S': f_s, 'f_0': f_0,
                        'time_exp': elapsed, 'time_eval': 0.0}
                 if args.compute_auc:
-                    result = evaluate(runtime, method, values, predict, target, f_s, f_0, args, elapsed)
+                    result = evaluate(runtime, method, values, auc_predict, target, auc_f_s, auc_f_0, args, elapsed)
                     auc_results.append(result)
                     row.update(auc_columns(result))
                     row.update({key: value for key, value in result.items()
@@ -665,7 +694,7 @@ def run(kind, args, adapter=None):
                            'fixed_category': prediction['explained_class'], 'f_S': f_s, 'f_0': f_0,
                            'time_exp': elapsed, 'time_eval': 0.0}
                     if args.compute_auc:
-                        result = evaluate(runtime, method, values, predict, target, f_s, f_0, args, elapsed)
+                        result = evaluate(runtime, method, values, auc_predict, target, auc_f_s, auc_f_0, args, elapsed)
                         auc_results.append(result)
                         row.update(auc_columns(result))
                         row.update({key: value for key, value in result.items()

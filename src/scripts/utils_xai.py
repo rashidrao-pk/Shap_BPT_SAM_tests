@@ -871,6 +871,28 @@ def build_all_images_html_report(results_root, output_html=None, title="ShapBPT 
 ############## EVALUATION FUNCTIONS ##############
 def saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=4, method='del', num_samples=200,
                     rule='trapezoid'):
+    """Insertion or deletion curve and its AUC for one attribution map.
+
+    The replacement pixels are not chosen here: they come from nu, which replaces the hidden
+    pixels and returns the model scores. To score with other backgrounds, pass a different nu,
+    with the f_S and f_0 measured using that same nu.
+
+    Parameters:
+        nu: Function taking [N, H, W] boolean masks, True for pixels that keep the original
+            image, and returning model scores of shape [N, classes].
+        heatmap: Attribution map of shape [H, W], as floats. Higher means more important.
+        f_S: Target class score with every pixel kept.
+        f_0: Target class score with every pixel replaced.
+        predicted_cls: Index of the class to score.
+        batch_size: Number of masks sent to nu at once.
+        method: 'del' removes the most important pixels first; 'ins' reveals them first.
+        num_samples: Requested curve points. Equal attribution values can give fewer.
+        rule: 'trapezoid', or any other value for rectangles.
+
+    Returns a dictionary with the curve (xs, ys and rescaled or clipped versions), settings,
+    and AUC values. auc is raw, auc_r is rescaled between f_0 and f_S, and auc_clipr is also
+    clipped to that range. auc_clipr is the value reported as auc_ins or auc_del in tables.
+    """
     assert isinstance(heatmap, np.ndarray)
     assert len(heatmap.shape)==2 and np.issubdtype(heatmap.dtype, np.floating)
 
@@ -898,7 +920,6 @@ def saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=4, method='
             masks.append(m)
             ms.append(np.sum(heatmap[m]))
             qs.append(q)
-        # ##TODO: Multiple replc values
 
         # evaluate the characteristic function
         if len(masks) >= batch_size or (len(masks)>0 and i==(num_samples-1)):
@@ -1492,7 +1513,7 @@ def plot_xai(input_data,partitions,shap_values, model, results, image_id,
 import json
 
 def to_jsonable(value):
-    if hasattr(value, 'item'):
+    if hasattr(value, 'item') and np.size(value) == 1:
         return value.item()
     if hasattr(value, 'tolist'):
         return value.tolist()

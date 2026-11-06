@@ -24,7 +24,7 @@ CelebAMask-HQ/CelebAMask-HQ/
 
 Masks are grouped by `image_id // 2000`, so image 4500 is in folder `2`.
 
-**The EPITO copy is incomplete.** `CelebAMask-HQ-mask-anno` holds only folder `0`, stopping at image 900 (901 images, 11,212 masks). All 30,000 images are present, but later images report `annotation not available`. The archive is not on EPITO, so download it again and extract the mask folders before using ground truth beyond image 900.
+**Use the full mask folder on EPITO.** `data_full/CelebAMask-HQ/CelebAMask-HQ-mask-anno` holds folders 0 to 14, for all 30,000 images, and is the folder `CelebAHQ_epito.yaml` uses. The nested `CelebAMask-HQ/CelebAMask-HQ/CelebAMask-HQ-mask-anno` holds only folder `0`, stopping at image 900.
 
 ## 2. Models
 

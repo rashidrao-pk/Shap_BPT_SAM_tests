@@ -1515,7 +1515,8 @@ def prepare_inputs(project_root, config, args):
     else:
         output_root = output_path(config, "explanations", project_root)
         output_root = output_root / "OD_yolo" / data["mask_dir_final"]
-    output_root = output_root / f"bg_{args.bg_type}_B{args.max_evals}"
+    auc_folder = f"_auc_{args.auc_bg_type}" if args.auc_bg_type not in {None, args.bg_type} else ""
+    output_root = output_root / f"bg_{args.bg_type}{auc_folder}_B{args.max_evals}"
     return {"partition_dir": partition_dir, "image_dir": image_dir,
             "annotation_file": annotation_path, "image_ids": ids,
             "methods": methods, "method_labels": {method: METHOD_LABELS[method] for method in methods},
@@ -1605,6 +1606,7 @@ def run(args):
             "model_source": yolo_source,
             "num_model_classes": yolo_class_count(model),
             "background_replacement_values": args.bg_type,
+            "auc_background": args.auc_bg_type or args.bg_type,
             "background_details": BACKGROUND_REPLACEMENT_DETAILS.get(args.bg_type, "-"),
             "budget_index": budget_exp_index(args.max_evals) if args.budget_suffix else None,
             "budget_details": BUDGET_EXP_DETAILS.get(args.max_evals, "Custom explanation budget"),
@@ -1716,6 +1718,14 @@ def run(args):
             predicted_cls = int(explainer.output_indexes[0])
             f_S = float(explainer.base_nuN[0])
             f_0 = float(explainer.base_nu0[0])
+            auc_predict, auc_f_S, auc_f_0 = predict_masked, f_S, f_0
+            if args.auc_bg_type not in {None, args.bg_type}:
+                auc_backgrounds = load_image(Path(inputs["image_dir"]) / f"{input_data['fname']}.jpg", device=device,
+                                             bg_type=args.auc_bg_type)[2]
+                auc_predict = make_predict_yolo_masked(model, input_data["image_to_explain"], auc_backgrounds,
+                                                       aggregate=args.class_aggregation)
+                keep_all = np.ones(input_data["image_to_explain"].shape[:2], dtype=bool)
+                auc_f_S, auc_f_0 = (float(score) for score in auc_predict(np.stack([keep_all, ~keep_all]))[:, predicted_cls])
             input_data["explained_class"] = class_names[predicted_cls]
             if args.show_gt:
                 ground_truth = load_class_ground_truth(
@@ -1866,9 +1876,9 @@ def run(args):
                 timing_start = time.time()
                 auc_results = utx.compute_auc_results(
                     auc_records,
-                    predict_masked,
-                    f_S,
-                    f_0,
+                    auc_predict,
+                    auc_f_S,
+                    auc_f_0,
                     predicted_cls,
                     batch_size=args.auc_batch_size,
                     num_samples=args.auc_num_samples,
@@ -2044,6 +2054,8 @@ def parse_args():
     parser.add_argument("--image-ids", nargs="*", default=None, help="Optional explicit image ids.")
     parser.add_argument("--bg-type", default="full",
                         choices=["black", "gray", "white", "blurred", "noise", "full"])
+    parser.add_argument("--auc-bg-type", choices=["black", "gray", "white", "blurred", "noise", "full"],
+                        help="Background for AUC and other faithfulness metrics; default: same as --bg-type")
     parser.add_argument("--class-aggregation", default="sum", 
                         choices=["sum", "max"])
     parser.add_argument("--num-explained-classes", type=int, default=4)

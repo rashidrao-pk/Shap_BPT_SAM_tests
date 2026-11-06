@@ -31,7 +31,7 @@ def parser(argv=None):
     preliminary = argparse.ArgumentParser(add_help=False)
     preliminary.add_argument('--runner', choices=ablation.RUNNERS, default='OD_yolo')
     runner = preliminary.parse_known_args(argv)[0].runner
-    result = common.create_parser('OD_DETR' if runner == 'OD_yolo' else runner)
+    result = common.create_parser('OD_DETR' if runner == 'OD_yolo' else runner, auc_background=False)
     result.description = __doc__
     result.add_argument('--runner', choices=ablation.RUNNERS, default=runner)
     result.add_argument('--budgets', '--budget-steps', nargs='+', type=int, default=DEFAULT_BUDGETS,

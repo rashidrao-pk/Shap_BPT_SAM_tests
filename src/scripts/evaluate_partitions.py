@@ -21,17 +21,20 @@ for directory in [ROOT, ROOT / 'src/scripts']:
 
 from check_partition_progress import DEFAULT_CONFIGS
 from config_paths import load_path_config, partition_path, resolve_path
-from ground_truth import _coco, load_ground_truth
+from ground_truth import _coco, annotation_mask, load_ground_truth
+from partition_diagnosis import diagnose, failure_cause, image_table, report, size_band
 from utils_sam_2 import load_partition_array
 
 IGNORED_LABEL = 1000  # ImageNet-S marks pixels to ignore with this value.
 IOU_LEVELS = (.5, .75, .9)
 USE, CAUTION, SKIP = 'USE', 'CAUTION', 'SKIP'
 NEED_PARTITIONS, NO_GT, ERROR = 'NEED PARTITIONS', 'NO GT', 'ERROR'
-NUMBERS = ['found', 'images', 'objects', 'cells', 'mean_iou', 'std_iou', 'median_iou', 'grid_median_iou', 'gain',
+NUMBERS = ['found', 'images', 'failed', 'objects', 'cells', 'mean_iou', 'std_iou', 'median_iou', 'grid_median_iou', 'gain',
            'iou_50', 'iou_75', 'iou_90', 'mean_coverage', 'std_coverage', 'median_coverage']
 SUMMARY_FIELDS = ['config', 'partitions', *NUMBERS, 'verdict', 'reason']
-OBJECT_FIELDS = ['config', 'image_id', 'object', 'gt_pixels', 'cells', 'best_iou', 'grid_iou', 'gt_coverage']
+OBJECT_FIELDS = ['config', 'image_id', 'object', 'gt_pixels', 'gt_share', 'size', 'cells', 'best_iou', 'grid_iou',
+                 'gt_coverage', 'precision', 'unassigned', 'cause']
+IMAGE_FIELDS = ['config', 'image_id', 'mean_iou', 'objects', 'low_objects', 'cells', 'smallest_object', 'main_cause']
 
 
 def parser():
@@ -48,6 +51,8 @@ def parser():
     result.add_argument('--min-gain', type=float, default=.05, help='Median IoU lead over the same-size grid')
     result.add_argument('--output-dir', type=Path, default=ROOT / 'results/evaluations/partition_quality')
     result.add_argument('--no-plots', dest='plots', action='store_false')
+    result.add_argument('--worst', type=int, default=6, help='Worst images to list and draw per dataset')
+    result.add_argument('--split-parts', action='store_true', help='Score each CelebA part alone, not the combined face')
     return result
 
 
@@ -99,21 +104,32 @@ def image_paths(data):
     return {path.stem: path for path in folder.rglob('*') if path.suffix.lower() in extensions}
 
 
-def gt_objects(config, image_path, shape):
-    """Yield (name, mask, valid pixels) for each GT object or part."""
+def combines_parts(config, args):
+    """CelebA parts are scored as one face, because most single parts are far smaller than any cell."""
+    return config['data'].get('name', '').lower() == 'celebahq' and not args.split_parts
+
+
+def gt_objects(config, image_path, shape, combine=False):
+    """Yield (name, mask, valid pixels) for each GT object or part, or once for all of them."""
     data = config['data']
     if data.get('name', '').replace('_', '').lower() == 'mscoco':
         coco = _coco(str(resolve_path(data['annotation_file'])))
         names = {item['id']: item['name'] for item in coco.loadCats(coco.getCatIds())}
         for annotation in coco.loadAnns(coco.getAnnIds(imgIds=[int(image_path.stem)], iscrowd=False)):
-            yield names[annotation['category_id']], coco.annToMask(annotation).astype(bool), None
+            mask = annotation_mask(coco, annotation)
+            if mask is not None:
+                yield names[annotation['category_id']], mask, None
         return
     gt = load_ground_truth(config, image_path, shape)
     labels = np.asarray(gt['label_map'])
     names = gt.get('label_names') or {}
     valid = labels != IGNORED_LABEL
+    if combine:
+        if gt['mask'].any():
+            yield 'face', gt['mask'], valid
+        return
     for value in np.unique(labels[gt['mask']]):
-        yield names.get(int(value), str(value)), gt['mask'] & (labels == value), valid
+        yield names.get(int(value), gt.get('dataset_class', str(value))), gt['mask'] & (labels == value), valid
 
 
 def load_partition(image_path, partition_file):
@@ -125,22 +141,27 @@ def load_partition(image_path, partition_file):
     return partition
 
 
-def evaluate_image(config, name, image_id, image_path, partition_file):
+def evaluate_image(config, name, image_id, image_path, partition_file, combine=False):
     partition = load_partition(image_path, partition_file)
     shape = partition.shape
     cells = int(np.count_nonzero(np.unique(partition)))
     grid = grid_partition(shape, max(cells, 1))
     rows = []
-    for object_name, mask, valid in gt_objects(config, image_path, shape):
+    for object_name, mask, valid in gt_objects(config, image_path, shape, combine):
         selected = np.ones(shape, dtype=bool) if valid is None else valid
-        iou, coverage, _ = maximize_iou(mask[selected], partition[selected])
+        iou, coverage, ids = maximize_iou(mask[selected], partition[selected])
         grid_iou = maximize_iou(mask[selected], grid[selected])[0]
-        rows.append({'config': name, 'image_id': image_id, 'object': object_name, 'gt_pixels': int(mask.sum()),
-                     'cells': cells, 'best_iou': iou, 'grid_iou': grid_iou, 'gt_coverage': coverage})
+        chosen = np.isin(partition[selected], ids)
+        precision = float((chosen & mask[selected]).sum() / max(chosen.sum(), 1))
+        unassigned = float((partition[mask] == 0).mean()) if mask.any() else 0.
+        share = float(mask.mean() * 100)
+        rows.append({'config': name, 'image_id': image_id, 'object': object_name, 'gt_pixels': int(mask.sum()), 'gt_share': share,
+                     'size': size_band(share), 'cells': cells, 'best_iou': iou, 'grid_iou': grid_iou, 'gt_coverage': coverage,
+                     'precision': precision, 'unassigned': unassigned, 'cause': failure_cause(iou, precision, unassigned)})
     return rows
 
 
-def case_maps(config, image_path, partition_file):
+def case_maps(config, image_path, partition_file, combine=False):
     """Label maps for one example: GT, the best union of cells, and each cell's closest GT object."""
     partition = load_partition(image_path, partition_file)
     with Image.open(image_path) as source:
@@ -150,7 +171,7 @@ def case_maps(config, image_path, partition_file):
     area = np.bincount(partition.ravel(), minlength=cells)
     closest, owner = np.zeros(cells), np.zeros(cells, dtype=np.int64)
     ious = []
-    for number, (_, mask, valid) in enumerate(gt_objects(config, Path(image_path), partition.shape), 1):
+    for number, (_, mask, valid) in enumerate(gt_objects(config, Path(image_path), partition.shape, combine), 1):
         selected = np.ones(partition.shape, dtype=bool) if valid is None else valid
         iou, _, ids = maximize_iou(mask[selected], partition[selected])
         ious.append(iou)
@@ -195,9 +216,9 @@ def decide(summary, args):
     return (CAUTION, '; '.join(problems)) if problems else (USE, f'median IoU {median:.2f}, {share:.0%} reach IoU 0.5')
 
 
-def summarize(name, folder, found, images, rows, args):
+def summarize(name, folder, found, images, rows, args, failed=0):
     summary = {**dict.fromkeys(NUMBERS, 0.), 'config': name, 'partitions': folder, 'found': found, 'images': images,
-               'objects': len(rows)}
+               'objects': len(rows), 'failed': failed}
     if rows:
         ious = np.array([row['best_iou'] for row in rows])
         grids = np.array([row['grid_iou'] for row in rows])
@@ -210,6 +231,8 @@ def summarize(name, folder, found, images, rows, args):
                        median_coverage=float(np.median(coverage)),
                        **{f'iou_{round(level * 100)}': float((ious >= level).mean()) for level in IOU_LEVELS})
     summary['verdict'], summary['reason'] = decide(summary, args)
+    if failed:
+        summary['reason'] += f'; {failed} images could not be read'
     return summary
 
 
@@ -228,18 +251,27 @@ def evaluate_folder(name, config, folder, args):
     ids = sorted(set(files) & set(paths))
     label = Path(name).stem.removesuffix('_epito')
     label = f"{label} {folder.name.split('_')[1].upper()}" if args.all_sam else label
-    rows, images = [], 0
+    combine = combines_parts(config, args)
+    rows, images, failed = [], 0, 0
     for index in np.random.default_rng(args.seed).permutation(len(ids)):
         if images == args.limit:
             break
-        image_rows = evaluate_image(config, label, ids[index], paths[ids[index]], files[ids[index]])
+        try:
+            image_rows = evaluate_image(config, label, ids[index], paths[ids[index]], files[ids[index]], combine)
+        except (OSError, TypeError, ValueError) as error:  # One bad image must not lose the whole dataset.
+            failed += 1
+            print(f'{label} {ids[index]}: {type(error).__name__}: {error}', flush=True)
+            continue
         rows.extend(image_rows)
         images += bool(image_rows)  # Images without GT do not use up the limit.
-    summary = summarize(label, folder.name, len(ids), images, rows, args)
+    summary = summarize(label, folder.name, len(ids), images, rows, args, failed)
     if rows and args.plots and summary['verdict'] in {USE, CAUTION, SKIP}:
         from partition_quality_plots import plot_examples
-        cases = {title: case_maps(config, paths[image_id], files[image_id]) for title, image_id in example_ids(rows).items()}
+        cases = {title: case_maps(config, paths[image_id], files[image_id], combine) for title, image_id in example_ids(rows).items()}
         plot_examples(cases, label, args.output_dir / 'examples')
+        worst = {f"Worst {number}\n{item['image_id']}": case_maps(config, paths[item['image_id']], files[item['image_id']], combine)
+                 for number, item in enumerate(image_table(rows)[:args.worst], 1)}
+        plot_examples(worst, label, args.output_dir / 'worst')
     return summary, rows
 
 
@@ -283,8 +315,8 @@ def print_table(summaries):
 
 
 def run(args):
-    if (args.limit is not None and args.limit < 1) or args.min_images < 1:
-        raise ValueError('--limit and --min-images must be positive')
+    if (args.limit is not None and args.limit < 1) or args.min_images < 1 or args.worst < 1:
+        raise ValueError('--limit, --min-images, and --worst must be positive')
     args.output_dir.mkdir(parents=True, exist_ok=True)
     summaries, rows = [], []
     for name in args.config:
@@ -297,11 +329,16 @@ def run(args):
             summaries.append({**dict.fromkeys(NUMBERS, 0), 'config': Path(name).stem.removesuffix('_epito'), 'partitions': '',
                               'verdict': ERROR, 'reason': f'{type(error).__name__}: {error}'})
     write_csv(args.output_dir / 'partition_quality_objects.csv', rows, OBJECT_FIELDS)
+    diagnoses = {item['config']: diagnose([row for row in rows if row['config'] == item['config']])
+                 for item in summaries if item['verdict'] in {USE, CAUTION, SKIP}}
+    write_csv(args.output_dir / 'partition_quality_images.csv',
+              [image for result in diagnoses.values() for image in result['images']], IMAGE_FIELDS)
+    (args.output_dir / 'diagnosis.md').write_text(report(summaries, diagnoses, args.worst))
     write_csv(args.output_dir / 'partition_quality_summary.csv', summaries, SUMMARY_FIELDS)
     (args.output_dir / 'conclusion.md').write_text(conclusion(summaries, args))
     if args.plots:
         from partition_quality_plots import plot_all
-        plot_all(summaries, rows, args)
+        plot_all(summaries, rows, args, diagnoses)
     print_table(summaries)
     print(f'\nSaved: {args.output_dir}', flush=True)
     return summaries

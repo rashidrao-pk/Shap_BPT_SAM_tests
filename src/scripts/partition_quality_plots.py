@@ -5,6 +5,8 @@ from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 import numpy as np
 
+from partition_diagnosis import CAUSES, SIZES
+
 INK, MUTED, GRID = '#0b0b0b', '#52514e', '#e6e5e0'
 PARTITION, BASELINE = '#2a78d6', '#eb6834'
 LEVELS = [('iou_50', 'IoU ≥ 0.5', '#2a78d6'), ('iou_75', 'IoU ≥ 0.75', '#eb6834'), ('iou_90', 'IoU ≥ 0.9', '#1baf7a')]
@@ -96,7 +98,49 @@ def overview(summaries, args, folder):
     save(figure, folder, 'overview')
 
 
-def plot_all(summaries, rows, args):
+def failure_causes(summaries, diagnoses, folder):
+    """What the objects below IoU 0.5 have in common, for each dataset."""
+    ordered = sorted(summaries, key=lambda item: item['iou_50'])
+    figure, ax = plt.subplots(figsize=(9.5, max(3, .5 * len(ordered) + 1.6)))
+    rows = np.arange(len(ordered))
+    left = np.zeros(len(ordered))
+    for (name, _), color in zip(CAUSES.items(), ['#2a78d6', '#eb6834', '#1baf7a']):
+        share = np.array([diagnoses[item['config']]['causes'][name] * (1 - item['iou_50']) * 100 for item in ordered])
+        ax.barh(rows, share, left=left, height=.6, color=color, edgecolor='white', linewidth=2, label=name)
+        left += share
+    ax.set_yticks(rows, [item['config'] for item in ordered])
+    ax.set_xlabel('Objects below IoU 0.5 (%)', color=MUTED)
+    ax.set_title('Why objects score low', color=INK, loc='left', fontweight='bold', pad=26)
+    ax.legend(frameon=False, labelcolor=MUTED, loc='lower left', bbox_to_anchor=(0, 1), ncols=3, borderaxespad=0)
+    style(ax, 'x')
+    save(figure, folder, 'failure_causes')
+
+
+def iou_by_size(summaries, diagnoses, folder):
+    """Median best IoU by object size, one panel per dataset on a shared scale."""
+    columns = min(4, len(summaries))
+    lines = -(-len(summaries) // columns)
+    figure, axes = plt.subplots(lines, columns, figsize=(3.1 * columns, 2.9 * lines), sharey=True, squeeze=False)
+    names = [name.split(' (')[0] for name, _ in SIZES]
+    for ax in axes.ravel()[len(summaries):]:
+        ax.set_visible(False)
+    for ax, item in zip(axes.ravel(), summaries):
+        found = {size['size'].split(' (')[0]: size for size in diagnoses[item['config']]['sizes']}
+        ax.bar(names, [found[name]['median_iou'] if name in found else 0 for name in names], color=PARTITION, width=.6)
+        for position, name in enumerate(names):
+            if name in found:
+                ax.text(position, found[name]['median_iou'] + .02, found[name]['objects'], ha='center', color=MUTED, fontsize=8)
+        ax.set_ylim(0, 1.1)
+        ax.set_title(item['config'], color=INK, loc='left', fontsize=10, fontweight='bold')
+        ax.tick_params(axis='x', labelsize=8)
+        style(ax)
+    figure.supylabel('Median best IoU', color=MUTED, fontsize=10)
+    figure.suptitle('Best IoU by object size; numbers are object counts', color=INK, x=.01, ha='left', fontweight='bold')
+    figure.tight_layout()
+    save(figure, folder, 'iou_by_object_size')
+
+
+def plot_all(summaries, rows, args, diagnoses):
     judged = [item for item in summaries if item['verdict'] in JUDGED]
     if not judged:
         print('No plots: no dataset has enough images for a verdict', flush=True)
@@ -108,12 +152,14 @@ def plot_all(summaries, rows, args):
         distribution(judged, rows, column, ylabel, title, 'violin', folder, f'{column}_violin')
     thresholds(judged, folder)
     overview(judged, args, folder)
+    failure_causes(judged, diagnoses, folder)
+    iou_by_size(judged, diagnoses, folder)
 
 
 def plot_examples(cases, label, folder):
     """Thesis Figures 4.10 to 4.12: one row each for the highest, middle, and lowest IoU image."""
     folder.mkdir(parents=True, exist_ok=True)
-    figure, axes = plt.subplots(len(cases), 5, figsize=(16, 3.3 * len(cases)), squeeze=False, constrained_layout=True)
+    figure, axes = plt.subplots(len(cases), 5, figsize=(16, 3.4 * len(cases)), squeeze=False, constrained_layout=True)
     for row, (title, case) in zip(axes, cases.items()):
         objects = max(case['objects'], 1)
         values = np.linspace(.25, 1, objects)  # GT objects as gray levels on black, as in the notebook.

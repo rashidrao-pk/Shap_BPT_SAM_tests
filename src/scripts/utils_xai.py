@@ -898,6 +898,7 @@ def saliency_to_auc(nu, heatmap, f_S, f_0, predicted_cls, batch_size=4, method='
             masks.append(m)
             ms.append(np.sum(heatmap[m]))
             qs.append(q)
+        # ##TODO: Multiple replc values
 
         # evaluate the characteristic function
         if len(masks) >= batch_size or (len(masks)>0 and i==(num_samples-1)):

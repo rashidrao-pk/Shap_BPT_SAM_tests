@@ -182,8 +182,17 @@ def test_kvasir_adapter_reads_labels_and_rejects_other_models(tmp_path):
     transformers.ViTForImageClassification(config).save_pretrained(tmp_path)
     adapter = KvasirAdapter(adapter_args(tmp_path), 'cpu')
     assert adapter.class_names == ['esophagitis', 'polyps'] and adapter.name == 'vit_kvasir'
-    assert adapter.model.vit.encoder.layer[-1].layernorm_before is not None  # GradCAM hook.
+    from all_methods import vit_gradcam_layer
+    assert vit_gradcam_layer(adapter.model, adapter.name) is not None
     assert adapter.predict_batch(np.zeros((1, 40, 40, 3), dtype=np.uint8)).shape == (1, 2)
+    from all_methods import GradientMethods
+    from experiment_common import create_parser
+    image = np.full((40, 40, 3), 100, dtype=np.uint8)
+    engine = GradientMethods(adapter, image, [np.zeros_like(image)],
+                             create_parser('OC_KvasirSEG').parse_args([]))
+    attribution = engine.compute('GradCAM', 1)
+    assert attribution.shape == (1, 40, 40) and np.isfinite(attribution).all()
+    assert not vit_gradcam_layer(adapter.model, adapter.name)._forward_hooks
     config.id2label = {0: 'cat', 1: 'dog'}
     transformers.ViTForImageClassification(config).save_pretrained(tmp_path)
     with pytest.raises(ValueError, match='Kvasir v2'):

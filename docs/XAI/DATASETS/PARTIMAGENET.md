@@ -10,7 +10,7 @@ Inside an allocated GPU node:
 python src/scripts/explanations/OC_PartImageNet.py \
   --config PartImageNet_epito \
   --checkpoint checkpoints/partimagenet/resnet50-11ad3fa6.pth \
-  --weights IMAGENET1K_V2 --show-gt --limit 2 \
+  --weights IMAGENET1K_V2 --show-gt --limit 1 \
   --budget 1000 --no-heatmaps
 ```
 

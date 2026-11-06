@@ -8,7 +8,7 @@ Use `--gt-only` so that `--limit` counts only images with an ImageNet-S mask:
 
 ```bash
 python src/scripts/explanations/OC_ResNet.py \
-  --config ImageNet_epito --show-gt --gt-only --limit 2 \
+  --config ImageNet_epito --show-gt --gt-only --limit 1 \
   --budget 1000 --no-heatmaps --explain_all
 ```
 

@@ -6,7 +6,7 @@ Run from the repository root on a GPU node. First [download the dataset](../../D
 
 ```bash
 python src/scripts/explanations/OD_yolo.py \
-  --config MSCOCO_epito --model yolo11s --show_gt --limit 2 \
+  --config MSCOCO_epito --model yolo11s --show_gt --limit 1 \
   --max-evals 1000 --bg-type full --no-heatmaps
 ```
 

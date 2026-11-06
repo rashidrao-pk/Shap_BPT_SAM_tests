@@ -6,7 +6,7 @@ Run from the repository root on a GPU node. First [download the dataset](../../D
 
 ```bash
 python src/scripts/explanations/COD_ViT.py \
-  --config CAMO_epito --show-gt --limit 2 \
+  --config CAMO_epito --show-gt --limit 1 \
   --budget 1000 --no-heatmaps --explain_all
 ```
 

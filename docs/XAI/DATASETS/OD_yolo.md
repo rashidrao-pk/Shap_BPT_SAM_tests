@@ -37,7 +37,7 @@ ImageNet/CAMO/CelebA-HQ configs.
 ```bash
 python src/scripts/explanations/OD_yolo.py \
   --config MSCOCO_epito \
-  --limit 2 \
+  --limit 1 \
   --dry-run
 ```
 
@@ -51,7 +51,7 @@ partition outputs without their completed metadata/files are excluded.
 ```bash
 python src/scripts/explanations/OD_yolo.py \
   --config MSCOCO_epito \
-  --limit 2 \
+  --limit 1 \
   --max-evals 50 \
   --eval-batch-size 16 \
   --auc-batch-size 8 \

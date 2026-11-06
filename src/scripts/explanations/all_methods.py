@@ -214,6 +214,22 @@ def lrp_model(model):
     return result.eval()
 
 
+def vit_gradcam_layer(model, architecture):
+    """Select the pre-attention norm across torchvision and HF ViT layouts."""
+    if architecture == 'vit_b_16':
+        return model.encoder.layers[-1].ln_1
+    # Transformers 4 uses vit.encoder.layer; newer Transformers uses vit.layers.
+    backbone = getattr(model, 'vit', None)
+    encoder = getattr(backbone, 'encoder', None)
+    for blocks in (getattr(encoder, 'layer', None), getattr(backbone, 'layers', None)):
+        if blocks is not None and len(blocks):
+            norm = getattr(blocks[-1], 'layernorm_before', None)
+            if norm is not None:
+                return norm
+    raise UnsupportedMethod('ViT GradCAM needs the last pre-attention layernorm; '
+                            'neither vit.encoder.layer nor vit.layers has a supported block')
+
+
 class GradientMethods:
     def __init__(self, adapter, image, replacements, args):
         import torch
@@ -308,19 +324,25 @@ class GradientMethods:
                         hook.remove()
                 elif getattr(self.adapter, 'name', '') in {'vit_b_16', 'vit_kvasir'}:
                     # Patch tokens before the last attention block still influence CLS.
-                    layer = (self.model.vit.encoder.layer[-1].layernorm_before
-                             if self.adapter.name == 'vit_kvasir' else self.model.encoder.layers[-1].ln_1)
+                    layer = vit_gradcam_layer(self.model, self.adapter.name)
                     saved = []
                     def capture(_, __, output):
                         saved.append(output)
                     hook = layer.register_forward_hook(capture)
                     try:
                         score = self.forward(x)[:, target].sum()
+                        if not saved or not isinstance(saved[-1], torch.Tensor) or saved[-1].ndim != 3:
+                            raise UnsupportedMethod('ViT GradCAM did not capture batch/patch/channel activations')
                         features = saved[-1]
                         gradient = torch.autograd.grad(score, features)[0]
-                        side = int((features.shape[1]-1) ** .5)
+                        patch = (self.model.config.patch_size if self.adapter.name == 'vit_kvasir'
+                                 else self.model.patch_size)
+                        patch_h, patch_w = (patch, patch) if isinstance(patch, int) else patch
+                        height, width = x.shape[-2]//patch_h, x.shape[-1]//patch_w
+                        if features.shape[1] != height*width+1:
+                            raise UnsupportedMethod('ViT GradCAM patch-token geometry does not match model input')
                         weights = gradient[:, 1:].mean(dim=1, keepdim=True)
-                        values = (features[:, 1:] * weights).sum(dim=-1).relu().reshape(1, 1, side, side)
+                        values = (features[:, 1:] * weights).sum(dim=-1).relu().reshape(1, 1, height, width)
                     finally:
                         hook.remove()
                 else:

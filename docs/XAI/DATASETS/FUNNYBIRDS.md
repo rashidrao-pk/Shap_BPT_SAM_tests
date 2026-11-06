@@ -6,7 +6,7 @@ Run from the repository root on a GPU node. First [download the dataset](../../D
 
 ```bash
 python src/scripts/explanations/OC_FunnyBirds.py \
-  --config FunnyBirds_epito --show-gt --limit 2 \
+  --config FunnyBirds_epito --show-gt --limit 1 \
   --budget 1000 --no-heatmaps --explain_all
 ```
 

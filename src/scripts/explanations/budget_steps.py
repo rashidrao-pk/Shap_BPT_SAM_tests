@@ -109,7 +109,7 @@ def draw(plt, path, series, labels, xlabel, ylabels, title, tolerance=None, ring
             ring = (rings or {}).get(method)
             if ring is not None:
                 ax.plot(x[ring], means[ring], marker='o', markersize=17, markerfacecolor='none',
-                        markeredgecolor=color, markeredgewidth=1.5, linestyle='none')
+                        markeredgecolor=color, markeredgewidth=1.5, linestyle='none', clip_on=False)
         if tolerance is not None:
             ax.axhline(tolerance, color=MUTED, linestyle=':', linewidth=1.2, label=f'Tolerance {tolerance:g}')
             ax.set_ylim(bottom=0)

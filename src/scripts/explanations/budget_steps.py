@@ -21,6 +21,7 @@ from config_paths import output_path, resolve_path
 import experiment_common as common
 
 DEFAULT_BUDGETS = [20, 50, 100, 500, 1000, 2000]
+DEFAULT_IMAGES = 5
 METRICS = {'auc_ins': 'AUC+', 'auc_del': 'AUC-'}
 STYLES = {'BPT': ('#2a78d6', 'o'), 'BPT+SAM_c': ('#eb6834', 's'), 'SAM_c+KernelSHAP': ('#1baf7a', '^')}
 INK, MUTED, GRID = '#0b0b0b', '#52514e', '#e6e5e0'
@@ -33,19 +34,24 @@ def parser(argv=None):
     result = common.create_parser('OD_DETR' if runner == 'OD_yolo' else runner)
     result.description = __doc__
     result.add_argument('--runner', choices=ablation.RUNNERS, default=runner)
-    result.add_argument('--budgets', nargs='+', type=int, default=DEFAULT_BUDGETS)
+    result.add_argument('--budgets', '--budget-steps', nargs='+', type=int, default=DEFAULT_BUDGETS,
+                        help='Budgets to test; each step is one budget to the next')
     result.add_argument('--methods', nargs='+', choices=ablation.METHODS, default=ablation.DEFAULT_METHODS)
     result.add_argument('--seed', type=int, default=0, help='Selects the images and seeds KernelSHAP')
     result.add_argument('--tolerance', type=float, default=DEFAULT_CRITERIA['max_auc_difference'],
                         help='A step counts as settled when its mean change is at most this')
     result.add_argument('--study-name', default='steps')
-    result.set_defaults(limit=5, bg_type='full')
+    result.set_defaults(bg_type='full')
     if runner == 'OD_yolo':
         result.set_defaults(model='yolo11s', config='MSCOCO_epito_sam1')
     return result
 
 
 def validate(args):
+    if args.max_evals != parser([]).get_default('max_evals'):
+        raise ValueError('--budget sets one budget, which this study does not use; pass --budgets 20 50 100')
+    if args.limit is not None and args.limit < 1:
+        raise ValueError('--limit must be positive')
     args.budgets = sorted(set(args.budgets))
     args.methods = list(dict.fromkeys(args.methods))
     if len(args.budgets) < 2 or args.budgets[0] < 2:
@@ -54,6 +60,14 @@ def validate(args):
         raise ValueError('This study measures AUC, so --no-auc cannot be used')
     if args.tolerance < 0:
         raise ValueError('--tolerance must be nonnegative')
+
+
+def select_images(records, limit, seed, explicit):
+    """Listed images keep their order. Otherwise a larger limit extends the same random sample."""
+    if explicit:
+        return records[:limit]
+    order = np.random.default_rng(seed).permutation(len(records))[:limit or DEFAULT_IMAGES]
+    return [records[int(index)] for index in order]
 
 
 def step_frame(results):
@@ -214,7 +228,7 @@ def run(args, adapter=None):
     validate(args)
     count, args.limit = args.limit, None  # Select uniformly from eligible partitions, not the first N filenames.
     inputs = common.prepare_inputs('OD_DETR' if args.runner == 'OD_yolo' else args.runner, args)
-    records = ablation.choose_examples(inputs['records'], count, args.seed, .4)[0]
+    records = select_images(inputs['records'], count, args.seed, bool(args.image_ids))
     identity = {'runner': args.runner, 'model': args.model, 'checkpoint': str(args.checkpoint), 'seed': args.seed,
                 'background': args.bg_type, 'auc_points': args.auc_num_samples, 'target': args.target_class,
                 'aggregation': args.class_aggregation, 'partitions': inputs['partition_dir'].name}

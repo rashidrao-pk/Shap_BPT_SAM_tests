@@ -21,15 +21,25 @@ python src/scripts/explanations/budget_steps.py --dry-run   # Shows the images a
 python src/scripts/explanations/budget_steps.py
 ```
 
-Common changes:
+Choose the images and budget steps:
 
 ```bash
-python src/scripts/explanations/budget_steps.py --limit 20                                # More images
-python src/scripts/explanations/budget_steps.py --budgets 20 50 100 200 500 1000 2000     # Finer steps; finished budgets are reused
-python src/scripts/explanations/budget_steps.py --image-ids 000000044279 000000118209 000000049060
-python src/scripts/explanations/budget_steps.py --methods BPT BPT+SAM_c SAM_c+KernelSHAP
-python src/scripts/explanations/budget_steps.py --tolerance 0.005
+python src/scripts/explanations/budget_steps.py --limit 5 --budget-steps 20 50 100 500 1000 2000
+python src/scripts/explanations/budget_steps.py --limit 1 --budget-steps 50 100              # Quick check
+python src/scripts/explanations/budget_steps.py --limit 20 --budget-steps 100 200 500 1000 2000 4000
+python src/scripts/explanations/budget_steps.py --image-ids 000000044279 000000118209 --budget-steps 100 500 1000
 ```
+
+| Option | Effect |
+| --- | --- |
+| `--limit N` | Number of images, any positive number; the default is 5 |
+| `--budget-steps A B C` | Budgets to test, giving steps A→B and B→C; `--budgets` is the same option |
+| `--image-ids ...` | Use exactly these images, in this order; `--limit` then keeps the first N |
+| `--methods ...` | Any of `BPT`, `BPT+SAM_c`, `SAM_c+KernelSHAP` |
+| `--tolerance X` | Change at or below which a step counts as settled; the default is 0.01 |
+| `--study-name NAME` | Output folder name; use a new name to keep an earlier plot |
+
+Finished maps are reused, so a larger `--limit` only computes the new images, and a new budget only computes that budget. A larger limit keeps the same images and adds more. Tables and plots show only the current command's images and budgets, and they replace the earlier ones unless you set `--study-name`. With one image there are no error bars.
 
 For another dataset, pass its runner and config, for example `--runner OC_ResNet --config ImageNet_epito`. Repeat a command to resume it. Plots and tables are refreshed after each image.
 

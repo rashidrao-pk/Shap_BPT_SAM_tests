@@ -53,7 +53,8 @@ def test_settled_budget(ins, deletion, expected):
 
 def test_parser_defaults_match_the_yolo_sam1_study():
     args = budget_steps.parser([]).parse_args([])
-    assert (args.runner, args.config, args.model, args.limit, args.bg_type) == ('OD_yolo', 'MSCOCO_epito_sam1', 'yolo11s', 5, 'full')
+    assert (args.runner, args.config, args.model, args.bg_type) == ('OD_yolo', 'MSCOCO_epito_sam1', 'yolo11s', 'full')
+    assert args.limit is None
     assert args.budgets == [20, 50, 100, 500, 1000, 2000]
 
 
@@ -64,3 +65,32 @@ def test_rejects_a_single_budget_and_disabled_auc():
     args = budget_steps.parser([]).parse_args(['--no-auc'])
     with pytest.raises(ValueError, match='no-auc'):
         budget_steps.validate(args)
+
+
+def test_budget_steps_is_another_name_for_budgets():
+    assert budget_steps.parser([]).parse_args(['--budget-steps', '50', '100']).budgets == [50, 100]
+
+
+def test_singular_budget_is_rejected_instead_of_ignored():
+    with pytest.raises(ValueError, match='--budgets'):
+        budget_steps.validate(budget_steps.parser([]).parse_args(['--budget', '500']))
+
+
+def test_rejects_a_limit_below_one():
+    with pytest.raises(ValueError, match='positive'):
+        budget_steps.validate(budget_steps.parser([]).parse_args(['--limit', '0']))
+
+
+@pytest.mark.parametrize('limit, expected', [(None, 5), (1, 1), (2, 2), (8, 8), (100, 20)])
+def test_any_image_limit_works_and_defaults_to_five(limit, expected):
+    assert len(budget_steps.select_images(list(range(20)), limit, 0, False)) == expected
+
+
+def test_a_larger_limit_keeps_the_images_already_finished():
+    records = list(range(100))
+    assert budget_steps.select_images(records, 8, 0, False)[:5] == budget_steps.select_images(records, 5, 0, False)
+
+
+def test_listed_images_keep_their_order_and_all_run_by_default():
+    assert budget_steps.select_images(['c', 'a', 'b'], None, 0, True) == ['c', 'a', 'b']
+    assert budget_steps.select_images(['c', 'a', 'b'], 2, 0, True) == ['c', 'a']

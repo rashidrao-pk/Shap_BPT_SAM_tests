@@ -263,6 +263,8 @@ budgets against a higher-budget reference. See [budget ablation](BUDGET_ABLATION
 for the dataset/model matrix, common selection command and application to main
 runs. No budget is claimed as a universal minimum.
 
+To see how much AUC+ and AUC- still change between consecutive budgets, without a reference map, see [budget steps](BUDGET_STEPS.md).
+
 BUSI breast ultrasound: see [BUSI SigLIP explanations](BUSI.md) for predicted-class explanations and lesion contours.
 
 PartImageNet: [download, partitions, and ResNet50 explanations](PARTIMAGENET.md).

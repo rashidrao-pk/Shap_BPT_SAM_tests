@@ -8,7 +8,7 @@ Run from the repository root on a GPU node. First [download the dataset](../../D
 python src/scripts/explanations/OC_PACO.py \
   --config PACO_epito \
   --checkpoint checkpoints/partimagenet/resnet50-11ad3fa6.pth \
-  --weights IMAGENET1K_V2 --show-gt --limit 1 \
+  --weights IMAGENET1K_V2 --show-gt --limit 2 \
   --budget 1000 --no-heatmaps --explain_all
 ```
 

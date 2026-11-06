@@ -137,6 +137,24 @@ class BudgetAblationTest(unittest.TestCase):
             args.stop_after_images = None
             pilot.run(args, adapter=Adapter())
             self.assertEqual(json.loads((folder/'study.json').read_text())['state'], 'complete')
+            reuse_args = copy.deepcopy(args)
+            reuse_args.reuse_study = folder
+            reuse_args.study_name = 'interactive_two'
+            reuse_args.stop_after_images = 2
+            reuse_args.progress_every_image = True
+            reuse_args.statistical_test = True
+            reused = pilot.run(reuse_args, adapter=Adapter())
+            self.assertEqual(reused['status'], 'interim_only')
+            new_folder = folder.parent/'interactive_two'
+            markers = list(new_folder.glob('**/B*_s*.json'))
+            self.assertTrue(markers)
+            for marker in markers:
+                record = json.loads(marker.read_text())
+                self.assertIn('reused_from', record)
+                np.testing.assert_array_equal(np.load(marker.with_suffix('.npz'))['values'],
+                    np.load(Path(record['reused_from']).with_suffix('.npz'))['values'])
+            reuse_args.stop_after_images = None
+            self.assertEqual(pilot.run(reuse_args, adapter=Adapter())['status'], 'insufficient_images')
 
 
 if __name__=='__main__':
@@ -182,7 +200,7 @@ class CocoBudgetAblationTest(unittest.TestCase):
                     self.assertEqual(study['eligible_images'], 6)
                     self.assertEqual(len(study['splits']['calibration']), 3)
                     self.assertEqual(len(study['splits']['validation']), 2)
-                    self.assertEqual(study['methods'], pilot.METHODS)
+                    self.assertEqual(study['methods'], pilot.DEFAULT_METHODS)
                     splits.append(study['splits'])
             self.assertTrue(all(split == splits[0] for split in splits))
 

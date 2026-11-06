@@ -1,209 +1,76 @@
-# MS-COCO: select one budget with a small ablation
+# Interactive XAI budget ablation: YOLO + SAM1
 
-For the current statistical study across datasets, see [Full-background budget ablation](BUDGET_FULL_ABLATION.md). The commands below describe the earlier strict per-image MS-COCO diagnostic; it is separate from the paired bootstrap decision.
+Test **BPT** and **BPT+SAM_c** only. KernelSHAP is excluded. Use **full** background replacement throughout. Run these Python commands yourself inside an allocated EPITO GPU session; no batch job is submitted by this workflow.
 
-Use a few MS-COCO examples to select **one common budget** for BPT, BPT+SAM_c, and SAM_c+KernelSHAP. Test both detectors (YOLO11s and DETR) and both partition sources (SAM1 and SAM2), then combine the evidence.
+The previous three-image pilot finished. Its compatible BPT maps can be reused, so you do not need to repeat that inference. Results from this two-method workflow are saved in a new sibling folder named `interactive_bpt_two_methods`; the earlier study remains intact.
 
-Only the XAI explanation budget varies in this study. Keep AUC resolution fixed at 200 points for evaluation; comparing AUC point counts is outside this ablation.
+## 1. Select the existing source study
 
-The result is the **smallest tested budget passing the declared checks**, not proof of a universal minimum. Until the pilot finishes and validates a choice, budgets such as 500 or 1000 remain provisional.
-
-## 1. Prepare SAM1 and SAM2 configs
-
-Both folders must contain completed metadata and `*_compact.npy` maps. Make separate configs so both variants can be run without editing a config while another experiment uses it:
+After pushing the code changes and pulling them on EPITO, activate `pt_312_sam` and work from the repository root:
 
 ```bash
-cp src/configs/MSCOCO_epito.yaml src/configs/MSCOCO_epito_sam1.yaml
-cp src/configs/MSCOCO_epito.yaml src/configs/MSCOCO_sam2_epito.yaml
+export SOURCE_STUDY="$PWD/results/evaluations/budget_full_20261105_v1/budget/OD_yolo/MSCOCO_sam1_vit_b_62_compact-sam_200/bg_full/full_budget"
+
+python -u src/scripts/explanations/budget_interactive.py \
+  --source-study "$SOURCE_STUDY" --images 3 --dry-run
 ```
 
-Edit only `data.mask_dir_final` in the copies to match your completed folders:
+This preserves the source's fixed 20 images, original 12-calibration/8-validation split, YOLO checkpoint, SAM1 partitions, background, budget grid and reference. Reuse checks source inputs, checkpoint stamps, package versions and scoring settings before loading a model. Changing those settings requires a fresh compatible study. If the scorer implementation itself changes, do not reuse old evaluations.
 
-| Config              | `data.mask_dir_final` from the existing EPITO runs |
-| ------------------- | -------------------------------------------------- |
-| `MSCOCO_epito_sam1` | `MSCOCO_sam1_vit_b_62_compact-sam_200`             |
-| `MSCOCO_sam2_epito` | `MSCOCO_sam2_large_62_compact-sam_200`             |
-
-Keep the COCO image/annotation paths and output roots the same. If your folder names differ, use those names instead. The ablation reads saved compact maps; it does not generate partitions.
-
-Run inside your allocated EPITO GPU session with `pt_312_sam` activated. Have the YOLO11s and `facebook/detr-resnet-50` checkpoints available; existing runner checkpoint/cache lookup is reused.
-
-## 2. Check the pilot selection first
+## 2. Run a small checkpoint
 
 ```bash
-python -u src/scripts/explanations/budget_ablation.py \
-  --runner OD_yolo --model yolo11s --config MSCOCO_epito_sam1 \
-  --show-gt --limit 5 --bg-type full --class-aggregation sum \
-  --budgets 100 200 500 1000 2000 --reference-budget 4000 \
-  --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
-  --auc-num-samples 200 --study-name mscoco_pilot --dry-run
+python -u src/scripts/explanations/budget_interactive.py \
+  --source-study "$SOURCE_STUDY" --images 3
 ```
 
-This validates paths and prints the output folder and image split without loading model weights. Here `--limit 5` samples five eligible completed-partition images reproducibly, rather than taking the first five filenames. They are split into **three calibration and two held-out validation images** before inference.
+The terminal prints **REUSED**, **CACHED**, or **DONE** for every method/budget/repeat, followed by explanation time, evaluation time and AUC scores for newly computed work. It prints an image completion message and saves an intermediate conclusion after each calibration image. The original three repetitions are retained; repeated deterministic BPT maps are not independent statistical samples.
 
-Use the same image pool for all four pilots. If the two partition folders contain identical completed IDs, the seed selects the same examples. Otherwise, provide the same common eligible IDs with `--image-ids ID1 ID2 ID3 ID4 ID5` in every command. Inspect the dry-run splits before proceeding. At least three eligible images are required; `--limit 1` is not a valid ablation.
+Open the printed `interim_conclusion.md` or `interim_summary.csv`. These show observed agreement, errors and timings, and may identify a descriptive candidate. They do **not** validate a production budget.
 
-## 3. Run the four pilots
-
-Keep budgets, repeats, seed, background, scoring, and AUC resolution identical. Only the three budget-dependent methods are swept; LIME and gradient baselines are not included in this pilot.
-
-### YOLO11s with SAM1
+## 3. Increase calibration examples when you choose
 
 ```bash
-python -u src/scripts/explanations/budget_ablation.py \
-  --runner OD_yolo --model yolo11s --config MSCOCO_epito_sam1 \
-  --show-gt --limit 5 --bg-type full --class-aggregation sum \
-  --budgets 100 200 500 1000 2000 --reference-budget 4000 \
-  --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
-  --auc-num-samples 200 --study-name mscoco_pilot
+python -u src/scripts/explanations/budget_interactive.py \
+  --source-study "$SOURCE_STUDY" --images 6
+
+python -u src/scripts/explanations/budget_interactive.py \
+  --source-study "$SOURCE_STUDY" --images 12
 ```
 
-### YOLO11s with SAM2
+Run one command at a time. Previously completed maps are reused. Keep the same study name and source. Ctrl-C is safe: rerun the identical command to reuse completed evaluations; only interrupted work is repeated.
+
+These stages use only the original calibration images. Intermediate inspection is exploratory: do not interpret repeated checks as repeated independent significance tests, and do not change tolerances or select favorable images after seeing their outcomes.
+
+## 4. Final paired non-inferiority test
+
+When you decide to finish the predeclared design:
 
 ```bash
-python -u src/scripts/explanations/budget_ablation.py \
-  --runner OD_yolo --model yolo11s --config MSCOCO_sam2_epito \
-  --show-gt --limit 5 --bg-type full --class-aggregation sum \
-  --budgets 100 200 500 1000 2000 --reference-budget 4000 \
-  --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
-  --auc-num-samples 200 --study-name mscoco_pilot
+python -u src/scripts/explanations/budget_interactive.py \
+  --source-study "$SOURCE_STUDY" --final
 ```
 
-### DETR with SAM1
+This completes all 20 fixed images and runs the paired-bootstrap analysis, including the eight held-out images. Run the final confirmation once; a held-out failure is not permission to retune and reuse the same hold-out as independent validation.
 
-```bash
-python -u src/scripts/explanations/budget_ablation.py \
-  --runner OD_DETR --model facebook/detr-resnet-50 --config MSCOCO_epito_sam1 \
-  --show-gt --limit 5 --bg-type full --class-aggregation sum \
-  --budgets 100 200 500 1000 2000 --reference-budget 4000 \
-  --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
-  --auc-num-samples 200 --study-name mscoco_pilot
-```
+Read the printed **`statistical_conclusion.md`**. Full bounds are in `statistical_bounds.csv` and the decision is in `statistical_selection.json`. The separate `conclusion.md`/`selection.json` are the older strict per-image diagnostic; the statistical conclusion is the relevant decision for this workflow.
 
-### DETR with SAM2
+## Test and interpretation
 
-```bash
-python -u src/scripts/explanations/budget_ablation.py \
-  --runner OD_DETR --model facebook/detr-resnet-50 --config MSCOCO_sam2_epito \
-  --show-gt --limit 5 --bg-type full --class-aggregation sum \
-  --budgets 100 200 500 1000 2000 --reference-budget 4000 \
-  --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
-  --auc-num-samples 200 --study-name mscoco_pilot
-```
+Following the attached ChatGPT discussion, require evidence that a smaller budget is sufficiently close to the high-budget reference, rather than treating a nonsignificant difference as equivalence.
 
-For a specific local YOLO file, add `--checkpoint src/checkpoints/yolo11s.pt` if that is its actual location. For local DETR, use `--checkpoint /path/to/huggingface/model_directory`. Keep the same checkpoint for the corresponding final experiments.
+Budgets: **100, 200, 500, 1000, 2000**. Approximate reference: **4000**. AUC resolution stays fixed at 200; it is not swept.
 
-The target is each detector's top-scoring class on the unmasked input and stays fixed across all budgets/repeats for that image. Detectors can choose different classes on the same image; the study tests convergence for each detector's own target. COCO GT contours and optional IoU diagnostics refer to that target class. GT is not used to construct partitions or choose the budget.
+| Paired loss against the reference | Acceptable mean loss |
+| --- | ---: |
+| Relative L1 attribution error | 0.10 |
+| 1 − signed Spearman correlation | 0.05 |
+| 1 − top-10% absolute-attribution Jaccard | 0.10 |
+| Absolute insertion AUC difference | 0.01 |
+| Absolute deletion AUC difference | 0.01 |
 
-`--bg-type full` is required here. It averages black, gray, white, blurred and noise replacements. Budgets are method-specific evaluation/sample limits, so actual mask evaluations and background-expanded model-image counts are recorded rather than assumed equal.
+For each loss, test **H0: mean loss ≥ margin** against **H1: mean loss < margin**. Average repeats within each image, resample paired images 20,000 times, and form simultaneous one-sided 95% upper bounds across budgets, both methods and metrics. A budget passes when every bound is below its margin, reference checks pass, and all larger tested budgets also pass. Choose on calibration, then accept or reject once on the held-out set without escalating the budget from validation outcomes.
 
-## 4. Resume after interruption
+These bootstrap bounds have approximate coverage and the pilot is small. A positive result means mean agreement with an approximate reference under the tested settings, not exact Shapley values, ground-truth correctness, or a guarantee for every image. No passing budget means **no budget is validated**; do not automatically choose 1000 or 2000.
 
-Repeat the identical pilot command. Completed **image/method/budget/repeat maps and their evaluations** are cached. An interrupted map is recomputed; completed maps are reused. This is finer-grained than the normal XAI runner's completed-image resume.
-
-For a six-hour batch allocation, prefix the same arguments with:
-
-```bash
-sbatch src/hpc/run_xai.sbatch src/scripts/explanations/budget_ablation.py \
-  --runner OD_yolo --model yolo11s --config MSCOCO_epito_sam1 \
-  --show-gt --limit 5 --bg-type full --class-aggregation sum \
-  --budgets 100 200 500 1000 2000 --reference-budget 4000 \
-  --repeats 3 --pilot-seed 0 --holdout-fraction 0.4 \
-  --auc-num-samples 200 --study-name mscoco_pilot
-```
-
-Create `logs/` before submission. Do not use `--no-resume`. Changing study settings, selected inputs, checkpoint stamps, or the eligible image pool requires a new `--study-name`. Freeze the pilot inputs while collecting the evidence. Cached timings are the original measurements; compare timings on the same hardware.
-
-## 5. Inspect evidence and combine
-
-Each pilot prints its directory under:
-
-```text
-<output.evaluations>/budget_ablation/<runner>/<partition>/bg_full/mscoco_pilot/
-```
-
-Open `budget_report.html`. The directory also contains:
-
-- `budget_heatmaps.png` in each image folder: repeat-mean maps at each budget with one reference-based color scale per method row.
-- `budget_curves.png`: worst observed agreement/error and median runtime.
-- `budget_comparisons.csv`: image/method/budget/repeat measurements and actual query counts.
-- `reference_diagnostics.json`: uncertainty of the high-budget reference maps.
-- `selection.json`: decision, criteria, scopes, and held-out result.
-
-Default empirical tolerances, declared before running:
-
-| Check against the repeat-mean high-budget reference | Requirement |
-| --------------------------------------------------- | ----------- |
-| Signed-map Spearman rank agreement                  | ≥ 0.95      |
-| Tie-aware top-10% absolute-attribution Jaccard      | ≥ 0.90      |
-| Relative L1 attribution error                       | ≤ 0.10      |
-| Insertion and deletion AUC difference               | each ≤ 0.01 |
-
-Every repeat and, by default, every image must pass separately for each method/scope. A candidate must also pass at all larger tested budgets, avoiding a choice based on an isolated lucky result. Constant or unstable references are rejected. Budget 4000 is an approximate reference, not exact Shapley ground truth. AUC requests 200 points; repeated masks can reduce the number of evaluated points.
-
-The smallest passing calibration budget is tested on held-out images. A held-out failure leaves `selected_budget` null; it does not choose a larger budget using validation outcomes. A `--no-auc` pilot is diagnostic only and cannot produce a production budget selection. GT-selected best IoU is diagnostic, not a selection criterion.
-
-Once **all four pilots finish**, combine their printed directories. For the default output root and folder names above:
-
-```bash
-python src/scripts/explanations/budget_ablation.py \
-  --combine \
-  results/evaluations/budget_ablation/OD_yolo/MSCOCO_sam1_vit_b_62_compact-sam_200/bg_full/mscoco_pilot \
-  results/evaluations/budget_ablation/OD_yolo/MSCOCO_sam2_large_62_compact-sam_200/bg_full/mscoco_pilot \
-  results/evaluations/budget_ablation/OD_DETR/MSCOCO_sam1_vit_b_62_compact-sam_200/bg_full/mscoco_pilot \
-  results/evaluations/budget_ablation/OD_DETR/MSCOCO_sam2_large_62_compact-sam_200/bg_full/mscoco_pilot \
-  --output-dir results/evaluations/budget_ablation/mscoco_common
-```
-
-Use your printed paths if they differ. The common budget must pass independently in all four pilots and all three methods. Missing/incompatible studies block selection. Inspect the combined `selection.json`: only `status: validated` with a non-null `selected_budget` is ready for production. Otherwise report that no tested common budget was validated; do not assume 1000 is adequate.
-
-## Automatic conclusion after running
-
-Each finished pilot and the combined report now print a conclusion and save **`conclusion.md`** alongside `selection.json`. The HTML report displays the conclusion at the top.
-
-For the combined MS-COCO study, read:
-
-```bash
-cat results/evaluations/budget_ablation/mscoco_common/conclusion.md
-```
-
-A successful result states: **“Recommended budget: N for BPT, BPT+SAM_c, and SAM_c+KernelSHAP”**, using the budget actually validated by your runs. It lists the tested datasets, detectors, partition folders, backgrounds, and calibration/validation counts.
-
-If validation fails, references are unstable, no candidate passes, or AUC was disabled, the conclusion explicitly says that no common production budget is recommended and explains the failure. A partial-method pilot cannot recommend a budget for all three methods. No numeric recommendation is invented before collecting the evidence. Use the combined conclusion to decide the common MS-COCO budget; a single pilot's conclusion applies only to its tested setup.
-
-## 6. Apply the validated budget
-
-For YOLO, for example:
-
-```bash
-python -u src/scripts/explanations/OD_yolo.py \
-  --config MSCOCO_epito_sam1 --model yolo11s --show-gt \
-  --explain_all --bg-type full --class-aggregation sum --no-heatmaps \
-  --auc-num-samples 200 \
-  --budget-selection results/evaluations/budget_ablation/mscoco_common/selection.json
-```
-
-For DETR:
-
-```bash
-python -u src/scripts/explanations/OD_DETR.py \
-  --config MSCOCO_epito_sam1 --model facebook/detr-resnet-50 --show-gt \
-  --explain_all --bg-type full --class-aggregation sum --no-heatmaps \
-  --auc-num-samples 200 \
-  --budget-selection results/evaluations/budget_ablation/mscoco_common/selection.json
-```
-
-Repeat with `MSCOCO_sam2_epito` for SAM2. Do not add a conflicting `--budget`, `--partition-budgets`, or `--kernel-shap-samples` override. The selection supplies one budget to all three partition methods; LIME-1000, Shap-AA-1000, and gradient settings stay fixed. Keep the pilot model/checkpoint, partition setup, background, class scoring, and AUC resolution unchanged. Existing incompatible result settings may require a separate output directory.
-
-This selection covers the tested **MS-COCO detectors and partition variants**. To claim a common budget across other datasets, also collect their pilots and include them when combining. Report final quality on independent images, excluding pilot calibration and validation images. Do not retune criteria on held-out failures and then call the reused hold-out independent validation.
-
-References for metric/method definitions: [Spearman correlation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.spearmanr.html), [Kernel SHAP sampling](https://shap.readthedocs.io/en/latest/generated/shap.KernelExplainer.html). The tolerances above are project criteria, not thresholds prescribed by these sources.
-
-For the frozen EPITO study, generate the budget-only summary with:
-
-```bash
-python src/scripts/explanations/summarize_ablation_study.py \
-  results/evaluations/ablation_20261105_v1
-```
-
-This writes `report/analysis.md` with the budget status and, when all pilots finish, the combined budget conclusion. Previously collected AUC-resolution results are excluded.
+Any recommendation applies only to **BPT and BPT+SAM_c on the tested YOLO/SAM1 MS-COCO setup**. It does not cover KernelSHAP, LIME, gradients, SAM2, DETR or other datasets. The ordinary all-method XAI runner still includes other methods; this ablation does not supply a validated budget for them.

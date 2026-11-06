@@ -20,6 +20,7 @@ from auc_export import auc_columns
 RUNNERS = ['OC_ResNet', 'OC_VGG', 'OC_ViT', 'COD_ViT', 'OD_DETR', 'OD_yolo',
            'OC_CelebA', 'OC_BUSI', 'OC_PartImageNet']
 METHODS = ['BPT', 'BPT+SAM_c', 'SAM_c+KernelSHAP']
+DEFAULT_METHODS = ['BPT', 'BPT+SAM_c']
 
 
 def parser(argv=None):
@@ -37,7 +38,10 @@ def parser(argv=None):
     result.add_argument('--repeats', type=int, default=3)
     result.add_argument('--pilot-seed', type=int, default=0)
     result.add_argument('--holdout-fraction', type=float, default=.4)
-    result.add_argument('--methods', nargs='+', choices=METHODS, default=METHODS)
+    result.add_argument('--methods', nargs='+', choices=METHODS, default=DEFAULT_METHODS)
+    result.add_argument('--reuse-study', type=Path, help='Reuse compatible map evaluations from an earlier pilot')
+    result.add_argument('--progress-every-image', action='store_true', help='Print and save a calibration checkpoint after each image')
+    result.add_argument('--statistical-test', action='store_true', help='Run paired-bootstrap non-inferiority after the full fixed pilot finishes')
     result.add_argument('--study-name', default='pilot')
     result.add_argument('--min-spearman', type=float, default=DEFAULT_CRITERIA['min_spearman'])
     result.add_argument('--min-top-jaccard', type=float, default=DEFAULT_CRITERIA['min_top_jaccard'])
@@ -69,6 +73,9 @@ def validate(args):
             raise ValueError(f'{name} must be in (0,1]')
     if args.max_relative_l1 < 0 or args.max_auc_difference < 0:
         raise ValueError('Error tolerances must be nonnegative')
+    if args.statistical_test and (args.bg_type != 'full' or args.min_spearman == 1 or
+            args.min_top_jaccard == 1 or args.max_relative_l1 == 0 or args.max_auc_difference == 0):
+        raise ValueError('The bootstrap study requires full background and positive loss margins')
     if args.explain_all or args.budget_selection is not None:
         raise ValueError('This is the separate pilot; do not pass --explain_all or --budget-selection')
 
@@ -144,7 +151,23 @@ def evaluate_map(runtime, args, image, labels, predict, explainer, target, trees
             with np.load(archive, allow_pickle=False) as source:
                 values = source['values']
             if values.shape == image.shape[:2] and np.isfinite(values).all():
+                print(f"  CACHED {cache.parent.parent.name} | {method} | B={budget} | seed={seed}", flush=True)
                 return values, saved
+    if args.resume and getattr(args, '_reuse_source', None):
+        source = args._reuse_source / cache.relative_to(args._pilot_folder)
+        source_marker, source_archive = source.with_suffix('.json'), source.with_suffix('.npz')
+        if source_marker.is_file() and source_archive.is_file():
+            saved = json.loads(source_marker.read_text())
+            if saved.get('signature') == args._reuse_signature:
+                with np.load(source_archive, allow_pickle=False) as data:
+                    values = data['values']
+                if values.shape == image.shape[:2] and np.isfinite(values).all():
+                    saved = dict(saved, signature=signature, reused_from=str(source))
+                    cache.parent.mkdir(parents=True, exist_ok=True)
+                    np.savez_compressed(archive, values=values)
+                    common.write_json(marker, saved)
+                    print(f"  REUSED {cache.parent.parent.name} | {method} | B={budget} | seed={seed}", flush=True)
+                    return values, saved
     print(f"  {image.shape[1]}x{image.shape[0]} {method}: B={budget}, seed={seed}", flush=True)
     started, before = time.perf_counter(), counters['masks']
     with fixed_seed(runtime.torch, seed):
@@ -170,6 +193,9 @@ def evaluate_map(runtime, args, image, labels, predict, explainer, target, trees
     cache.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(archive, values=values)
     common.write_json(marker, saved)  # Written last, so interrupted work is not resumed as complete.
+    print(f"  DONE {cache.parent.parent.name} | {method} | B={budget} | seed={seed} | "
+          f"explain={seconds:.1f}s evaluate={saved['evaluation_sec']:.1f}s | "
+          f"AUC+={saved.get('auc_ins', float('nan')):.4f} AUC-={saved.get('auc_del', float('nan')):.4f}", flush=True)
     return values, saved
 
 
@@ -212,13 +238,12 @@ def budget_conclusion(selection, studies, selection_path):
     budget = selection.get('selected_budget')
     candidate = selection.get('calibration_candidate')
     all_methods = set(selection['methods']) == set(METHODS)
-    if status == 'validated' and all_methods:
-        summary = (f'Recommended budget: {budget} for BPT, BPT+SAM_c, and SAM_c+KernelSHAP. '
+    if status == 'validated':
+        summary = (f"Recommended budget: {budget} for {', '.join(selection['methods'])}. "
                    'This is the smallest tested common budget that passed calibration and held-out '
                    'validation for every included pilot under the declared criteria.')
-    elif status == 'validated':
-        summary = (f'Budget {budget} passed for the tested methods only. No common budget for all '
-                   'three partition methods is recommended because this ablation omitted methods.')
+        if not all_methods:
+            summary += ' This recommendation does not cover omitted methods.'
     elif status == 'validation_failed':
         summary = (f'No budget is recommended. Calibration selected {candidate}, but it failed '
                    'held-out validation. Do not substitute a larger budget using these same '
@@ -353,7 +378,14 @@ def run(args, adapter=None):
              'methods': args.methods, 'repeats': args.repeats, 'pilot_seed': args.pilot_seed,
              'auc_points': args.auc_num_samples, 'compute_auc': args.compute_auc, 'criteria': criteria,
              'splits': splits, 'eligible_images': len(inputs['records']),
-             'settings': common.jsonable(vars(args)), 'inputs': [common.input_stamp(record) for record in records]}
+             'settings': common.jsonable({key: value for key, value in vars(args).items() if not key.startswith('_')}),
+             'inputs': [common.input_stamp(record) for record in records]}
+    if args.statistical_test:
+        study['statistical_protocol'] = {'budgets': args.budgets, 'bootstrap_resamples': 20000,
+            'alpha': .05, 'seed': args.pilot_seed,
+            'margins': {'relative_l1': args.max_relative_l1, 'spearman_loss': 1-args.min_spearman,
+                        'top_jaccard_loss': 1-args.min_top_jaccard,
+                        'auc_ins_difference': args.max_auc_difference, 'auc_del_difference': args.max_auc_difference}}
     from importlib.metadata import version, PackageNotFoundError
     study['versions'] = {}
     for package in ['torch', 'torchvision', 'shap-bpt', 'numpy', 'scipy']:
@@ -365,7 +397,8 @@ def run(args, adapter=None):
                             for name in ['checkpoint', 'class_names', 'attribute_file']
                             if (value := getattr(args, name)) is not None}
     identity = {key: value for key, value in study.items() if key not in {'state'}}
-    for key in ['resume', 'dry_run', 'verbose_level', 'torch_threads', 'fail_fast', 'stop_after_images']:
+    for key in ['resume', 'dry_run', 'verbose_level', 'torch_threads', 'fail_fast', 'stop_after_images',
+                'reuse_study', 'progress_every_image']:
         identity['settings'].pop(key, None)
     signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     study['signature'] = signature
@@ -379,6 +412,12 @@ def run(args, adapter=None):
                       'repeats': args.repeats, 'criteria': criteria}, indent=2))
     if args.dry_run:
         return study
+    if args.reuse_study:
+        from budget_reuse import validate_reuse
+        source = validate_reuse(study, args.reuse_study)
+        args._reuse_source = Path(args.reuse_study).resolve()
+        args._reuse_signature = source['signature']
+        args._pilot_folder = folder
     if (folder/'study.json').is_file():
         previous = json.loads((folder/'study.json').read_text())
         if previous.get('signature') != signature:
@@ -397,6 +436,7 @@ def run(args, adapter=None):
     adapter = adapter or (YoloAdapter(args, device) if args.runner == 'OD_yolo' else common.load_adapter(args.runner, args, device))
     study['model_load_sec'] = time.perf_counter()-model_started
     rows, diagnostics = [], []
+    finished_images = []
     split_for = {image: split for split, ids in splits.items() for image in ids}
     run_records = records[:args.stop_after_images] if args.stop_after_images else records
     study['execution_limit'] = len(run_records)
@@ -468,11 +508,25 @@ def run(args, adapter=None):
                         iou = best_iou(values, gt)
                         row['best_iou_oracle'] = iou['best_iou'] if iou else None
                     rows.append(row)
+                checks = rows[-args.repeats:]
+                passed_count = sum(passes(row, criteria, args.compute_auc) for row in checks)
+                mean_l1 = float(np.mean([row['relative_l1'] for row in checks]))
+                print(f"  CHECK {image_id} | {method} | B={budget} | "
+                      f"observed repeats passing={passed_count}/{args.repeats} | "
+                      f"mean relative L1={mean_l1:.4f} | reference stable={stable} "
+                      '(descriptive, not a significance test)', flush=True)
                 means[(method, budget)] = np.mean(maps, axis=0)
             common.write_json(folder/'comparisons.json', rows)
             common.write_json(folder/'reference_diagnostics.json', diagnostics)
         if args.save_plots:
             plot_image(runtime, image_folder, image, labels, means, references, args, gt)
+        finished_images.append(image_id)
+        print(f"IMAGE DONE {len(finished_images)}/{len(run_records)} | {image_id} | "
+              f"split={split_for[image_id]} | elapsed={time.perf_counter()-started:.1f}s", flush=True)
+        if args.progress_every_image and split_for[image_id] == 'calibration':
+            from budget_interim import write_interim
+            checkpoint = dict(study, completed_images=list(finished_images))
+            write_interim(folder, checkpoint, rows, diagnostics)
     if len(run_records) < len(records):
         from budget_interim import write_interim
         study.update(state='interim', completed_images=[record['image_id'] for record in run_records],
@@ -484,7 +538,11 @@ def run(args, adapter=None):
     common.write_json(folder/'study.json', study)
     common.write_json(folder/'comparisons.json', rows)
     study['rows'] = rows
-    return write_reports(folder, [study], save_plots=args.save_plots)
+    empirical = write_reports(folder, [study], save_plots=args.save_plots)
+    if args.statistical_test:
+        from budget_interactive import statistical_report
+        return statistical_report(folder, study)
+    return empirical
 
 
 if __name__ == '__main__':

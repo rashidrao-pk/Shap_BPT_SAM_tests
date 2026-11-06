@@ -1,6 +1,8 @@
 # XAI budget ablation with full background replacement
 
-**Current execution scope: MS-COCO with YOLO and SAM1 only, first three fixed images.** SAM2, DETR and other datasets are deferred. This stage reuses the two completed images and any cached work on the third. It stops after three images, with a six-hour cap and no automatic continuation.
+**Latest workflow:** run [the two-method interactive ablation](BUDGET_ABLATION.md) yourself. It evaluates only BPT and BPT+SAM_c, reuses compatible saved work, and performs the paired test after the fixed held-out stage. No new batch jobs are launched. The notes below preserve the earlier batch-study setup.
+
+**Previous execution scope (finished): MS-COCO with YOLO and SAM1 only, first three fixed images.** SAM2, DETR and other datasets were deferred. The stage reused cached work and stopped after three images, with a six-hour cap and no automatic continuation.
 
 Read the SAM1 pilot's `interim_conclusion.md`, `interim_summary.csv` and `interim_selection.json` under `budget/OD_yolo/MSCOCO_sam1_vit_b_62_compact-sam_200/bg_full/full_budget/`. This is a descriptive checkpoint, **not a validated production budget**. These images retain their original calibration/validation assignments and are not relabeled as independent hold-out evidence.
 

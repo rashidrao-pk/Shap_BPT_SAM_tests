@@ -196,7 +196,7 @@ def plot_image(runtime, folder, image, labels, means, references, args, ground_t
                 axes[row, column].imshow(values, **style)
                 axes[row, column].set_title(f'{"Reference " if budget == args.reference_budget else ""}B={budget}')
                 if ground_truth is not None and np.any(ground_truth['mask']):
-                    draw_gt_boundaries(axes[row, column], ground_truth['mask'])
+                    draw_gt_boundaries(axes[row, column], ground_truth)
         for ax in axes.ravel():
             ax.set_xticks([]); ax.set_yticks([])
         fig.suptitle('Budget ablation — repeat means; common reference color scale within each method')

@@ -112,7 +112,7 @@ def _load_celeba(settings, root, stem, shape, gt_class):
     name = ', '.join(selected) if len(selected) < 3 else 'CelebAMask-HQ face parts'
     if labels is None:
         return _empty(shape, name, 'annotation not available', scope='face_parts', part_names=selected)
-    return _result(labels, shape, name, paths, scope='face_parts', part_names=present,
+    return _result(labels, shape, name, paths, scope='face_parts', part_names=present, semantic_labels=True,
                    label_names={index + 1: part for index, part in enumerate(PARTS)},
                    display_count=len(present), count_label='parts')
 
@@ -207,7 +207,9 @@ def _load_imagenets(settings, root, stem, shape, gt_class, predicted_index, labe
     present = sorted(set(selected) & set(valid))
     status = 'matched' if present else 'no annotated pixels for selected class'
     return _result(labels, shape, name, [path], status, selected=selected, ignored=[1000],
-                   scope=scope, category_ids=selected, label_names=label_names,
+                   scope=scope, category_ids=selected, label_names=label_names, semantic_labels=True,
+                   semantic_classes=list(label_names.values()) if label_names else
+                       [f'Class {value}' for value in range(1, int(split)+1)],
                    display_count=len(present), count_label='classes')
 
 
@@ -249,11 +251,13 @@ def _load_partimagenet(settings, root, image_path, shape, selected_part):
             labels[np.asarray(coco.annToMask(ann), dtype=bool)] = len(used) + 1
             used.append(ann['id'])
             names.append(category_names[ann['category_id']])
-    return _result(labels, shape, 'PartImageNet annotated foreground' if all_parts else str(selected_part),
+    return _result(labels, shape, 'PartImageNet annotated parts' if all_parts else str(selected_part),
                    [annotation], 'matched' if used else 'no matching part segmentation',
-                   annotation_ids=used, part_names=names, category_ids=ids,
+                   annotation_ids=used, part_names=names, category_ids=ids, semantic_labels=True,
+                   label_names={i+1: name for i, name in enumerate(names)},
+                   semantic_classes=sorted(set(category_names.values())),
                    scope='annotated_parts' if all_parts else 'selected_part',
-                   instance_count=len(used))
+                   instance_count=len(used), display_count=len(set(names)), count_label='part classes')
 
 
 def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_index=None, label_space=None,
@@ -267,16 +271,20 @@ def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_
                or category['name'].lower() == gt_class.lower()]
         annotations = coco.loadAnns(coco.getAnnIds(imgIds=[int(stem)], catIds=ids)) if ids else []
         labels = np.zeros(image_shape[:2], dtype=np.uint16)
-        used = []
+        used, label_names = [], {}
+        category_names = {category['id']: category['name'] for category in categories}
         for annotation in annotations:
             if annotation.get('segmentation'):
                 labels[np.asarray(coco.annToMask(annotation), dtype=bool)] = len(used) + 1
                 used.append(annotation['id'])
+                label_names[len(used)] = category_names[annotation['category_id']]
         return _result(labels, image_shape, gt_class or 'COCO annotated instances',
                        [resolve_path(config['data']['annotation_file'])],
                        'matched' if used else 'no matching segmentation',
                        instance_count=len(used), display_count=len(used), count_label='instances',
-                       annotation_ids=used, category_ids=ids, scope='selected_class' if gt_class else 'all_instances')
+                       annotation_ids=used, category_ids=ids, scope='selected_class' if gt_class else 'all_instances',
+                       semantic_labels=True, label_names=label_names,
+                       semantic_classes=sorted(set(category_names.values())))
     settings, root = validate_config(config)
     format_name = settings['format'].lower()
     if format_name == 'partimagenet':
@@ -311,6 +319,52 @@ def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_
     raise ValueError(f'Unsupported GT format: {format_name}')
 
 
+def semantic_styles(gt):
+    """Present semantic categories with stable colors; respect target and ignored pixels."""
+    import colorsys
+    if not gt.get('semantic_labels') and not gt.get('label_names'):
+        return []
+    labels = np.asarray(gt['label_map'])
+    names = {int(key): value for key, value in gt.get('label_names', {}).items()}
+    present = [int(value) for value in np.unique(labels[np.asarray(gt['mask'], dtype=bool)]) if value != 0]
+    universe = sorted(set(gt.get('semantic_classes') or names.values()) |
+                      {names.get(value, f'Class {value}') for value in present})
+    return [{'value': value, 'name': names.get(value, f'Class {value}'),
+             'color': list(colorsys.hsv_to_rgb((universe.index(names.get(value, f'Class {value}'))*.61803398875) % 1, .70, .90))}
+            for value in present]
+
+
+def draw_semantic_legend(ax, gt, inside=False):
+    from matplotlib.patches import Patch
+    styles = {style['name']: style for style in semantic_styles(gt)}
+    if styles:
+        return ax.legend(handles=[Patch(facecolor=style['color'], label=name) for name, style in styles.items()],
+                         loc='lower left' if inside else 'upper left',
+                         bbox_to_anchor=None if inside else (1.02, 1), fontsize=7, frameon=True)
+
+
+def draw_ground_truth(ax, gt, image=None, alpha=.45, legend=False):
+    """Draw semantic parts/classes when available, otherwise the binary mask."""
+    styles = semantic_styles(gt)
+    if image is not None:
+        ax.imshow(image)
+    if styles:
+        colored = np.ones((*gt['mask'].shape, 4), dtype=float)
+        colored[..., 3] = 0 if image is not None else 1
+        for style in styles:
+            selected = (gt['label_map'] == style['value']) & gt['mask']
+            colored[selected] = [*style['color'], alpha if image is not None else 1]
+        handle = ax.imshow(colored, origin='upper', interpolation='nearest')
+        if legend:
+            draw_semantic_legend(ax, gt)
+        return handle
+    if image is None:
+        return ax.imshow(gt['mask'], cmap='gray', vmin=0, vmax=1, origin='upper')
+    overlay = np.zeros((*gt['mask'].shape, 4))
+    overlay[gt['mask']] = [0, 1, 0, alpha]
+    return ax.imshow(overlay, origin='upper')
+
+
 def save_ground_truth(gt, image, folder, image_id):
     import matplotlib.pyplot as plt
     folder = Path(folder)
@@ -322,12 +376,9 @@ def save_ground_truth(gt, image, folder, image_id):
     np.savez_compressed(labels_path, labels=gt['label_map'])
     fig, axes = plt.subplots(1, 2, figsize=(10, 4))
     try:
-        axes[0].imshow(gt['mask'], cmap='gray', vmin=0, vmax=1)
-        axes[0].set_title(f"GT mask: {gt['class_name']}")
-        axes[1].imshow(image)
-        overlay = np.zeros((*gt['mask'].shape, 4))
-        overlay[gt['mask']] = [0, 1, 0, .45]
-        axes[1].imshow(overlay)
+        draw_ground_truth(axes[0], gt)
+        axes[0].set_title(f"GT {'semantic labels' if semantic_styles(gt) else 'mask'}: {gt['class_name']}")
+        draw_ground_truth(axes[1], gt, image=image, legend=True)
         axes[1].set_title(title(gt), fontsize=9)
         for ax in axes:
             ax.set_xticks([])
@@ -337,6 +388,7 @@ def save_ground_truth(gt, image, folder, image_id):
     finally:
         plt.close(fig)
     metadata = {key: value for key, value in gt.items() if key not in {'mask', 'label_map'}}
+    metadata['semantic_colors'] = semantic_styles(gt)
     metadata.update(mask_path=str(mask_path), labels_path=str(labels_path), preview_path=str(preview_path))
     (folder / f'{image_id}_gt.json').write_text(json.dumps(metadata, indent=2) + '\n')
     return metadata

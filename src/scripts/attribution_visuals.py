@@ -13,12 +13,21 @@ def notebook_style(heatmap):
     return {'cmap': shap_bpt.shapley_values_colormap, 'vmin': -maximum, 'vmax': maximum}
 
 
-def draw_gt_boundaries(ax, mask):
+def draw_gt_boundaries(ax, mask, color='black'):
     from skimage.segmentation import mark_boundaries
+    from matplotlib.colors import to_rgba
+    if isinstance(mask, dict):
+        from ground_truth import semantic_styles
+        styles = semantic_styles(mask)
+        if styles:
+            overlays = [draw_gt_boundaries(ax, (mask['label_map'] == style['value']) & mask['mask'],
+                                          color=style['color']) for style in styles]
+            return overlays[-1]
+        mask = mask['mask']
     mask = np.asarray(mask, dtype=bool)
     background = np.ones((*mask.shape, 4), dtype=float)
     background[..., 3] = 0
-    boundary = mark_boundaries(background, mask, mode='thick', color=(0, 0, 0, 1))
+    boundary = mark_boundaries(background, mask, mode='thick', color=to_rgba(color))
     overlay = ax.imshow(boundary, origin='upper', interpolation='nearest', zorder=3)
     if mask.any():
         # Keep the outline visible when a high-resolution mask is reduced to a
@@ -27,7 +36,7 @@ def draw_gt_boundaries(ax, mask):
         contour = ax.contour(np.arange(-1, mask.shape[1] + 1),
                              np.arange(-1, mask.shape[0] + 1),
                              np.pad(mask.astype(float), 1), levels=[.5],
-                             colors='black', linewidths=1.2, zorder=5)
+                             colors=[color], linewidths=1.2, zorder=5)
         effects = [patheffects.Stroke(linewidth=2.4, foreground='white'),
                    patheffects.Normal()]
         if hasattr(contour, 'set_path_effects'):

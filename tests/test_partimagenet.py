@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src/scripts'))
 sys.path.insert(0, str(ROOT / 'src/scripts/explanations'))
 from partimagenet_data import collect_images
-from ground_truth import load_ground_truth
+from ground_truth import load_ground_truth, semantic_styles, save_ground_truth
 
 
 def fixture(tmp_path):
@@ -40,9 +40,17 @@ def test_split_images_and_parts(tmp_path):
     assert len(records) == 1 and records[0]['id'] == image.stem
     gt = load_ground_truth({'data': data}, image, (16, 16, 3))
     assert gt['mask'].sum() == 50 and gt['mask'][2, 2] and gt['mask'][10, 10]
+    styles = semantic_styles(gt)
+    assert {style['name'] for style in styles} == {'Quadruped Head', 'Quadruped Body'}
+    assert styles[0]['color'] != styles[1]['color']
     selected = load_ground_truth({'data': data}, image, (16, 16, 3), gt_class='Quadruped Head')
     assert selected['mask'].sum() == 25 and not selected['mask'][10, 10]
     assert selected['scope'] == 'selected_part'
+    assert semantic_styles(selected)[0]['color'] == next(
+        style['color'] for style in styles if style['name'] == 'Quadruped Head')
+    metadata = save_ground_truth(gt, np.zeros((16, 16, 3), dtype=np.uint8), tmp_path/'preview', 'parts')
+    assert len(metadata['semantic_colors']) == 2
+    np.testing.assert_array_equal(np.load(metadata['mask_path']), gt['mask'])
     with pytest.raises(ValueError, match='Unknown PartImageNet part'):
         load_ground_truth({'data': data}, image, (16, 16, 3), gt_class='unknown')
 

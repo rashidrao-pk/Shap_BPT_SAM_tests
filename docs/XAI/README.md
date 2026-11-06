@@ -79,6 +79,15 @@ The default score is ImageNet classification confidence on CAMO images.
 
 ## Show ground truth
 
+GT previews automatically use separate semantic colors and a legend for PartImageNet parts, CelebAMask-HQ face parts, ImageNet-S classes and COCO categories. Repeated instances of the same category share a color. Attribution maps use matching colored contours without adding a GT subplot. Binary datasets such as CAMO and BUSI retain binary masks. Foreground evaluation and selected-class filtering are unchanged.
+
+For example, regenerate PartImageNet previews with:
+
+```bash
+python src/scripts/view_partitions.py --config PartImageNet_epito \
+  --limit 5 --methods sam compact --show-gt
+```
+
 GT paths are configured in `data.ground_truth` in each dataset YAML.
 Add `--show_gt` to the explanation command:
 
@@ -156,7 +165,7 @@ All explanation runners save a two-row, three-column figure:
 1. Input image, BPT partitions, SAM_c partitions.
 2. BPT, SAM_c, and SAM_c_kernelshap attributions.
 
-With `--show-gt`, available GT is outlined in black on all three attribution
+With `--show-gt`, available GT uses semantic-colored outlines when labels are available, and black outlines for binary masks, on all three attribution
 panels. AUC plots remain separate. The BPT panel cuts the explanation tree to
 the SAM_c region count. `--no-heatmaps` still keeps this combined figure.
 Use `--no-resume` to regenerate previously saved figures.

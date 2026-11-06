@@ -509,7 +509,7 @@ def comparison_plot(runtime, image, attributions, prediction, output, ground_tru
             ax.imshow(heatmap, origin='upper', **notebook_style(heatmap))
             if has_gt:
                 mask = np.asarray(ground_truth['mask'], dtype=bool)
-                draw_gt_boundaries(ax, mask)
+                draw_gt_boundaries(ax, ground_truth)
                 result = best_iou(heatmap, ground_truth)
                 selected = result.pop('mask')
                 iou_results[name] = result
@@ -520,6 +520,9 @@ def comparison_plot(runtime, image, attributions, prediction, output, ground_tru
                 overlap[~selected & mask] = [1, 0, 1]
                 axes[1, column].imshow(overlap)
                 axes[1, column].set_title(f"Best IoU: {result['best_iou']:.3f}", fontsize=9)
+        if has_gt:
+            from ground_truth import draw_semantic_legend
+            draw_semantic_legend(axes[0, 0], ground_truth, inside=True)
         for ax in axes.ravel():
             ax.set_xticks([])
             ax.set_yticks([])

@@ -46,13 +46,10 @@ def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None):
                                'min_region_pixels': int(counts.min()),
                                'max_region_pixels': int(counts.max())})
         if ground_truth is not None:
-            from ground_truth import title as gt_title
-            axes[0, -1].imshow(ground_truth['mask'], cmap='gray', vmin=0, vmax=1)
+            from ground_truth import title as gt_title, draw_ground_truth
+            draw_ground_truth(axes[0, -1], ground_truth)
             axes[0, -1].set_title(gt_title(ground_truth), fontsize=9)
-            axes[1, -1].imshow(image)
-            overlay = np.zeros((*image.shape[:2], 4))
-            overlay[ground_truth['mask']] = [0, 1, 0, alpha]
-            axes[1, -1].imshow(overlay)
+            draw_ground_truth(axes[1, -1], ground_truth, image=image, alpha=alpha, legend=True)
             axes[1, -1].set_title('GT overlay')
         for ax in axes.ravel():
             ax.set_xticks([])

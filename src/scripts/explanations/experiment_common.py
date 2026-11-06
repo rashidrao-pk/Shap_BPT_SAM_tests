@@ -423,7 +423,7 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
                 if mask.shape != heatmap.shape:
                     raise ValueError('GT mask and attribution dimensions must match')
                 if mask.any():
-                    draw_gt_boundaries(ax, mask)
+                    draw_gt_boundaries(ax, ground_truth)
             from mpl_toolkits.axes_grid1 import make_axes_locatable
             divider = make_axes_locatable(ax)
             colorbar_ax = divider.append_axes('right', size='4%', pad=.08)
@@ -435,7 +435,10 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
         top = max(top_classes, key=lambda item: float(item['confidence'])) if top_classes else None
         predicted_title = (f"Top predicted: {top['class_name']} ({float(top['confidence']):.4f})"
                            if top else 'Top predicted: unavailable')
-        gt_note = (' | GT boundary: black' if ground_truth is not None and np.any(ground_truth['mask'])
+        from ground_truth import semantic_styles, draw_semantic_legend
+        if ground_truth is not None:
+            draw_semantic_legend(axes[0, 0], ground_truth, inside=True)
+        gt_note = ((' | GT boundaries: semantic colors' if semantic_styles(ground_truth) else ' | GT boundary: black') if ground_truth is not None and np.any(ground_truth['mask'])
                    else ' | GT: ' + ground_truth['status'] if ground_truth is not None else '')
         fig.suptitle(f"{predicted_title} | Explained: {prediction['explained_class']}{gt_note}")
         fig.tight_layout(rect=(0, 0, 1, .97))

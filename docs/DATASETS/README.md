@@ -71,6 +71,10 @@ python src/scripts/summary_setup.py --json results/setup.json             # Also
 
 The command exits with 1 if any dataset is `BLOCKED`. For exact partition progress and timing, use `check_partition_progress.py`.
 
+## Check partition quality
+
+Before spending time on XAI for a dataset, [evaluate its partitions](../Partitions/EVALUATE_PARTITIONS.md) against the ground truth. It gives a verdict for each dataset.
+
 ## Added datasets
 
 - [x] MS-COCO

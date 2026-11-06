@@ -12,3 +12,7 @@
 - [One-time installation](../full/EPITO_SETUP.md)
 
 Next: [XAI experiments](../XAI/README.md).
+
+## Evaluate partitions
+
+To check partitions against the ground truth and get a verdict for each dataset before XAI, see [Evaluate partitions](EVALUATE_PARTITIONS.md).

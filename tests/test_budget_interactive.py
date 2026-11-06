@@ -11,6 +11,11 @@ import budget_ablation as pilot
 from test_budget_noninferiority import fixture
 
 
+def test_missing_coarse_source_explains_existing_source_option(tmp_path):
+    with pytest.raises(ValueError, match=r'\$SOURCE_STUDY'):
+        build_args(tmp_path/'interactive_bpt_r8000')
+
+
 def test_builder_keeps_original_plan_and_excludes_kernelshap(tmp_path):
     folder = tmp_path/'MSCOCO_sam1_vit_b_62_compact-sam_200/bg_full/full_budget'
     folder.mkdir(parents=True)

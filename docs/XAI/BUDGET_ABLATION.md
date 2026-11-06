@@ -47,15 +47,13 @@ These stages use only the original calibration images. Intermediate inspection i
 Use the calibration results to decide which interval needs more points. For example, add 2500 and 3000 while retaining 8000 as reference:
 
 ```bash
-export COARSE_STUDY="${SOURCE_STUDY%/*}/interactive_bpt_r8000"
-
 python -u src/scripts/explanations/budget_interactive.py \
-  --source-study "$COARSE_STUDY" --images 3 \
+  --source-study "$SOURCE_STUDY" --images 3 \
   --budgets 1000 2000 2500 3000 4000 6000 \
   --reference-budget 8000 --study-name interactive_bpt_refined_r8000
 ```
 
-Use the completed coarse study as the source to reuse its matching 8000-reference and candidate evaluations. Changing a grid requires a new study name; existing results are not overwritten. The three repetitions and image split stay fixed. You can similarly add 5000 or 7000 if that is the unresolved interval. Every candidate must be strictly below 8000.
+This command works directly from the original source study; a coarse run is not required first. If you already ran the coarse stage and `${SOURCE_STUDY%/*}/interactive_bpt_r8000/study.json` exists, you may use that folder as the source to reuse its 8000-reference evaluations too. Merely exporting `COARSE_STUDY` does not create that study. Changing a grid requires a new study name; existing results are not overwritten. The three repetitions and image split stay fixed. You can similarly add 5000 or 7000 if that is the unresolved interval. Every candidate must be strictly below 8000.
 
 Record the refinement rule before collecting new calibration results. Keep the held-out images untouched. After choosing a grid, repeat exactly the same source, grid, reference and study-name arguments for later stages and `--final`; do not silently switch back to the coarse defaults.
 

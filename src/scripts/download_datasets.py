@@ -9,9 +9,12 @@ import concurrent.futures
 import csv
 import json
 from pathlib import Path
+import shutil
+import ssl
+import urllib.error
 import urllib.request
 
-from download_partimagenet import MODEL_URL, download, extract
+from download_partimagenet import MODEL_URL, check_hash, download, extract
 
 DATASET_ROOT = Path('/beegfs/home/mrashid/datasets')
 VISINF = 'https://download.visinf.tu-darmstadt.de/data/funnybirds'
@@ -45,9 +48,33 @@ def download_funnybirds(root, args):
     extract(archive, root)
 
 
+def download_pinned(url, destination, sha256):
+    """Fetch one file whose full SHA-256 is pinned, tolerating a server's incomplete TLS chain.
+
+    Simula's server omits its intermediate certificate, which Python rejects. The pinned hash,
+    not TLS, then establishes integrity: unverified bytes never reach the destination.
+    """
+    try:
+        return download(url, destination, hash_prefix=sha256)
+    except urllib.error.URLError as error:
+        if not isinstance(error.reason, ssl.SSLCertVerificationError):
+            raise
+    print(f'TLS chain rejected for {url}; retrying, with the pinned SHA-256 as the integrity check', flush=True)
+    temporary = destination.with_suffix(destination.suffix + '.part')
+    with urllib.request.urlopen(url, context=ssl._create_unverified_context()) as response, temporary.open('wb') as stream:
+        shutil.copyfileobj(response, stream)
+    try:
+        check_hash(temporary, sha256)
+    except ValueError:
+        temporary.unlink()
+        raise
+    temporary.replace(destination)
+    return destination
+
+
 def download_kvasirseg(root, args):
-    archive = download('https://datasets.simula.no/downloads/kvasir-seg.zip', root / 'Kvasir-SEG/kvasir-seg.zip',
-                       hash_prefix=KVASIR_ZIP_SHA256)
+    archive = download_pinned('https://datasets.simula.no/downloads/kvasir-seg.zip',
+                              root / 'Kvasir-SEG/kvasir-seg.zip', KVASIR_ZIP_SHA256)
     extract(archive, root)
 
 

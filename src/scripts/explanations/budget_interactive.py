@@ -48,7 +48,12 @@ def build_args(source_folder, images=3, final=False, study_name='interactive_bpt
                budgets=None, reference_budget=8000):
     import budget_ablation as pilot
     source_folder = Path(source_folder).resolve()
-    source = json.loads((source_folder/'study.json').read_text())
+    metadata = source_folder/'study.json'
+    if not metadata.is_file():
+        raise ValueError(f'Source study not found: {metadata}. Use the existing full_budget folder '
+                         '($SOURCE_STUDY). The interactive_bpt_r8000 folder can be a source only '
+                         'after a coarse run has created its study.json.')
+    source = json.loads(metadata.read_text())
     if source.get('runner') != 'OD_yolo' or source.get('background') != 'full':
         raise ValueError('Use the existing MS-COCO YOLO full-background pilot as the source')
     if 'sam1' not in source_folder.parent.parent.name.lower():
@@ -84,8 +89,11 @@ def main():
     parser.add_argument('--reference-budget', type=int, default=8000)
     parser.add_argument('--dry-run', action='store_true')
     cli = parser.parse_args()
-    args = build_args(cli.source_study, cli.images, cli.final, cli.study_name,
-                      cli.budgets, cli.reference_budget)
+    try:
+        args = build_args(cli.source_study, cli.images, cli.final, cli.study_name,
+                          cli.budgets, cli.reference_budget)
+    except ValueError as error:
+        parser.error(str(error))
     args.dry_run = cli.dry_run
     print('Methods: BPT, BPT+SAM_c. KernelSHAP excluded. Background: full.', flush=True)
     print('Stage: '+('final fixed-design validation' if cli.final else f'first {cli.images} calibration images; descriptive checkpoint'), flush=True)

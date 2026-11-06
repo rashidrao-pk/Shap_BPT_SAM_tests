@@ -233,6 +233,36 @@ def test_paco_fetch_rejects_non_jpeg_response(tmp_path):
     assert not (tmp_path / 'images/train2017/a.jpg').exists()
 
 
+def tls_failure(monkeypatch, content):
+    import io
+    import ssl
+    import urllib.error
+    import download_datasets as module
+
+    def reject(*args, **kwargs):
+        raise urllib.error.URLError(ssl.SSLCertVerificationError('incomplete chain'))
+    monkeypatch.setattr(module, 'download', reject)
+    monkeypatch.setattr(module.urllib.request, 'urlopen', lambda *args, **kwargs: io.BytesIO(content))
+    return module
+
+
+def test_pinned_download_survives_incomplete_tls_chain(tmp_path, monkeypatch):
+    import hashlib
+    module = tls_failure(monkeypatch, b'archive')
+    digest = hashlib.sha256(b'archive').hexdigest()
+    target = tmp_path / 'a.zip'
+    assert module.download_pinned('https://example.test/a.zip', target, digest) == target
+    assert target.read_bytes() == b'archive'
+
+
+def test_pinned_download_never_keeps_unverified_bytes(tmp_path, monkeypatch):
+    module = tls_failure(monkeypatch, b'tampered')
+    target = tmp_path / 'a.zip'
+    with pytest.raises(ValueError, match='checksum'):
+        module.download_pinned('https://example.test/a.zip', target, '0' * 64)
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_model_downloads_are_fully_pinned():
     from download_datasets import DATASETS, MODELS
     assert set(MODELS) == set(DATASETS)

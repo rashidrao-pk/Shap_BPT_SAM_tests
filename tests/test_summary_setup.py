@@ -229,6 +229,20 @@ def test_main_writes_json_and_strict_requires_xai(tmp_path, installed, capsys):
         setup.main(['--config', config, '--strict'])
 
 
+def test_login_node_hint_accompanies_missing_packages():
+    lines = setup.problem_lines([], {'torch': False}, setup.Check(setup.OK, 'built', ''))
+    assert any('GPU node' in line for line in lines)
+
+
+def test_partimagenet_unannotated_val_image_is_expected(tmp_path):
+    annotation = tmp_path / 'val.json'
+    annotation.write_text(json.dumps({'images': [{'id': 1, 'file_name': 'a.JPEG'}, {'id': 2, 'file_name': 'b.JPEG'}],
+                                      'annotations': [{'image_id': 1}]}))
+    data = {'annotation_file': str(annotation),
+            'ground_truth': {'format': 'partimagenet', 'root': str(tmp_path), 'annotation_file': str(annotation)}}
+    assert setup.check_gt(setup.Dataset('Parts', 'x.md', gt=1), data, {'a', 'b'}).status == setup.OK
+
+
 def test_table_aligns_columns():
     lines = setup.table(['A', 'Long'], [['value', 1]]).splitlines()
     assert lines[0].index('Long') == lines[2].index('1')

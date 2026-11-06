@@ -45,7 +45,7 @@ The default study remains the original six datasets.
 
 ## Check your setup
 
-From the repository root, on EPITO. This only checks files and packages, so it is safe on a login node:
+From the repository root, on a GPU node. It only reads files and package information. On the login node, dataset and checkpoint results are still right, but packages can be reported as missing because the environment is built for the GPU nodes:
 
 ```bash
 python src/scripts/summary_setup.py

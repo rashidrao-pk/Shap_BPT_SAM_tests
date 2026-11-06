@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Check that datasets, checkpoints, and packages are in place, then print summary tables.
 
-Read-only and safe on a login node: it checks files and package availability, without
-importing PyTorch, loading a model, or using a GPU. Add --verify-hash to also read
-checkpoints and compare their SHA-256 where a pinned value exists.
+Read-only: it checks files and package availability, without importing PyTorch, loading a
+model, or using a GPU. Run it on the kind of node that runs the jobs: packages can be built
+for a different architecture than the login node. Add --verify-hash to also read checkpoints
+and compare their SHA-256 where a pinned value exists.
 """
 import argparse
 from collections import namedtuple
@@ -80,7 +81,9 @@ DATASETS = {
     'celebahq': Dataset('CelebA-HQ', 'CelebAHQ.md', 30000, models=('celeba',)),
     'camo': Dataset('CAMO', 'CAMO.md', 1000, models=('vit_b16',)),
     'busi': Dataset('BUSI', 'BUSI.md', 780, models=('busi',)),
-    'partimagenet': Dataset('PartImageNet', 'PARTIMAGENET.md', models=('resnet50_file',), packages=('pycocotools',)),
+    # One val image, n02134418_4463, has no annotation in the official JSON.
+    'partimagenet': Dataset('PartImageNet', 'PARTIMAGENET.md', 1206, 1205, models=('resnet50_file',),
+                            packages=('pycocotools',)),
     'funnybirds': Dataset('FunnyBirds', 'FUNNY_BIRD.md', 500, models=('funnybirds',)),
     'paco': Dataset('PACO', 'PACO.md', 2410, models=('resnet50_file',), packages=('pycocotools',)),
     'kvasirseg': Dataset('Kvasir-SEG', 'KVASIR_SEG.md', 1000, models=('kvasir',)),
@@ -453,6 +456,8 @@ def problem_lines(results, packages, extension):
         lines.append(f"- Packages not installed: {', '.join(absent)}")
     if extension.status != OK:
         lines.append(f'- shap_bpt: {extension.detail}')
+    if absent or extension.status != OK:
+        lines.append('  On a login node, check on a GPU node first: packages there can be built for another architecture.')
     return lines
 
 

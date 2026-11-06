@@ -1,8 +1,8 @@
 ### DATASETS
 
-- [BUSI](docs/Partitions/DATASETS/BUSI_SETUP.md)
-- [Kvasir-SEG](docs/Partitions/DATASETS/KVASIR_SEG.md)
--
+- [BUSI](BUSI_SETUP.md)
+- [Kvasir-SEG](../../DATASETS/KVASIR_SEG.md)
+- [All datasets](../../DATASETS/README.md)
 
 ```bash
 find /beegfs/home/mrashid/datasets \

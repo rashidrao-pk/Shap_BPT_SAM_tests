@@ -15,6 +15,10 @@ existing `output` section. Your EPITO paths are included in the dataset YAMLs.
 | CelebAMask-HQ | `celebamask_hq` | Numeric image ID → `<id // 2000>/<id:05d>_<part>.png` |
 | ImageNetS | `imagenets` | Same image stem under the configured variant's segmentation folders |
 | MS-COCO | Existing COCO annotations | Class name → category ID → instance segmentation |
+| FunnyBirds | `funnybirds` | `<split>_part_map/<class>/<image>.png`, decoded by exact part colour |
+| PACO | `paco` | COCO-style JSON; default shows parts, `--gt-class` selects a part or object |
+| Kvasir-SEG | `kvasir_seg` | Same stem under `masks/`, thresholded at 128 because masks are JPEG |
+| ISIC 2018 | `isic2018` | `<image-stem>_segmentation.png` |
 
 Example ImageNet settings:
 

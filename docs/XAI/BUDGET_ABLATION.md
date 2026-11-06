@@ -48,9 +48,11 @@ Use the calibration results to decide which interval needs more points. For exam
 
 ```bash
 python -u src/scripts/explanations/budget_interactive.py \
-  --source-study "$SOURCE_STUDY" --images 3 \
+  --source-study "$SOURCE_STUDY" \
+  --images 3 \
   --budgets 1000 2000 2500 3000 4000 6000 \
-  --reference-budget 8000 --study-name interactive_bpt_refined_r8000
+  --reference-budget 8000 \
+  --study-name interactive_bpt_refined_r8000
 ```
 
 This command works directly from the original source study; a coarse run is not required first. If you already ran the coarse stage and `${SOURCE_STUDY%/*}/interactive_bpt_r8000/study.json` exists, you may use that folder as the source to reuse its 8000-reference evaluations too. Merely exporting `COARSE_STUDY` does not create that study. Changing a grid requires a new study name; existing results are not overwritten. The three repetitions and image split stay fixed. You can similarly add 5000 or 7000 if that is the unresolved interval. Every candidate must be strictly below 8000.
@@ -76,13 +78,13 @@ Following the attached ChatGPT discussion, require evidence that a smaller budge
 
 Default coarse budgets: **1000, 2000, 4000, 6000**. Approximate reference: **8000**. AUC resolution stays fixed at 200; it is not swept.
 
-| Paired loss against the reference | Acceptable mean loss |
-| --- | ---: |
-| Relative L1 attribution error | 0.10 |
-| 1 − signed Spearman correlation | 0.05 |
-| 1 − top-10% absolute-attribution Jaccard | 0.10 |
-| Absolute insertion AUC difference | 0.01 |
-| Absolute deletion AUC difference | 0.01 |
+| Paired loss against the reference        | Acceptable mean loss |
+| ---------------------------------------- | -------------------: |
+| Relative L1 attribution error            |                 0.10 |
+| 1 − signed Spearman correlation          |                 0.05 |
+| 1 − top-10% absolute-attribution Jaccard |                 0.10 |
+| Absolute insertion AUC difference        |                 0.01 |
+| Absolute deletion AUC difference         |                 0.01 |
 
 For each loss, test **H0: mean loss ≥ margin** against **H1: mean loss < margin**. Average repeats within each image, resample paired images 20,000 times, and form simultaneous one-sided 95% upper bounds across budgets, both methods and metrics. A budget passes when every bound is below its margin, reference checks pass, and all larger tested budgets also pass. Choose on calibration, then accept or reject once on the held-out set without escalating the budget from validation outcomes.
 

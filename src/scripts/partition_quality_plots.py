@@ -2,6 +2,7 @@
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib.colors import ListedColormap
+from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -10,6 +11,9 @@ from partition_diagnosis import CAUSES, SIZES
 INK, MUTED, GRID = '#0b0b0b', '#52514e', '#e6e5e0'
 PARTITION, BASELINE = '#2a78d6', '#eb6834'
 LEVELS = [('iou_50', 'IoU ≥ 0.5', '#2a78d6'), ('iou_75', 'IoU ≥ 0.75', '#eb6834'), ('iou_90', 'IoU ≥ 0.9', '#1baf7a')]
+# Masks -> GT outcome colours, as in the ShapBPT paper figure: white, navy, orange, magenta.
+OUTCOME_NAMES = ['True positive', 'False negative', 'False positive']
+OUTCOME_COLORS = ListedColormap(['#ffffff', '#1a1aa6', '#f28a30', '#f05cf0'])
 SAMPLE_SIZE = 80  # Points drawn over each distribution, as in the notebook.
 JUDGED = {'USE', 'CAUTION', 'SKIP'}
 
@@ -156,6 +160,18 @@ def plot_all(summaries, rows, args, diagnoses):
     iou_by_size(judged, diagnoses, folder)
 
 
+def outcome_map(truth, predicted):
+    """Per pixel: 0 true negative, 1 true positive, 2 false negative, 3 false positive.
+
+    A pixel given to the wrong object counts as a false negative, the object it belongs to being missed.
+    """
+    result = np.zeros(truth.shape, dtype=np.uint8)
+    result[(predicted > 0) & (truth == 0)] = 3
+    result[(truth > 0) & (predicted != truth)] = 2
+    result[(truth > 0) & (predicted == truth)] = 1
+    return result
+
+
 def plot_examples(cases, label, folder):
     """Thesis Figures 4.10 to 4.12: one row each for the highest, middle, and lowest IoU image."""
     folder.mkdir(parents=True, exist_ok=True)
@@ -169,13 +185,17 @@ def plot_examples(cases, label, folder):
         row[1].imshow(case['gt'], **labels)
         row[2].imshow(case['partition'], cmap='turbo', interpolation='nearest')
         row[3].imshow(case['subsets'], **labels)
-        row[4].imshow(case['closest'], **labels)
+        row[4].imshow(outcome_map(case['gt'], case['closest']), cmap=OUTCOME_COLORS, vmin=0, vmax=3,
+                      interpolation='nearest')
         names = [title, f"Ground truth\n{case['objects']} object{'s' if case['objects'] != 1 else ''}", f"Partition\n{case['cells']} cells",
-                 f"Optimal subsets\nMean IoU {case['mean_iou']:.3f}", 'Masks → GT\n']
+                 f"Optimal subsets\nMean IoU {case['mean_iou']:.3f}", f"Masks → GT\nMean IoU {case['closest_iou']:.3f}"]
         for ax, name in zip(row, names):
             ax.set_title(name, fontsize=11)
             ax.set_xticks([])
             ax.set_yticks([])
     figure.suptitle(label, fontsize=13)
+    figure.legend(handles=[Patch(facecolor=color, edgecolor='#52514e', label=name)
+                           for name, color in zip(OUTCOME_NAMES, OUTCOME_COLORS.colors[1:])],
+                  loc='outside upper right', ncols=3, fontsize=10, frameon=False, title='Masks → GT')
     figure.savefig(folder / f"{label.replace(' ', '_')}.png", dpi=130, facecolor='white')
     plt.close(figure)

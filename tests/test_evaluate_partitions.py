@@ -233,3 +233,18 @@ def test_one_unreadable_image_does_not_lose_the_dataset(tmp_path, monkeypatch, c
     summary, rows = ep.evaluate_dataset('CAMO_epito', args)[0]
     assert (summary['failed'], summary['images'], len(rows)) == (1, 2, 2)
     assert 'could not be read' in summary['reason']
+
+
+def test_outcome_map_marks_true_positives_misses_and_false_alarms():
+    from partition_quality_plots import outcome_map
+    truth = np.array([[1, 1, 0, 0, 2]])
+    predicted = np.array([[1, 0, 1, 0, 1]])
+    # TP, FN (missed), FP (outside every object), TN, FN (given to the wrong object)
+    assert outcome_map(truth, predicted).tolist() == [[1, 2, 3, 0, 2]]
+
+
+def test_label_iou_averages_over_objects():
+    truth = np.array([[1, 1, 2, 2]])
+    predicted = np.array([[1, 0, 2, 2]])
+    assert ep.label_iou(truth, predicted, 2) == pytest.approx((.5 + 1) / 2)
+    assert ep.label_iou(truth, np.zeros_like(truth), 2) == 0

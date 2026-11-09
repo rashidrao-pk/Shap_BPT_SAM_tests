@@ -182,8 +182,20 @@ def case_maps(config, image_path, partition_file, combine=False):
         better = cell_iou > closest
         closest[better], owner[better] = cell_iou[better], number
     owner[0] = 0
-    return {'image': image, 'partition': partition, 'gt': gt_labels, 'subsets': subsets, 'closest': owner[partition],
-            'objects': len(ious), 'cells': int(np.count_nonzero(np.unique(partition))), 'mean_iou': float(np.mean(ious))}
+    closest_map = owner[partition]
+    return {'image': image, 'partition': partition, 'gt': gt_labels, 'subsets': subsets, 'closest': closest_map,
+            'objects': len(ious), 'cells': int(np.count_nonzero(np.unique(partition))), 'mean_iou': float(np.mean(ious)),
+            'closest_iou': label_iou(gt_labels, closest_map, len(ious))}
+
+
+def label_iou(truth, predicted, objects):
+    """Mean over GT objects of the IoU between the pixels labelled with that object in each map."""
+    scores = []
+    for number in range(1, objects + 1):
+        union = np.count_nonzero((truth == number) | (predicted == number))
+        scores.append(np.count_nonzero((truth == number) & (predicted == number)) / union if union else 0.)
+    return float(np.mean(scores)) if scores else 0.
+
 
 
 def example_ids(rows):

@@ -43,7 +43,7 @@ CHECKPOINT_HELP = {'OC_CelebA': 'download_celeba_checkpoint.py',
 LESION_RUNNERS = {'OC_BUSI', 'OC_KvasirSEG', 'OC_ISIC2018'}
 
 
-def create_parser(kind, auc_background=True):
+def create_parser(kind, auc_background=True, road=True):
     parser = argparse.ArgumentParser(description=f'{kind}: BPT, BPT+SAM_c, SAM_c+Kernel SHAP')
     parser.add_argument('--config', default=DEFAULT_CONFIGS[kind])
     parser.add_argument('--dry-run', action='store_true')
@@ -85,6 +85,11 @@ def create_parser(kind, auc_background=True):
     parser.add_argument('--output-dir', type=Path, help='Override explanation base before bg_*_B*')
     parser.add_argument('--no-resume', dest='resume', action='store_false')
     parser.add_argument('--no-auc', dest='compute_auc', action='store_false')
+    if road:
+        import road as road_metric
+        parser.add_argument('--no-road', dest='compute_road', action='store_false',
+                            help='Skip the ROAD scores (road_* columns); add them later with evaluate_road.py')
+        road_metric.add_arguments(parser)
     parser.add_argument('--no-plots', dest='save_plots', action='store_false')
     parser.add_argument('--no-heatmaps', dest='save_heatmaps', action='store_false',
                         help='Skip individual heatmap PNGs; keep combined XAI plots and numeric attributions')
@@ -349,7 +354,9 @@ def write_json(path, value):
 
 
 def run_signature(kind, args, config=None):
-    ignored = {'limit', 'image_ids', 'dry_run', 'resume', 'verbose_level', 'fail_fast', 'torch_threads', 'output_dir'}
+    # ROAD only reads the finished maps, so its options never invalidate finished explanations.
+    ignored = {'limit', 'image_ids', 'dry_run', 'resume', 'verbose_level', 'fail_fast', 'torch_threads', 'output_dir',
+               'compute_road', 'road_fractions', 'road_noise', 'road_seed', 'road_short_side'}
     settings = {key: jsonable(value) for key, value in vars(args).items() if key not in ignored}
     if not args.explain_all:
         for option in ['explain_all', 'bpt_budgets', 'lime_budgets', 'gradient_samples',
@@ -547,6 +554,13 @@ def run(kind, args, adapter=None):
     if args.dry_run:
         return inputs
     print(f'AUC: {args.auc_num_samples} requested points per curve' if args.compute_auc else 'AUC: disabled')
+    road_config = None
+    if getattr(args, 'compute_road', False):
+        import road as road_metric
+        road_config = road_metric.settings(args)
+        print(f"ROAD: {len(road_config['fractions'])} removal levels, short side {road_config['short_side'] or 'full'}")
+    else:
+        print('ROAD: disabled')
     runtime = load_runtime()
     if args.torch_threads:
         runtime.torch.set_num_threads(args.torch_threads)
@@ -587,6 +601,19 @@ def run(kind, args, adapter=None):
         metrics = run_dir / image_id / f'{image_id}_metrics.json'
         if metrics.is_file():
             enrich_auc_rows(manifest['rows'], json.loads(metrics.read_text()))
+    if road_config is not None:
+        from evaluate_road import saved_columns
+        missing = []
+        for manifest in prior:
+            image_id = manifest['prediction']['image_id']
+            columns = saved_columns(run_dir / image_id / f'{image_id}_road.json', road_config)
+            for row in manifest['rows']:
+                row.update(columns.get(row['method'], {}))
+            if any(row['method'] not in columns for row in manifest['rows']):
+                missing.append(image_id)
+        if missing:
+            print(f'{len(missing)} finished images have no ROAD scores yet (first: {missing[0]}). '
+                  f'Add them with evaluate_road.py and the same options.', flush=True)
     summaries = [manifest['prediction'] for manifest in prior]
     failures = []
     image_timings = []
@@ -723,6 +750,19 @@ def run(kind, args, adapter=None):
                     for row in [*image_rows, *auc_results]:
                         if row.get('method', row.get('label')) == method:
                             row.update(localization)
+            if road_config is not None:
+                from evaluate_road import road_columns, score_maps
+                if args.verbose_level != 'low':
+                    print(f'{image_id}: ROAD for {len(attributions)} maps', flush=True)
+                road_path = folder / f'{image_id}_road.json'
+                road_path.unlink(missing_ok=True)  # The maps are new, so earlier ROAD scores no longer apply.
+                scores = score_maps(adapter.predict_batch, image, {name: values[0] for name, values in attributions.items()},
+                                    target, image_id, road_config, road_path,
+                                    verbose=args.verbose_level == 'high')
+                for row in [*image_rows, *auc_results]:
+                    method = row.get('method', row.get('label'))
+                    if method in scores:
+                        row.update(road_columns(scores[method]))
             np.savez_compressed(folder / f'{image_id}_attributions.npz', **attributions)
             write_json(folder / f'{image_id}_metrics.json', auc_results if args.compute_auc else image_rows)
             if args.save_plots:

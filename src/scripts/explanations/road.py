@@ -19,6 +19,25 @@ NEIGHBOURS = (((1, 1), 1/12), ((0, 1), 1/6), ((-1, 1), 1/12), ((1, -1), 1/12),
               ((0, -1), 1/6), ((-1, -1), 1/12), ((1, 0), 1/6), ((-1, 0), 1/6))
 
 
+def add_arguments(parser):
+    """The ROAD options, shared by evaluate_road.py and the explanation runners."""
+    parser.add_argument('--road-fractions', nargs='+', type=float, default=list(FRACTIONS))
+    parser.add_argument('--road-noise', type=float, default=NOISE)
+    parser.add_argument('--road-seed', type=int, default=0)
+    parser.add_argument('--road-short-side', type=int, default=SHORT_SIDE,
+                        help='Downscale so the short side is at most this; 0 keeps full resolution')
+
+
+def settings(args):
+    return {'fractions': sorted(args.road_fractions), 'noise': args.road_noise, 'seed': args.road_seed,
+            'short_side': args.road_short_side}
+
+
+def image_seed(base, image_id):
+    """Stable across runs and machines, unlike Python's hash()."""
+    return (base + sum((index + 1) * ord(character) for index, character in enumerate(image_id))) % 2**32
+
+
 def working_size(height, width, short_side):
     """Scale down only, keeping the aspect ratio; 0 or None keeps the original resolution."""
     if not short_side or min(height, width) <= short_side:

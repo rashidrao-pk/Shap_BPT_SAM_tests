@@ -227,3 +227,49 @@ def test_attribution_shape_mismatch_is_rejected(tmp_path):
 
 def test_image_seed_is_stable():
     assert evaluate_road.image_seed(0, 'abc') == evaluate_road.image_seed(0, 'abc') != evaluate_road.image_seed(0, 'acb')
+
+
+def auc_table(path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('w', newline='') as stream:
+        writer = csv.DictWriter(stream, ['image_id', 'method', 'auc_ins'])
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def test_road_scores_are_added_to_both_auc_tables(tmp_path):
+    config, folder = run_folder(tmp_path)
+    evaluations = tmp_path / 'v/OC_KvasirSEG/KvasirSEG_test/bg_full_B100'
+    rows = [{'image_id': 'a', 'method': 'Good', 'auc_ins': '0.912345678901234'},
+            {'image_id': 'a', 'method': 'Reversed', 'auc_ins': '0.1'},
+            {'image_id': 'a', 'method': 'GradCAM', 'auc_ins': '0.5'}]
+    for table in [folder.parent / 'auc_results_all_images_current_run.csv',
+                  evaluations / 'auc_results_all_images_current_run.csv']:
+        auc_table(table, rows)
+    evaluate_road.run(arguments(config), adapter=Adapter())
+    road_rows = {row['method']: row for row in csv.DictReader((evaluations / 'road_results.csv').open())}
+    for table in [folder.parent, evaluations]:
+        merged = {row['method']: row for row in csv.DictReader((table / 'auc_results_all_images_current_run.csv').open())}
+        assert merged['Good']['auc_ins'] == '0.912345678901234'  # Existing values are untouched.
+        assert float(merged['Good']['road_gap']) == pytest.approx(float(road_rows['Good']['gap']))
+        assert float(merged['Good']['road_gap']) > float(merged['Reversed']['road_gap'])
+        assert merged['GradCAM']['road_gap'] == ''  # No saved map, no ROAD score.
+
+
+def test_partial_road_run_keeps_earlier_road_scores(tmp_path):
+    table = tmp_path / 'auc.csv'
+    auc_table(table, [{'image_id': '000000076211', 'method': 'Good', 'auc_ins': '0.5'},
+                      {'image_id': '000000076211', 'method': 'Bad', 'auc_ins': '0.4'}])
+    scores = {metric: 0.25 for metric in evaluate_road.METRICS}
+    assert evaluate_road.merge_into_auc_table([{'image_id': '000000076211', 'method': 'Good', **scores}], table) == 1
+    assert evaluate_road.merge_into_auc_table([{'image_id': '000000076211', 'method': 'Bad', **scores,
+                                                'gap_rel': None}], table) == 1
+    merged = list(csv.DictReader(table.open()))
+    assert merged[0]['image_id'] == '000000076211'  # Leading zeros survive.
+    assert float(merged[0]['road_morf']) == float(merged[1]['road_morf']) == .25
+    assert merged[1]['road_gap_rel'] == ''
+
+
+def test_missing_auc_table_is_reported_not_created(tmp_path):
+    assert evaluate_road.merge_into_auc_table([], tmp_path / 'none.csv') is None
+    assert not (tmp_path / 'none.csv').exists()

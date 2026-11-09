@@ -92,6 +92,48 @@ class ModelExplanationTest(unittest.TestCase):
                 resumed = common.run('COD_ViT', args)
             self.assertEqual(resumed['completed'], 1)
 
+    def test_first_run_saves_road_columns_and_resume_keeps_them(self):
+        import csv
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config, image_id = self.fixture(root, 'CAMO')
+            argv = ['--config', str(config), '--max-evals', '8', '--kernel-shap-samples', '10',
+                    '--target-class', '0', '--no-auc', '--no-plots', '--road-short-side', '0']
+            result = common.run('COD_ViT', common.create_parser('COD_ViT').parse_args(argv), adapter=SmallAdapter())
+            road_columns = ['road_morf', 'road_lerf', 'road_gap', 'road_morf_rel', 'road_lerf_rel', 'road_gap_rel']
+            for folder in [result['run_dir'], result['evaluation_dir']]:
+                table = list(csv.DictReader((folder / 'auc_results_all_images_current_run.csv').open()))
+                self.assertEqual([row['method'] for row in table], common.METHODS)
+                for row in table:
+                    self.assertTrue(set(road_columns) <= set(row))
+                    self.assertAlmostEqual(float(row['road_gap']), float(row['road_lerf']) - float(row['road_morf']))
+            self.assertTrue((result['run_dir'] / image_id / f'{image_id}_road.json').is_file())
+            with patch.object(common, 'load_adapter', side_effect=AssertionError('Model loaded during resume')):
+                resumed = common.run('COD_ViT', common.create_parser('COD_ViT').parse_args(argv))
+            self.assertEqual([row['road_gap'] for row in resumed['rows']], [row['road_gap'] for row in result['rows']])
+            road = result['run_dir'] / image_id / f'{image_id}_road.json'
+            saved = json.loads(road.read_text())
+            saved['methods']['BPT']['morf'] = 99.0  # Stale score from earlier maps.
+            road.write_text(json.dumps(saved))
+            fresh = common.run('COD_ViT', common.create_parser('COD_ViT').parse_args([*argv, '--no-resume']),
+                               adapter=SmallAdapter())
+            self.assertNotEqual(next(row for row in fresh['rows'] if row['method'] == 'BPT')['road_morf'], 99.0)
+
+    def test_road_options_do_not_invalidate_finished_explanations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config, image_id = self.fixture(root, 'CAMO')
+            argv = ['--config', str(config), '--max-evals', '8', '--kernel-shap-samples', '10',
+                    '--target-class', '0', '--no-auc', '--no-plots']
+            result = common.run('COD_ViT', common.create_parser('COD_ViT').parse_args([*argv, '--no-road']),
+                                adapter=SmallAdapter())
+            self.assertNotIn('road_gap', result['rows'][0])
+            self.assertFalse((result['run_dir'] / image_id / f'{image_id}_road.json').exists())
+            # Turning ROAD on later resumes the finished image; evaluate_road.py adds its scores.
+            with patch.object(common, 'load_adapter', side_effect=AssertionError('Model loaded during resume')):
+                resumed = common.run('COD_ViT', common.create_parser('COD_ViT').parse_args(argv))
+            self.assertEqual(resumed['timing']['skipped_images'], 1)
+
     def test_preflight_routes_datasets_without_loading_models(self):
         for kind, dataset in [('OD_DETR', 'MS_COCO'), ('OC_ResNet', 'ImageNet'),
                               ('OC_ViT', 'ImageNet'), ('COD_ViT', 'CAMO')]:

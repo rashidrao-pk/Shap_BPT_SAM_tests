@@ -24,20 +24,20 @@ python src/scripts/explanations/budget_steps.py
 Choose the images and budget steps:
 
 ```bash
-python src/scripts/explanations/budget_steps.py --limit 5 --budget-steps 20 50 100 500 1000 2000
+python src/scripts/explanations/budget_steps.py --limit 5 --budget-steps 20 50 100 500 1000 2000 3000 4000 5000 6000 7000 8000
 python src/scripts/explanations/budget_steps.py --limit 1 --budget-steps 50 100              # Quick check
 python src/scripts/explanations/budget_steps.py --limit 20 --budget-steps 100 200 500 1000 2000 4000
 python src/scripts/explanations/budget_steps.py --image-ids 000000044279 000000118209 --budget-steps 100 500 1000
 ```
 
-| Option | Effect |
-| --- | --- |
-| `--limit N` | Number of images, any positive number; the default is 5 |
+| Option                 | Effect                                                                    |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `--limit N`            | Number of images, any positive number; the default is 5                   |
 | `--budget-steps A B C` | Budgets to test, giving steps A→B and B→C; `--budgets` is the same option |
-| `--image-ids ...` | Use exactly these images, in this order; `--limit` then keeps the first N |
-| `--methods ...` | Any of `BPT`, `BPT+SAM_c`, `SAM_c+KernelSHAP` |
-| `--tolerance X` | Change at or below which a step counts as settled; the default is 0.01 |
-| `--study-name NAME` | Output folder name; use a new name to keep an earlier plot |
+| `--image-ids ...`      | Use exactly these images, in this order; `--limit` then keeps the first N |
+| `--methods ...`        | Any of `BPT`, `BPT+SAM_c`, `SAM_c+KernelSHAP`                             |
+| `--tolerance X`        | Change at or below which a step counts as settled; the default is 0.01    |
+| `--study-name NAME`    | Output folder name; use a new name to keep an earlier plot                |
 
 Finished maps are reused, so a larger `--limit` only computes the new images, and a new budget only computes that budget. A larger limit keeps the same images and adds more. Tables and plots show only the current command's images and budgets, and they replace the earlier ones unless you set `--study-name`. With one image there are no error bars.
 
@@ -47,14 +47,14 @@ For another dataset, pass its runner and config, for example `--runner OC_ResNet
 
 Saved in `<evaluations>/budget_steps/<runner>/<partitions>/bg_<background>/steps/`:
 
-| File | Contents |
-| --- | --- |
-| `budget_steps.png` | E[\|ΔAUC\|] per budget step, one panel each for AUC+ and AUC- |
-| `budget_auc.png` | Mean AUC+ and AUC- at each budget |
-| `budget_auc.csv` | AUC, time, and model calls for each image, method, and budget |
-| `budget_steps.csv` | Signed and absolute change for each image, method, and step |
-| `budget_steps_summary.csv` | Mean and SD across images for each method and step |
-| `settled_budget.json` | The settled budget for each method |
+| File                       | Contents                                                      |
+| -------------------------- | ------------------------------------------------------------- |
+| `budget_steps.png`         | E[\|ΔAUC\|] per budget step, one panel each for AUC+ and AUC- |
+| `budget_auc.png`           | Mean AUC+ and AUC- at each budget                             |
+| `budget_auc.csv`           | AUC, time, and model calls for each image, method, and budget |
+| `budget_steps.csv`         | Signed and absolute change for each image, method, and step   |
+| `budget_steps_summary.csv` | Mean and SD across images for each method and step            |
+| `settled_budget.json`      | The settled budget for each method                            |
 
 ## Reading the plot
 

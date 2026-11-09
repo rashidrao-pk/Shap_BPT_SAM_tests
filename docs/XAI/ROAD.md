@@ -6,7 +6,23 @@ It removes a fixed share of pixels, fills them in from their neighbours, and re-
 
 ## Run
 
-First finish the explanations. ROAD reads the saved `*_attributions.npz` files, so nothing is regenerated:
+### During the explanations (default)
+
+Every explanation runner scores ROAD right after each image's maps are made, and writes the `road_*` columns into `auc_results_all_images_current_run.csv`. Nothing extra is needed:
+
+```bash
+python src/scripts/explanations/OC_CelebA.py \
+  --config CelebAHQ_epito --attribute Brown_Hair \
+  --show-gt --limit 1 --explain_all --no-heatmaps --no-auc --no-resume
+```
+
+This works with `--no-auc` too. `--no-road` turns it off, and the `--road-*` settings below work here as well. ROAD adds about 2–5 seconds per map on a CPU, so roughly 30 seconds per image with `--explain_all`.
+
+ROAD options don't count as explanation settings. Turning ROAD on or off, or changing a `--road-*` value, never makes a finished run recompute its explanations. Images finished before ROAD existed, or with `--no-road`, resume without ROAD; the run prints how many, and the separate command below adds them.
+
+### After the explanations
+
+ROAD reads the saved `*_attributions.npz` files, so nothing is regenerated:
 
 ```bash
 python src/scripts/explanations/evaluate_road.py \
@@ -33,6 +49,11 @@ Repeat the command to resume. `--methods` limits the run to some saved maps. Cha
 | `<image-id>_road.json` | Next to the attributions | Scores at each removal level |
 | `road_results.csv` | Run's evaluation folder | One row per image and method |
 | `road_summary.csv` | Run's evaluation folder | Mean and standard deviation per method |
+| `auc_results_all_images_current_run.csv` | Run and evaluation folders | The AUC table, with `road_morf`, `road_lerf`, `road_gap` and their `_rel` forms added |
+
+The ROAD columns are matched to the AUC rows by `image_id` and `method`. A method without a saved map, such as one the run did not save, gets empty ROAD cells. A run with `--limit` or `--methods` keeps ROAD values scored earlier for the other rows.
+
+When explanations resume, the ROAD scores saved in `<image-id>_road.json` go back into the rebuilt table. An image whose explanations are recomputed, for example with `--no-resume`, always gets fresh ROAD scores. The separate command does not check whether a map changed, so after regenerating maps with `--no-road`, delete the old `<image-id>_road.json` files first.
 
 | Metric | Removes first | Better | Meaning |
 | --- | --- | --- | --- |

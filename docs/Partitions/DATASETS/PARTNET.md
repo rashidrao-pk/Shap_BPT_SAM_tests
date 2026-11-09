@@ -32,6 +32,19 @@ python src/scripts/generate_partimagenet_partitions.py \
   --save-partitions sam compact --limit 2
 ```
 
+#### Large Model
+
+```bash
+export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
+
+python src/scripts/generate_partimagenet_partitions.py \
+  --config PartImageNet_epito --model sam2 \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
+  --device cuda --max-regions 62 --generate_at_least_n_masks 50 \
+  --save-partitions sam compact --limit 1000
+```
+
 Remove `--limit 2` for the entire configured split. The generator reads only images listed in `data.annotation_file`; masks are not used to generate partitions. Text progress, logs, and resume follow the existing dataset generators.
 
 Set `data.mask_dir_final` to the output folder printed by the generator. This example produces `PartImageNet_sam2_tiny_62_compact-sam_50`.

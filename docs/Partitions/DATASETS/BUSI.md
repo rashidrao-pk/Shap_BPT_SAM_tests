@@ -29,6 +29,18 @@ python src/scripts/generate_busi_partitions.py \
   --save-partitions sam compact --limit 1000
 ```
 
+#### Large Model
+
+```bash
+export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
+python src/scripts/generate_busi_partitions.py \
+  --config BUSI_epito --model sam2 \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
+  --device cuda --max-regions 62 --generate_at_least_n_masks 50 \
+  --save-partitions sam compact --limit 1000
+```
+
 Next: [SigLIP checkpoint](../MODELS/SigLIP_BUSI.md) and [BUSI explanations](../../XAI/DATASETS/BUSI.md).
 
 ## Preview saved partitions

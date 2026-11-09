@@ -3,7 +3,7 @@ data:
   name: KvasirSEG
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/Kvasir-SEG/images
-  mask_dir_final: KvasirSEG_sam2_tiny_62_compact-sam_50
+  mask_dir_final: KvasirSEG_sam1_vit_b_62_compact-sam_50
   ground_truth:
     format: kvasir_seg
     root: /beegfs/home/mrashid/datasets/Kvasir-SEG/masks

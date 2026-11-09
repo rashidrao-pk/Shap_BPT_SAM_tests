@@ -136,7 +136,8 @@ def best_iou(heatmap, ground_truth):
     if ground_truth is None or not np.any(ground_truth['mask']):
         return None
     labels = ground_truth.get('label_map')
-    valid = np.ones(heatmap.shape, dtype=bool) if labels is None else np.asarray(labels) != 1000
+    ignored = ground_truth.get('ignored_labels', [1000])  # 1000: ImageNet-S; DOTA records its own.
+    valid = np.ones(heatmap.shape, dtype=bool) if labels is None else ~np.isin(np.asarray(labels), ignored)
     scores = np.asarray(heatmap)[valid].ravel()
     truth = np.asarray(ground_truth['mask'], dtype=bool)[valid].ravel()
     order = np.argsort(-scores, kind='stable')

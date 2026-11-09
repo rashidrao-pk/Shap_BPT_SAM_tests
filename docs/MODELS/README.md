@@ -25,3 +25,4 @@ To check that every checkpoint is in place, run `python src/scripts/summary_setu
 | [FunnyBirds ResNet-50](FUNNYBIRDS_RESNET50.md) | Classification | FunnyBirds |
 | [Kvasir v2 ViT](KVASIR_VIT.md) | Classification | Kvasir-SEG |
 | [ISIC EfficientNet-B0](ISIC_EFFICIENTNET.md) | Classification | ISIC 2018 |
+| [YOLO11s-OBB](YOLO_OBB.md) | Oriented-box detection | DOTA |

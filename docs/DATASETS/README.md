@@ -14,6 +14,7 @@ How to download each dataset. Checkpoints have their own pages in [Models](../MO
 | [ImageNet](ImageNet.md)         | ImageNet-S class masks | [ResNet-50](../MODELS/RESNET50.md), [VGG16](../MODELS/VGG16.md), [ViT-B/16](../MODELS/VIT_B16.md)  | No: validation split                   | `OC_ResNet`, `OC_VGG`, `OC_ViT` |
 | [CAMO](CAMO.md)                 | Camouflaged objects    | [ViT-B/16](../MODELS/VIT_B16.md)      | Not via CAMO; ImageNet not audited     | `COD_ViT`         |
 | [CelebA-HQ](CelebAHQ.md)        | Face parts             | [CelebA CNN](../MODELS/CELEBA_CNN.md) | Unknown: see the notebook | `OC_CelebA` |
+| [DOTA](DOTA.md)                 | Oriented boxes, 15 aerial classes | [YOLO11s-OBB](../MODELS/YOLO_OBB.md) | **Possibly**: val may be in training | `OD_DOTA` |
 
 Models trained on the explained images are still valid to explain, since an attribution describes the model. They do not support claims about held-out performance, so state the overlap when reporting results.
 
@@ -22,7 +23,7 @@ Models trained on the explained images are still valid to explain, since an attr
 From the repository root, on a node with internet access:
 
 ```bash
-python src/scripts/download_datasets.py --dataset funnybirds --assets dataset   # or paco, kvasirseg, isic2018, all
+python src/scripts/download_datasets.py --dataset funnybirds --assets dataset   # or paco, kvasirseg, isic2018, dota, all
 ```
 
 Then get the [model checkpoints](../MODELS/README.md).
@@ -30,15 +31,15 @@ Then get the [model checkpoints](../MODELS/README.md).
 Then generate partitions and run the explanation commands in that dataset's page. Check progress with:
 
 ```bash
-python src/scripts/check_partition_progress.py --config FunnyBirds_epito PACO_epito KvasirSEG_epito ISIC2018_epito
+python src/scripts/check_partition_progress.py --config FunnyBirds_epito PACO_epito KvasirSEG_epito ISIC2018_epito DOTA_epito
 ```
 
-All four use the existing SAM1 and SAM2 checkpoints for partitions. Paths in the `*_epito.yaml` configs are for EPITO.
+All five use the existing SAM1 and SAM2 checkpoints for partitions. Paths in the `*_epito.yaml` configs are for EPITO.
 
 To include them in the budget study, name them explicitly:
 
 ```bash
-python src/hpc/prepare_full_budget_study.py --repo . --study <folder> --datasets FunnyBirds PACO KvasirSEG ISIC2018
+python src/hpc/prepare_full_budget_study.py --repo . --study <folder> --datasets FunnyBirds PACO KvasirSEG ISIC2018 DOTA
 ```
 
 The default study remains the original six datasets.
@@ -87,3 +88,4 @@ Before spending time on XAI for a dataset, [evaluate its partitions](../Partitio
 - [x] [PACO: Parts and Attributes of Common Objects](docs/DATASETS/PACO.md)
 - [x] [Kvasir-SEG](docs/DATASETS/KVASIR_SEG.md)
 - [x] [ISIC-2018](docs/DATASETS/ISIC_2018.md)
+- [x] [DOTA](docs/DATASETS/DOTA.md) (code and tests; first full EPITO run pending)

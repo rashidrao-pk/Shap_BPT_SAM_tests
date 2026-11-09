@@ -72,6 +72,9 @@ MODELS = {
                     files=('config.json', 'pytorch_model.bin'), packages=('transformers',)),
     'isic': Model('ISIC EfficientNet-B0', 'ISIC_EFFICIENTNET.md', 'folder', ('checkpoints/isic2018_efficientnet_b0',),
                   files=('config.json', 'model.safetensors'), packages=('safetensors',)),
+    'yolo_obb': Model('YOLO11s-OBB', 'YOLO_OBB.md', 'file',
+                      ('src/checkpoints/yolo11s-obb.pt', 'src/notebooks/checkpoints/yolo11s-obb.pt', 'checkpoints/yolo11s-obb.pt'),
+                      19934534, packages=('ultralytics',)),
 }
 
 # Keyed by data.name without underscores, in lower case.
@@ -88,6 +91,8 @@ DATASETS = {
     'paco': Dataset('PACO', 'PACO.md', 2410, models=('resnet50_file',), packages=('pycocotools',)),
     'kvasirseg': Dataset('Kvasir-SEG', 'KVASIR_SEG.md', 1000, models=('kvasir',)),
     'isic2018': Dataset('ISIC 2018', 'ISIC_2018.md', 100, models=('isic',)),
+    # Tiles selected by download_datasets.py --dataset dota (default --max-tiles 300).
+    'dota': Dataset('DOTA', 'DOTA.md', 300, models=('yolo_obb',)),
 }
 
 COMMON = ('numpy', 'PIL', 'yaml', 'scipy', 'tqdm', 'torch', 'torchvision')
@@ -252,6 +257,8 @@ def masks_found(data):
         return stems(root.glob('*.jpg'))
     if format_name == 'isic2018':
         return {path.name.removesuffix('_segmentation.png') for path in root.glob('*_segmentation.png')}
+    if format_name == 'dota':
+        return stems(root.glob('*.txt'))
     if format_name == 'busi':
         return {re.sub(r'_mask(?:_\d+)?$', '', path.stem) for path in root.rglob('*_mask*.png')}
     raise ValueError(f'Unsupported GT format: {format_name}')

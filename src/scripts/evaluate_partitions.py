@@ -120,6 +120,9 @@ def gt_objects(config, image_path, shape, combine=False):
             if mask is not None:
                 yield names[annotation['category_id']], mask, None
         return
+    if (data.get('ground_truth') or {}).get('format', '').lower() == 'dota':
+        yield from dota_objects(config, image_path, shape)
+        return
     gt = load_ground_truth(config, image_path, shape)
     labels = np.asarray(gt['label_map'])
     names = gt.get('label_names') or {}
@@ -130,6 +133,31 @@ def gt_objects(config, image_path, shape, combine=False):
         return
     for value in np.unique(labels[gt['mask']]):
         yield names.get(int(value), gt.get('dataset_class', str(value))), gt['mask'] & (labels == value), valid
+
+
+def dota_objects(config, image_path, shape):
+    """One full mask per counted DOTA object, so overlapping boxes do not cut each other.
+
+    Ignored regions (difficult or border-cut objects) are left out of the scored pixels,
+    except where they overlap a counted object.
+    """
+    from dota_data import tile_instances
+    root = resolve_path(config['data']['ground_truth']['root'])
+    path = root / f'{Path(image_path).stem}.txt'
+    if not path.is_file():
+        return
+    instances = tile_instances(path, shape)
+    counted = [item for item in instances if not item['difficult']]
+    ignored = np.zeros(shape[:2], dtype=bool)
+    for item in instances:
+        if item['difficult']:
+            ignored |= item['mask']
+    for item in counted:
+        ignored &= ~item['mask']
+    valid = ~ignored if ignored.any() else None
+    for item in counted:
+        if item['mask'].any():
+            yield item['class_name'], item['mask'], valid
 
 
 def load_partition(image_path, partition_file):

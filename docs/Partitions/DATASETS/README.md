@@ -8,6 +8,7 @@
 - [PACO](PACO.md)
 - [Kvasir-SEG](KVASIR_SEG.md)
 - [ISIC 2018](ISIC2018.md)
+- [DOTA](DOTA.md)
 - [All datasets](../../DATASETS/README.md)
 
 ```bash

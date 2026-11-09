@@ -20,6 +20,7 @@ MODELS = {
     'PACO': [('OC_PACO', 'resnet50')],
     'KvasirSEG': [('OC_KvasirSEG', 'mmuratarat/kvasir-v2-classifier')],
     'ISIC2018': [('OC_ISIC2018', 'adeIaide/skin-lesion-7class-efficientnet')],
+    'DOTA': [('OD_DOTA', 'yolo11s-obb')],
 }
 # Later datasets are opt-in through --datasets, so preparing the original study needs no new partitions.
 DEFAULT_DATASETS = ['MSCOCO', 'ImageNet', 'CelebAHQ', 'CAMO', 'BUSI', 'PartImageNet']

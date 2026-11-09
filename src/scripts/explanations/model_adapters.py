@@ -132,6 +132,103 @@ class DetrAdapter:
                 if float(score) >= max(.3, self.threshold) and int(label) not in self.padding_classes]
 
 
+YOLO_FOLDERS = ('src/notebooks/checkpoints', 'src/checkpoints', 'checkpoints')  # Same search as OD_yolo.py
+
+
+def resolve_yolo_weights(checkpoint, model, root=None):
+    """--checkpoint when given, else <model>.pt in the repository's checkpoint folders."""
+    if checkpoint:
+        return Path(checkpoint)
+    root = Path(root or Path(__file__).resolve().parents[3])
+    name = model if str(model).endswith('.pt') else f'{model}.pt'
+    for folder in YOLO_FOLDERS:
+        if (root / folder / name).is_file():
+            return root / folder / name
+    raise FileNotFoundError(f'{name} not found in {", ".join(YOLO_FOLDERS)}; '
+                            'run download_datasets.py --dataset dota --assets model or pass --checkpoint')
+
+
+def _numpy(value):
+    import numpy as np
+    value = value.detach().cpu().numpy() if hasattr(value, 'detach') else value
+    return np.asarray(value)
+
+
+def yolo_device(device):
+    """'cuda:N', 'cpu' or 'mps'. Ultralytics 8.3 strips only 'cuda:' and would misread a bare 'cuda'."""
+    device = str(device)
+    if device.startswith('cuda'):
+        return device if ':' in device else 'cuda:0'
+    return device
+
+
+def obb_scores(result, class_count, aggregate):
+    """Per class, the sum (or max) of the oriented-box confidences of one Ultralytics result.
+
+    OBB results keep detections in result.obb; result.boxes is None for them.
+    """
+    import numpy as np
+    scores = np.zeros(class_count, dtype=float)
+    obb = getattr(result, 'obb', None)
+    if obb is None or len(obb) == 0:
+        return scores
+    for label, score in zip(_numpy(obb.cls).astype(int).ravel(), _numpy(obb.conf).astype(float).ravel()):
+        if 0 <= label < class_count:
+            scores[label] = max(scores[label], score) if aggregate == 'max' else scores[label] + score
+    return scores
+
+
+class YoloObbAdapter:
+    """Ultralytics YOLO11-OBB: a class's score sums the confidences of its oriented boxes on the image."""
+    image_size = 1024  # The DOTA training tile size; tiles are prepared at this size.
+
+    def __init__(self, args, device, model=None):
+        self.device, self.batch_size = device, args.model_batch_size
+        self.conf, self.aggregate = args.conf, args.class_aggregation
+        if model is None:
+            from ultralytics import YOLO
+            weights = resolve_yolo_weights(args.checkpoint, args.model)
+            model = YOLO(str(weights))
+            self.name = str(weights)
+        else:
+            self.name = getattr(model, 'ckpt_path', None) or args.model
+        if getattr(model, 'task', None) != 'obb':
+            raise ValueError(f'{self.name}: task {getattr(model, "task", None)!r}; OD_DOTA needs an oriented-box (obb) model')
+        names = model.names
+        self.class_names = [str(names[index]) for index in range(len(names))] if isinstance(names, dict) else list(names)
+        self.model = model
+
+    def _results(self, images):
+        import numpy as np
+        # Ultralytics reads NumPy arrays as BGR (OpenCV order); the runner passes RGB.
+        bgr = [np.ascontiguousarray(np.asarray(image, dtype=np.uint8)[..., ::-1]) for image in images]
+        return self.model.predict(source=bgr, imgsz=self.image_size, conf=self.conf, half=False, augment=False,
+                                  batch=len(bgr), device=yolo_device(self.device), verbose=False)
+
+    def predict_batch(self, images):
+        import numpy as np
+        rows = []
+        for start in range(0, len(images), self.batch_size):
+            rows.extend(obb_scores(result, len(self.class_names), self.aggregate)
+                        for result in self._results(images[start:start + self.batch_size]))
+        return np.stack(rows) if rows else np.empty((0, len(self.class_names)))
+
+    def detections(self, image):
+        result = self._results([image])[0]
+        obb = getattr(result, 'obb', None)
+        if obb is None or len(obb) == 0:
+            return []
+        found = []
+        for label, score, corners in zip(_numpy(obb.cls).astype(int).ravel(), _numpy(obb.conf).astype(float).ravel(),
+                                         _numpy(obb.xyxyxyxy).reshape(-1, 4, 2)):
+            if score >= max(.3, self.conf) and 0 <= label < len(self.class_names):
+                found.append({'class_id': int(label), 'class_name': self.class_names[label], 'confidence': float(score),
+                              'polygon': corners.astype(float).tolist(),
+                              'box': [float(corners[:, 0].min()), float(corners[:, 1].min()),
+                                      float(corners[:, 0].max()), float(corners[:, 1].max())]})
+        return found
+
+
 def load_adapter(kind, args, device):
     if kind == 'OC_VGG':
         adapter = ClassifierAdapter(args, device, 'vgg16')
@@ -152,4 +249,6 @@ def load_adapter(kind, args, device):
         return CelebaAdapter(args, device)
     if kind == 'OD_DETR':
         return DetrAdapter(args, device)
+    if kind == 'OD_DOTA':
+        return YoloObbAdapter(args, device)
     return ClassifierAdapter(args, device, 'resnet50' if kind in {'OC_ResNet', 'OC_PartImageNet'} else 'vit_b_16')

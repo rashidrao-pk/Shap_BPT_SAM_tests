@@ -19,7 +19,7 @@ from auc_export import auc_columns
 
 RUNNERS = ['OC_ResNet', 'OC_VGG', 'OC_ViT', 'COD_ViT', 'OD_DETR', 'OD_yolo',
            'OC_CelebA', 'OC_BUSI', 'OC_PartImageNet', 'OC_FunnyBirds', 'OC_PACO',
-           'OC_KvasirSEG', 'OC_ISIC2018']
+           'OC_KvasirSEG', 'OC_ISIC2018', 'OD_DOTA']
 METHODS = ['BPT', 'BPT+SAM_c', 'SAM_c+KernelSHAP']
 DEFAULT_METHODS = ['BPT', 'BPT+SAM_c']
 DEFAULT_BUDGETS = [1000, 2000, 4000, 6000]
@@ -473,7 +473,7 @@ def run(args, adapter=None):
         if args.show_gt:
             from ground_truth import load_ground_truth, save_ground_truth
             gt = load_ground_truth(inputs['config'], record['image_path'], image.shape,
-                                   gt_class=(args.gt_class or prediction['class_name']) if args.runner in {'OD_DETR','OD_yolo'} else args.gt_class,
+                                   gt_class=(args.gt_class or prediction['class_name']) if args.runner in {'OD_DETR','OD_yolo','OD_DOTA'} else args.gt_class,
                                    predicted_index=target, label_space=getattr(adapter, 'label_space', None),
                                    predicted_class=prediction['class_name'])
             save_ground_truth(gt, image, image_folder, image_id)

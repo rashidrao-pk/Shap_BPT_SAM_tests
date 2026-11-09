@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-time download of FunnyBirds, PACO-LVIS, Kvasir-SEG, ISIC 2018 and their frozen classifiers.
+"""One-time download of FunnyBirds, PACO-LVIS, Kvasir-SEG, ISIC 2018, DOTA-v1.0 and their frozen models.
 
 Files are pinned by URL and SHA-256; Hugging Face files also by commit, so a repository
 update cannot silently change the explained model. Only ISIC preparation needs Pillow.
@@ -23,6 +23,9 @@ ISIC_MODEL = ('https://huggingface.co/adeIaide/skin-lesion-7class-efficientnet/r
               'b5ebe73c3b89baa90ee4f991afa318385414a973')
 KVASIR_MODEL = ('https://huggingface.co/mmuratarat/kvasir-v2-classifier/resolve/'
                 '4125333063ba077e18b1f9ef40df2de5fc50453e')
+ULTRALYTICS = 'https://github.com/ultralytics/assets/releases/download'
+DOTA_ZIP = f'{ULTRALYTICS}/v0.0.0/DOTAv1.zip'  # 1,988,510,024 bytes; Ultralytics' DOTAv1.yaml download
+DOTA_ZIP_SHA256 = '59e84c52a8e7ee0ba89ee0679dc2a95833d6a11d0debba20ca01cbb11d58b816'
 PACO_ZIP_SHA256 = '02ac4edb22c251e07853e6231d69aec3fad0a180f03de2f8c880650322debc80'
 KVASIR_ZIP_SHA256 = '03b30e21d584e04facf49397a2576738fd626815771afbbf788f74a7153478f7'
 # (URL, path below the repository, SHA-256)
@@ -39,6 +42,8 @@ MODELS = {
     'isic2018': [(f'{ISIC_MODEL}/config.json', 'checkpoints/isic2018_efficientnet_b0/config.json', '3b09f5eb750b0d458f208b4c7c46e3babe58a46106f3fb0e9eac8d3a1d88f3f8'),
                  (f'{ISIC_MODEL}/model.safetensors', 'checkpoints/isic2018_efficientnet_b0/model.safetensors',
                   'fed0c3cb0a15823f4f6a82d4dd2725a0b8e6068a971664e1504403fba5b54562')],
+    'dota': [(f'{ULTRALYTICS}/v8.3.0/yolo11s-obb.pt', 'src/checkpoints/yolo11s-obb.pt',
+              '43fa63102922e0701501241b307420d24fc55e080816888b18bf8c6f96b1a45a')],
 }
 
 
@@ -160,11 +165,40 @@ def download_isic2018(root, args):
         print('Exclude before reporting held-out localization:', *overlap[:20], flush=True)
 
 
+def download_dota(root, args):
+    """Download DOTAv1.zip once, then cut the val images into tiles (see dota_data.py)."""
+    from dota_data import prepare_tiles
+    if args.split != 'val':
+        raise ValueError('DOTA supports --split val only: test labels are withheld by the DOTA authors, '
+                         'and the detector was trained on train')
+    folder = root / 'DOTA'
+    archive = download(DOTA_ZIP, folder / 'raw/DOTAv1.zip', hash_prefix=DOTA_ZIP_SHA256)
+    print('Checking and extracting archive...', flush=True)
+    extract(archive, folder / 'raw')
+    source = folder / 'raw/DOTAv1'
+    label_format = args.label_format
+    if label_format == 'auto':
+        # labels/val_original is the official labelTxt with the difficult flag; labels/val lacks it.
+        label_format = 'dota-txt' if (source / 'labels/val_original').is_dir() else 'yolo-obb'
+    labels = source / ('labels/val_original' if label_format == 'dota-txt' else 'labels/val')
+    output = folder / f'prepared_{args.tile}' / 'val'
+    summary = prepare_tiles(source / 'images/val', labels, label_format, output, args.tile, args.stride,
+                            args.min_keep, args.min_objects, args.max_tiles, args.seed)
+    print(f"DOTA val: {summary['source_images']} source images, {summary['tiles']} tiles, "
+          f"{summary['candidates']} with at least {args.min_objects} counted objects, "
+          f"{summary['selected']} selected from {summary['source_images_selected']} source images\n"
+          f"Labels: {label_format} from {labels}\nTiles: {output}", flush=True)
+    for name, count in summary['objects_per_class'].items():
+        print(f'  {name:<20} {count}', flush=True)
+    print('Leakage: the detector was trained on DOTAv1 by Ultralytics, who report accuracy on the test server; '
+          'val may have been used in training. Treat results as a benchmark, not unseen data.', flush=True)
+
+
 DATASETS = {'funnybirds': download_funnybirds, 'paco': download_paco,
-            'kvasirseg': download_kvasirseg, 'isic2018': download_isic2018}
+            'kvasirseg': download_kvasirseg, 'isic2018': download_isic2018, 'dota': download_dota}
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--dataset', required=True, choices=[*DATASETS, 'all'])
     parser.add_argument('--assets', choices=['all', 'dataset', 'model'], default='all')
@@ -172,10 +206,20 @@ def main():
     parser.add_argument('--repo', type=Path, default=Path(__file__).resolve().parents[2],
                         help='Repository holding checkpoints/')
     parser.add_argument('--split', choices=['train', 'val', 'test'], default='val',
-                        help='PACO annotation split or ISIC Task 1 split (default: val)')
+                        help='PACO annotation split or ISIC Task 1 split (default: val); DOTA: val only')
     parser.add_argument('--max-side', type=int, default=1024, help='ISIC prepared image size limit')
     parser.add_argument('--workers', type=int, default=8, help='Parallel PACO image downloads')
-    args = parser.parse_args()
+    dota = parser.add_argument_group('DOTA tiles')
+    dota.add_argument('--tile', type=int, default=1024, help='Tile side in pixels')
+    dota.add_argument('--stride', type=int, default=1024, help='Window step; the default leaves no overlap')
+    dota.add_argument('--min-keep', type=float, default=.7,
+                      help='Share of an object inside a tile needed to count it; less makes it an ignored region')
+    dota.add_argument('--min-objects', type=int, default=3, help='Counted objects a tile needs to be a candidate')
+    dota.add_argument('--max-tiles', type=int, default=300, help='Tiles to keep')
+    dota.add_argument('--seed', type=int, default=0, help='Tile selection seed')
+    dota.add_argument('--label-format', choices=['auto', 'dota-txt', 'yolo-obb'], default='auto',
+                      help='auto prefers the official labels with the difficult flag')
+    args = parser.parse_args(argv)
     if args.split == 'val':
         args.split = 'validation' if args.dataset == 'isic2018' else 'val'
     for name in DATASETS if args.dataset == 'all' else [args.dataset]:

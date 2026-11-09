@@ -1,4 +1,4 @@
-"""Dataset GT loaders for CAMO, CelebAMask-HQ, ImageNet-S, part datasets, lesion masks, and COCO previews."""
+"""Dataset GT loaders for CAMO, CelebAMask-HQ, ImageNet-S, part datasets, lesion masks, DOTA, and COCO previews."""
 from functools import lru_cache
 import importlib.util
 import json
@@ -329,6 +329,45 @@ def _load_lesion_mask(format_name, root, stem, shape, gt_class, predicted_class)
                    scope='lesion_region', predicted_class=predicted_class)
 
 
+def dota_selection(gt_class):
+    """All 15 classes for None/all/foreground, else the one named class."""
+    from dota_data import CLASSES, class_name
+    if gt_class in {None, 'all', 'foreground'}:
+        return list(CLASSES)
+    return [class_name(gt_class)]
+
+
+def _load_dota(root, image_path, shape, gt_class):
+    """Union of the oriented-box polygons of the selected class on one tile.
+
+    Instances are painted largest first, so a ship stays visible inside a harbor. Difficult and
+    border-cut objects of the selected class become ignored pixels, left out of the mask.
+    """
+    from dota_data import CLASSES, IGNORED_LABEL, tile_instances
+    selected = dota_selection(gt_class)
+    everything = len(selected) == len(CLASSES)
+    name = 'DOTA objects' if everything else selected[0]
+    scope = 'all_instances' if everything else 'selected_class'
+    path = root / f'{Path(image_path).stem}.txt'
+    if not path.is_file():
+        return _empty(shape, name, 'annotation not available', scope=scope)
+    instances = [item for item in tile_instances(path, shape) if item['class_name'] in selected]
+    labels = np.zeros(shape[:2], dtype=np.uint16)
+    for item in instances:
+        if item['difficult']:
+            labels[item['mask']] = IGNORED_LABEL
+    counted = sorted((item for item in instances if not item['difficult']), key=lambda item: -item['area'])
+    label_names = {}
+    for number, item in enumerate(counted, 1):
+        labels[item['mask']] = number
+        label_names[number] = item['class_name']
+    return _result(labels, shape, name, [path], 'matched' if counted else 'no matching objects',
+                   ignored=[IGNORED_LABEL], ignored_labels=[IGNORED_LABEL],
+                   instance_count=len(counted), display_count=len(counted),
+                   count_label='instances', ignored_instances=sum(1 for item in instances if item['difficult']),
+                   scope=scope, semantic_labels=True, label_names=label_names, semantic_classes=list(CLASSES))
+
+
 def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_index=None, label_space=None,
                       predicted_class=None):
     """Load dataset GT; never interpret RGB encoding as a grayscale class mask."""
@@ -391,6 +430,8 @@ def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_
         return _load_celeba(settings, root, stem, image_shape, gt_class)
     if format_name == 'imagenets':
         return _load_imagenets(settings, root, stem, image_shape, gt_class, predicted_index, label_space, predicted_class)
+    if format_name == 'dota':
+        return _load_dota(root, image_path, image_shape, gt_class)
     raise ValueError(f'Unsupported GT format: {format_name}')
 
 

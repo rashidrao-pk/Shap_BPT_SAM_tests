@@ -26,21 +26,26 @@ METHODS = ['BPT', 'SAM_c', 'SAM_c_kernelshap']
 DEFAULT_CONFIGS = {'OC_VGG': 'ImageNet_epito', 'OC_PartImageNet': 'PartImageNet_epito', 'OC_BUSI': 'BUSI_epito', 'OD_DETR': 'MSCOCO_epito', 'OC_ResNet': 'ImageNet_epito',
                    'OC_ViT': 'ImageNet_epito', 'COD_ViT': 'CAMO_epito', 'OC_CelebA': 'CelebAHQ_epito',
                    'OC_FunnyBirds': 'FunnyBirds_epito', 'OC_PACO': 'PACO_epito',
-                   'OC_KvasirSEG': 'KvasirSEG_epito', 'OC_ISIC2018': 'ISIC2018_epito'}
+                   'OC_KvasirSEG': 'KvasirSEG_epito', 'OC_ISIC2018': 'ISIC2018_epito', 'OD_DOTA': 'DOTA_epito'}
 MODEL_NAMES = {'OC_VGG': 'vgg16', 'OC_PartImageNet': 'resnet50', 'OC_BUSI': 'ghostsas001/busi-breast-ultrasound-siglip', 'OD_DETR': 'facebook/detr-resnet-50', 'OC_ResNet': 'resnet50',
                'OC_ViT': 'vit_b_16', 'COD_ViT': 'vit_b_16', 'OC_CelebA': 'celeba_cnn',
                'OC_FunnyBirds': 'resnet50', 'OC_PACO': 'resnet50',
                'OC_KvasirSEG': 'mmuratarat/kvasir-v2-classifier',
-               'OC_ISIC2018': 'adeIaide/skin-lesion-7class-efficientnet'}
+               'OC_ISIC2018': 'adeIaide/skin-lesion-7class-efficientnet', 'OD_DOTA': 'yolo11s-obb'}
 # Runners that are not ImageNet classifiers, by the data.name their config must declare.
 EXPECTED_DATASETS = {'OD_DETR': 'mscoco', 'COD_ViT': 'camo', 'OC_CelebA': 'celebahq', 'OC_BUSI': 'busi',
                      'OC_PartImageNet': 'partimagenet', 'OC_FunnyBirds': 'funnybirds', 'OC_PACO': 'paco',
-                     'OC_KvasirSEG': 'kvasirseg', 'OC_ISIC2018': 'isic2018'}
+                     'OC_KvasirSEG': 'kvasirseg', 'OC_ISIC2018': 'isic2018', 'OD_DOTA': 'dota'}
 # These load a local checkpoint from --checkpoint or the config's model.checkpoint.
 CHECKPOINT_HELP = {'OC_CelebA': 'download_celeba_checkpoint.py',
                    **{kind: f'download_datasets.py --dataset {name} --assets model' for kind, name in
-                      [('OC_FunnyBirds', 'funnybirds'), ('OC_KvasirSEG', 'kvasirseg'), ('OC_ISIC2018', 'isic2018')]}}
+                      [('OC_FunnyBirds', 'funnybirds'), ('OC_KvasirSEG', 'kvasirseg'), ('OC_ISIC2018', 'isic2018'),
+                       ('OD_DOTA', 'dota')]}}
 LESION_RUNNERS = {'OC_BUSI', 'OC_KvasirSEG', 'OC_ISIC2018'}
+# Detectors: a class score sums its detections, any detector weights are accepted, and GT follows the explained class.
+DETECTOR_RUNNERS = {'OD_DETR', 'OD_DOTA'}
+# Pointing accuracy and best IoU on every run with --show-gt, not only with --explain_all.
+LOCALIZATION_RUNNERS = LESION_RUNNERS | {'OD_DOTA'}
 
 
 def create_parser(kind, auc_background=True, road=True):
@@ -71,6 +76,9 @@ def create_parser(kind, auc_background=True, road=True):
         parser.add_argument('--auc-bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'],
                             help='Background for AUC and other faithfulness metrics; default: same as --bg-type')
     parser.add_argument('--class-aggregation', choices=['sum', 'max'], default='sum')
+    if kind == 'OD_DOTA':
+        parser.add_argument('--conf', type=float, default=.25,
+                            help='YOLO-OBB confidence threshold (Ultralytics and OD_yolo default: 0.25)')
     parser.add_argument('--threshold', type=float, default=0.0,
                         help='DETR scoring threshold (default: 0 for continuous masked scores)')
     parser.add_argument('--detr-shortest-edge', type=int, help='Override the DETR processor resize')
@@ -223,7 +231,8 @@ def prepare_inputs(kind, args):
                         'partition_metadata': completed[image_id]})
     if args.attribute and kind != 'OC_CelebA':
         raise ValueError('--attribute is for OC_CelebA')
-    if kind in CHECKPOINT_HELP:
+    if kind in CHECKPOINT_HELP and not (kind in DETECTOR_RUNNERS and args.model != MODEL_NAMES[kind]):
+        # Other detector weights (e.g. --model yolo11m-obb) are looked up by name, not the config's file.
         args.checkpoint = args.checkpoint or config.get('model', {}).get('checkpoint')
         if not args.checkpoint:
             raise ValueError(f'Set --checkpoint or model.checkpoint; run {CHECKPOINT_HELP[kind]} first')
@@ -235,7 +244,7 @@ def prepare_inputs(kind, args):
             setattr(args, name, resolve_path(getattr(args, name)))
             if not getattr(args, name).exists():
                 raise FileNotFoundError(getattr(args, name))
-    if kind != 'OD_DETR' and args.model != MODEL_NAMES[kind]:
+    if kind not in DETECTOR_RUNNERS and args.model != MODEL_NAMES[kind]:
         raise ValueError(f'{kind} supports --model {MODEL_NAMES[kind]}')
     base = resolve_path(args.output_dir) if args.output_dir else output_path(config, 'explanations') / kind / folder.name
     if kind == 'OC_CelebA':
@@ -452,7 +461,10 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
         for detection in prediction.get('detections', []):
             if detection['class_id'] != prediction['predicted_class_id']:
                 continue
-            from matplotlib.patches import Rectangle
+            from matplotlib.patches import Polygon, Rectangle
+            if detection.get('polygon'):  # Oriented boxes (OD_DOTA)
+                axes[0, 0].add_patch(Polygon(detection['polygon'], closed=True, fill=False, edgecolor='lime', linewidth=1))
+                continue
             x1, y1, x2, y2 = detection['box']
             axes[0, 0].add_patch(Rectangle((x1, y1), x2-x1, y2-y1, fill=False, edgecolor='lime', linewidth=1))
         axes[0, 0].set_title('Input')
@@ -593,7 +605,7 @@ def run(kind, args, adapter=None):
                'max_evals': args.max_evals,
                'results_dir': run_dir, 'evaluations_dir': evaluations, 'settings': vars(args),
                'ground_truth': inputs['ground_truth'],
-               'score_type': 'detection confidence' if kind == 'OD_DETR' else 'attribute logit' if kind == 'OC_CelebA' else 'classification probability'})
+               'score_type': 'detection confidence' if kind in DETECTOR_RUNNERS else 'attribute logit' if kind == 'OC_CelebA' else 'classification probability'})
     rows = [row for manifest in prior for row in manifest['rows']]
     for manifest in prior:
         image_id = manifest['prediction']['image_id']
@@ -615,6 +627,7 @@ def run(kind, args, adapter=None):
                   f'Add them with evaluate_road.py and the same options.', flush=True)
     summaries = [manifest['prediction'] for manifest in prior]
     failures = []
+    skipped = []
     image_timings = []
     from PIL import Image
     for record in runtime.tqdm(pending, desc=kind, ascii=True, dynamic_ncols=True):
@@ -638,6 +651,13 @@ def run(kind, args, adapter=None):
                     raise ValueError(f'Unknown CelebA attribute: {attribute}')
                 target = adapter.class_names.index(attribute)
             else:
+                if kind == 'OD_DOTA' and args.target_class is None and not np.any(full > 0):
+                    # No box above --conf: there is no detected class to explain. Not lowered automatically.
+                    reason = f'no detections above conf {args.conf}'
+                    write_json(folder / f'{image_id}_skipped.json', {'image_id': image_id, 'reason': reason})
+                    skipped.append({'image_id': image_id, 'reason': reason})
+                    print(f'{image_id}: skipped, {reason}', flush=True)
+                    continue
                 target = int(np.argmax(full)) if args.target_class is None else args.target_class
             if target < 0 or target >= len(adapter.class_names):
                 raise ValueError(f'Target class {target} outside model output range')
@@ -654,7 +674,7 @@ def run(kind, args, adapter=None):
             ground_truth = None
             if args.show_gt:
                 from ground_truth import load_ground_truth, save_ground_truth
-                gt_class = (args.gt_class or prediction['explained_class']) if kind == 'OD_DETR' else args.gt_class
+                gt_class = (args.gt_class or prediction['explained_class']) if kind in DETECTOR_RUNNERS else args.gt_class
                 ground_truth = load_ground_truth(
                     inputs['config'], record['image_path'], image.shape, gt_class=gt_class,
                     predicted_index=target, label_space=getattr(adapter, 'label_space', None),
@@ -737,7 +757,7 @@ def run(kind, args, adapter=None):
                         statuses[method].update(result)
                         next(row for row in image_rows if row['method'] == method).update(result)
                 write_json(folder / f'{image_id}_method_status.json', statuses)
-            if kind in LESION_RUNNERS and ground_truth is not None:
+            if kind in LOCALIZATION_RUNNERS and ground_truth is not None:
                 from src.medical.evaluation import pointing_accuracy
                 from all_methods import best_iou
                 for method, values in attributions.items():
@@ -811,6 +831,10 @@ def run(kind, args, adapter=None):
                 write_json(run_dir / 'failures.json', failures)
                 raise
     write_json(run_dir / 'failures.json', failures)
+    if kind == 'OD_DOTA':
+        write_json(run_dir / 'skipped.json', skipped)
+        if skipped:
+            print(f'Skipped {len(skipped)} images without a detection; see {run_dir / "skipped.json"}', flush=True)
     build_report(runtime, run_dir, evaluations, rows, summaries, args.save_plots, args.build_html)
     print(f'Explanations: {run_dir}\nEvaluations: {evaluations}')
     from run_timing import report_timing
@@ -818,4 +842,4 @@ def run(kind, args, adapter=None):
                            time.perf_counter() - run_started, skipped=len(prior), failed=len(failures))
     if failures:
         raise RuntimeError(f'{len(failures)} images failed; see {run_dir / "failures.json"}')
-    return {'completed': len(summaries), 'rows': rows, 'run_dir': run_dir, 'evaluation_dir': evaluations, 'timing': timing}
+    return {'completed': len(summaries), 'skipped': skipped, 'rows': rows, 'run_dir': run_dir, 'evaluation_dir': evaluations, 'timing': timing}

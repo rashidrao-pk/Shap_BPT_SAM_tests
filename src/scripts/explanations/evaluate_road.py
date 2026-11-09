@@ -95,6 +95,8 @@ def evaluate_image(record, folder, adapter, config, methods=None):
         return None
     with Image.open(record['image_path']) as source:
         image = np.asarray(source.convert('RGB'))
+    if hasattr(adapter, 'set_record'):
+        adapter.set_record(record)  # VL_RefCOCO: score against this record's expression.
     return score_maps(adapter.predict_batch, image, maps, target, image_id, config,
                       folder / f'{image_id}_road.json')
 

@@ -123,6 +123,13 @@ def gt_objects(config, image_path, shape, combine=False):
     if (data.get('ground_truth') or {}).get('format', '').lower() == 'dota':
         yield from dota_objects(config, image_path, shape)
         return
+    if (data.get('ground_truth') or {}).get('format', '').lower() == 'refcoco':
+        # Every referred object on its own; objects nobody referred to are not GT.
+        from ground_truth import refcoco_objects
+        for _, category, mask in refcoco_objects(data['ground_truth'], image_path, shape):
+            if mask.any():
+                yield category, mask, None
+        return
     gt = load_ground_truth(config, image_path, shape)
     labels = np.asarray(gt['label_map'])
     names = gt.get('label_names') or {}

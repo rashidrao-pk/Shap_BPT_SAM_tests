@@ -19,6 +19,7 @@ existing `output` section. Your EPITO paths are included in the dataset YAMLs.
 | PACO | `paco` | COCO-style JSON; default shows parts, `--gt-class` selects a part or object |
 | Kvasir-SEG | `kvasir_seg` | Same stem under `masks/`, thresholded at 128 because masks are JPEG |
 | ISIC 2018 | `isic2018` | `<image-stem>_segmentation.png` |
+| RefCOCO | `refcoco` | The COCO mask of the object each expression refers to (`instances.json` + `expressions.json`) |
 | DOTA | `dota` | `<tile-id>.txt`: filled oriented boxes; difficult and border-cut objects are ignored pixels |
 
 Example ImageNet settings:

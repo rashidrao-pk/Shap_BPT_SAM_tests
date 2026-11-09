@@ -1,0 +1,23 @@
+# RefCOCO (UNC) val: COCO train2014 images and referring expressions, prepared by
+# download_datasets.py --dataset refcoco. One explanation per expression; partitions per image.
+device: cuda
+data:
+  name: RefCOCO
+  input_format: directory
+  image_dir: /beegfs/home/mrashid/datasets/RefCOCO/prepared/val/images
+  expressions: /beegfs/home/mrashid/datasets/RefCOCO/prepared/val/expressions.json
+  mask_dir_final: RefCOCO_sam2_tiny_62_compact-sam_200
+  ground_truth:
+    format: refcoco
+    root: /beegfs/home/mrashid/datasets/RefCOCO/raw/refcoco
+    annotation_file: /beegfs/home/mrashid/datasets/RefCOCO/raw/refcoco/instances.json
+    expressions: /beegfs/home/mrashid/datasets/RefCOCO/prepared/val/expressions.json
+model:
+  checkpoint: checkpoints/clip_vit_b32
+output:
+  partitions: /beegfs/home/mrashid/datasets/SAM_BPT
+  explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/explanations
+  evaluations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/results/evaluations
+
+evaluation:
+  bg-type: "full"

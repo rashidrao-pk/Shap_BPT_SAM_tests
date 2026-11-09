@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-time download of FunnyBirds, PACO-LVIS, Kvasir-SEG, ISIC 2018, DOTA-v1.0 and their frozen models.
+"""One-time download of FunnyBirds, PACO-LVIS, Kvasir-SEG, ISIC 2018, DOTA-v1.0, RefCOCO and their frozen models.
 
 Files are pinned by URL and SHA-256; Hugging Face files also by commit, so a repository
 update cannot silently change the explained model. Only ISIC preparation needs Pillow.
@@ -26,6 +26,12 @@ KVASIR_MODEL = ('https://huggingface.co/mmuratarat/kvasir-v2-classifier/resolve/
 ULTRALYTICS = 'https://github.com/ultralytics/assets/releases/download'
 DOTA_ZIP = f'{ULTRALYTICS}/v0.0.0/DOTAv1.zip'  # 1,988,510,024 bytes; Ultralytics' DOTAv1.yaml download
 DOTA_ZIP_SHA256 = '59e84c52a8e7ee0ba89ee0679dc2a95833d6a11d0debba20ca01cbb11d58b816'
+# The UNC server that published RefCOCO is offline; this is its archived original (archived 2022-04-13).
+REFCOCO_ZIP = ('https://web.archive.org/web/20220413011718id_/'
+               'http://bvisionweb1.cs.unc.edu/licheng/referit/data/refcoco.zip')  # 53,993,993 bytes
+REFCOCO_ZIP_SHA256 = '7f924bb7ed8dc4568058e4ff626281918d56e5206f4c868c5a80f088f38c8bf0'
+CLIP_MODEL = ('https://huggingface.co/openai/clip-vit-base-patch32/resolve/'
+              '3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268')
 PACO_ZIP_SHA256 = '02ac4edb22c251e07853e6231d69aec3fad0a180f03de2f8c880650322debc80'
 KVASIR_ZIP_SHA256 = '03b30e21d584e04facf49397a2576738fd626815771afbbf788f74a7153478f7'
 # (URL, path below the repository, SHA-256)
@@ -44,6 +50,15 @@ MODELS = {
                   'fed0c3cb0a15823f4f6a82d4dd2725a0b8e6068a971664e1504403fba5b54562')],
     'dota': [(f'{ULTRALYTICS}/v8.3.0/yolo11s-obb.pt', 'src/checkpoints/yolo11s-obb.pt',
               '43fa63102922e0701501241b307420d24fc55e080816888b18bf8c6f96b1a45a')],
+    'refcoco': [(f'{CLIP_MODEL}/{name}', f'checkpoints/clip_vit_b32/{name}', digest) for name, digest in [
+        ('config.json', 'b575ef3c36f2a057fa19e221650105052d61cc9c1a972ec15019c6261ec98770'),
+        ('preprocessor_config.json', '910e70b3956ac9879ebc90b22fb3bc8a75b6a0677814500101a4c072bd7857bd'),
+        ('tokenizer.json', 'b556ac8c99757ffb677208af34bc8c6721572114111a6e0aaf5fa69ff0b8d842'),
+        ('tokenizer_config.json', '34b7336e4bee12e0a9730eaf5189f582ef3c3eea5027f65730e5717256755aad'),
+        ('special_tokens_map.json', 'f8c0d6c39aee3f8431078ef6646567b0aba7f2246e9c54b8b99d55c22b707cbf'),
+        ('vocab.json', '5047b556ce86ccaf6aa22b3ffccfc52d391ea4accdab9c2f2407da5b742d4363'),
+        ('merges.txt', 'f526393189112391ce6f9795d4695f704121ce452c3aad1f5335cc41337eba85'),
+        ('pytorch_model.bin', 'a63082132ba4f97a80bea76823f544493bffa8082296d62d71581a4feff1576f')]],
 }
 
 
@@ -194,8 +209,34 @@ def download_dota(root, args):
           'val may have been used in training. Treat results as a benchmark, not unseen data.', flush=True)
 
 
+def download_refcoco(root, args):
+    """RefCOCO (UNC) annotations, then only the COCO train2014 images its split uses."""
+    from refcoco_data import build_expressions, coco_url, read_refs, write_expressions
+    if args.split != 'val':
+        raise ValueError('RefCOCO supports --split val only')
+    folder = root / 'RefCOCO'
+    archive = download(REFCOCO_ZIP, folder / 'raw/refcoco.zip', hash_prefix=REFCOCO_ZIP_SHA256)
+    extract(archive, folder / 'raw')
+    raw = folder / 'raw/refcoco'
+    instances = json.loads((raw / 'instances.json').read_text())
+    entries = build_expressions(read_refs(raw / 'refs(unc).p'), instances, args.split)
+    output = folder / 'prepared' / args.split
+    write_expressions(output / 'expressions.json', entries, args.split, archive)
+    names = sorted({entry['file_name'] for entry in entries})
+    print(f'RefCOCO {args.split}: {len({entry["ref_id"] for entry in entries})} referred objects, '
+          f'{len(entries)} expressions, {len(names)} images. Fetching images...', flush=True)
+    with concurrent.futures.ThreadPoolExecutor(args.workers) as pool:
+        tasks = {pool.submit(fetch_image, {'file_name': name, 'coco_url': coco_url(name)}, output / 'images'): name
+                 for name in names}
+        failed = [(tasks[task], task.exception()) for task in concurrent.futures.as_completed(tasks) if task.exception()]
+    if failed:
+        raise RuntimeError(f'{len(failed)} images failed; rerun to retry them. First: {failed[0]}')
+    print(f'Images: {output / "images"}\nExpressions: {output / "expressions.json"}', flush=True)
+
+
 DATASETS = {'funnybirds': download_funnybirds, 'paco': download_paco,
-            'kvasirseg': download_kvasirseg, 'isic2018': download_isic2018, 'dota': download_dota}
+            'kvasirseg': download_kvasirseg, 'isic2018': download_isic2018, 'dota': download_dota,
+            'refcoco': download_refcoco}
 
 
 def main(argv=None):
@@ -208,7 +249,7 @@ def main(argv=None):
     parser.add_argument('--split', choices=['train', 'val', 'test'], default='val',
                         help='PACO annotation split or ISIC Task 1 split (default: val); DOTA: val only')
     parser.add_argument('--max-side', type=int, default=1024, help='ISIC prepared image size limit')
-    parser.add_argument('--workers', type=int, default=8, help='Parallel PACO image downloads')
+    parser.add_argument('--workers', type=int, default=8, help='Parallel PACO and RefCOCO image downloads')
     dota = parser.add_argument_group('DOTA tiles')
     dota.add_argument('--tile', type=int, default=1024, help='Tile side in pixels')
     dota.add_argument('--stride', type=int, default=1024, help='Window step; the default leaves no overlap')

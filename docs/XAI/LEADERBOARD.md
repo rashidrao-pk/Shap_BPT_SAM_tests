@@ -55,4 +55,4 @@ Always pass `--budget` and `--bg-type`, so one dataset isn't counted at two sett
 - **Clear lead.** Within a run, the winner of a metric is tested against every other method with a paired Wilcoxon test, Holm-corrected. A lead is clear when p < 0.05 against all of them. With fewer than 10 images, the verdict is marked as a preview.
 - **Across datasets,** each dataset's mean ranks are averaged, with every dataset counted once; several runs of one dataset (another model or partitions) are averaged first. The Friedman test over datasets says whether the methods differ at all (Demšar, JMLR 2006).
 
-Domains: natural images (ImageNet, MS-COCO), object parts (PartImageNet, PACO), synthetic (FunnyBirds), camouflage (CAMO), faces (CelebA-HQ), medical (BUSI, Kvasir-SEG, ISIC 2018), remote sensing (DOTA).
+Domains: natural images (ImageNet, MS-COCO), object parts (PartImageNet, PACO), synthetic (FunnyBirds), camouflage (CAMO), faces (CelebA-HQ), medical (BUSI, Kvasir-SEG, ISIC 2018), remote sensing (DOTA), vision-language (RefCOCO).

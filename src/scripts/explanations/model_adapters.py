@@ -229,6 +229,77 @@ class YoloObbAdapter:
         return found
 
 
+class ClipAdapter:
+    """CLIP image-text cosine similarity for the current referring expression: one output.
+
+    The runner calls set_record() before each record. Images are resized whole to the model's
+    224x224 input instead of CLIP's usual center crop, so objects near the border stay visible.
+    """
+    preprocessing_geometry = 'resize'  # Gradient maps are resized straight back to the image.
+    name = 'clip_vit'
+
+    def __init__(self, args, device, model=None, processor=None):
+        import torch
+        from torchvision import transforms
+        self.torch, self.device, self.batch_size = torch, device, args.model_batch_size
+        source = str(args.checkpoint) if args.checkpoint else args.model
+        if model is None or processor is None:
+            from transformers import CLIPModel, CLIPProcessor
+            options = {'local_files_only': bool(args.checkpoint) or args.local_files_only}
+            processor = CLIPProcessor.from_pretrained(source, **options)
+            model = CLIPModel.from_pretrained(source, **options)
+        self.model = model.to(device).eval()
+        self.model.requires_grad_(False)
+        self.tokenizer = processor.tokenizer
+        settings = processor.image_processor
+        crop = getattr(settings, 'crop_size', None) or {'height': 224, 'width': 224}
+        size = (crop['height'], crop['width']) if isinstance(crop, dict) else (crop, crop)
+        self.preprocess = transforms.Compose([
+            transforms.Resize(size, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
+            transforms.ToTensor(), transforms.Normalize(settings.image_mean, settings.image_std)])
+        self.source = source
+        self.text_features, self.expression = None, None
+        self.class_names = ['<no expression set>']
+
+    def set_record(self, record):
+        expression = record['expression']
+        if expression == self.expression:
+            return
+        tokens = self.tokenizer([expression], padding=True, truncation=True, return_tensors='pt')
+        tokens = {key: value.to(self.device) for key, value in tokens.items()}
+        with self.torch.inference_mode():
+            features = self._features(self.model.get_text_features(**tokens))
+        self.text_features = features / features.norm(dim=-1, keepdim=True)
+        self.expression, self.class_names = expression, [expression]
+
+    def _features(self, output):
+        # Transformers 4 returns the projected embedding; newer versions wrap it in an output object.
+        return output if isinstance(output, self.torch.Tensor) else output.pooler_output
+
+    def forward_tensor(self, tensor):
+        if self.text_features is None:
+            raise RuntimeError('ClipAdapter.set_record() must be called before scoring')
+        image = self._features(self.model.get_image_features(pixel_values=tensor))
+        image = image / image.norm(dim=-1, keepdim=True)
+        return image @ self.text_features.T.to(image.dtype)
+
+    def predict_batch(self, images):
+        import numpy as np
+        from PIL import Image
+        if not len(images):
+            return np.empty((0, 1))
+        rows = []
+        with self.torch.inference_mode():
+            for start in range(0, len(images), self.batch_size):
+                batch = self.torch.stack([self.preprocess(Image.fromarray(np.asarray(image, dtype=np.uint8)))
+                                          for image in images[start:start + self.batch_size]]).to(self.device)
+                rows.append(self.forward_tensor(batch).float().cpu().numpy())
+        return np.concatenate(rows)
+
+    def detections(self, image):
+        return []
+
+
 def load_adapter(kind, args, device):
     if kind == 'OC_VGG':
         adapter = ClassifierAdapter(args, device, 'vgg16')
@@ -251,4 +322,6 @@ def load_adapter(kind, args, device):
         return DetrAdapter(args, device)
     if kind == 'OD_DOTA':
         return YoloObbAdapter(args, device)
+    if kind == 'VL_RefCOCO':
+        return ClipAdapter(args, device)
     return ClassifierAdapter(args, device, 'resnet50' if kind in {'OC_ResNet', 'OC_PartImageNet'} else 'vit_b_16')

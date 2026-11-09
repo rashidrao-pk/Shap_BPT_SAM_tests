@@ -39,7 +39,8 @@ METRICS = {
 OVERALL = ['auc_ins', 'auc_del', 'road_gap']
 DOMAINS = {'ImageNet': 'natural images', 'MSCOCO': 'natural images', 'PartImageNet': 'object parts',
            'PACO': 'object parts', 'FunnyBirds': 'synthetic', 'CAMO': 'camouflage', 'CelebAHQ': 'faces',
-           'BUSI': 'medical', 'KvasirSEG': 'medical', 'ISIC2018': 'medical', 'DOTA': 'remote sensing'}
+           'BUSI': 'medical', 'KvasirSEG': 'medical', 'ISIC2018': 'medical', 'DOTA': 'remote sensing',
+           'RefCOCO': 'vision-language'}
 ALPHA = .05
 FEW_IMAGES = 10
 RUN_FOLDER = re.compile(r'bg_(?P<bg>\w+?)_B(?P<budget>\d+)$')

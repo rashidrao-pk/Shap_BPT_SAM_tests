@@ -20,7 +20,7 @@ DATASETS = {'OC_ResNet': 'ImageNet', 'OC_VGG': 'ImageNet', 'OC_ViT': 'ImageNet',
     'COD_ViT': 'CAMO', 'OC_BUSI': 'BUSI', 'OC_CelebA': 'CelebA-HQ',
     'OC_PartImageNet': 'PartImageNet', 'OC_FunnyBirds': 'FunnyBirds', 'OC_PACO': 'PACO',
     'OC_KvasirSEG': 'Kvasir-SEG', 'OC_ISIC2018': 'ISIC 2018', 'OD_DETR': 'MS-COCO', 'OD_yolo': 'MS-COCO',
-    'OD_DOTA': 'DOTA'}
+    'OD_DOTA': 'DOTA', 'VL_RefCOCO': 'RefCOCO'}
 
 
 def locate(home, manifest, task):

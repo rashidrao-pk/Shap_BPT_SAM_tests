@@ -219,6 +219,8 @@ def vit_gradcam_layer(model, architecture):
     """Select the pre-attention norm across torchvision and HF ViT layouts."""
     if architecture == 'vit_b_16':
         return model.encoder.layers[-1].ln_1
+    if architecture == 'clip_vit':
+        return model.vision_model.encoder.layers[-1].layer_norm1
     # Transformers 4 uses vit.encoder.layer; newer Transformers uses vit.layers.
     backbone = getattr(model, 'vit', None)
     encoder = getattr(backbone, 'encoder', None)
@@ -323,7 +325,7 @@ class GradientMethods:
                         values = (features * weights).sum(dim=-1).relu().reshape(1, 1, height, width)
                     finally:
                         hook.remove()
-                elif getattr(self.adapter, 'name', '') in {'vit_b_16', 'vit_kvasir'}:
+                elif getattr(self.adapter, 'name', '') in {'vit_b_16', 'vit_kvasir', 'clip_vit'}:
                     # Patch tokens before the last attention block still influence CLS.
                     layer = vit_gradcam_layer(self.model, self.adapter.name)
                     saved = []
@@ -337,6 +339,7 @@ class GradientMethods:
                         features = saved[-1]
                         gradient = torch.autograd.grad(score, features)[0]
                         patch = (self.model.config.patch_size if self.adapter.name == 'vit_kvasir'
+                                 else self.model.config.vision_config.patch_size if self.adapter.name == 'clip_vit'
                                  else self.model.patch_size)
                         patch_h, patch_w = (patch, patch) if isinstance(patch, int) else patch
                         height, width = x.shape[-2]//patch_h, x.shape[-1]//patch_w

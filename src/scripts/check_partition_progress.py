@@ -13,7 +13,7 @@ from config_paths import output_path
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIGS = ['MSCOCO_epito', 'ImageNet_epito', 'CelebAHQ_epito', 'CAMO_epito',
                    'BUSI_epito', 'PartImageNet_epito', 'FunnyBirds_epito', 'PACO_epito',
-                   'KvasirSEG_epito', 'ISIC2018_epito', 'DOTA_epito']
+                   'KvasirSEG_epito', 'ISIC2018_epito', 'DOTA_epito', 'RefCOCO_epito']
 STAGES = ['boosted_filled', 'refined_filled', 'compact_selection', 'greedy_selection',
           'sam', 'refined', 'compact', 'boosted', 'filled', 'coverage']
 

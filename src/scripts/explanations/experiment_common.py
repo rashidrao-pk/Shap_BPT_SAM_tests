@@ -26,26 +26,31 @@ METHODS = ['BPT', 'SAM_c', 'SAM_c_kernelshap']
 DEFAULT_CONFIGS = {'OC_VGG': 'ImageNet_epito', 'OC_PartImageNet': 'PartImageNet_epito', 'OC_BUSI': 'BUSI_epito', 'OD_DETR': 'MSCOCO_epito', 'OC_ResNet': 'ImageNet_epito',
                    'OC_ViT': 'ImageNet_epito', 'COD_ViT': 'CAMO_epito', 'OC_CelebA': 'CelebAHQ_epito',
                    'OC_FunnyBirds': 'FunnyBirds_epito', 'OC_PACO': 'PACO_epito',
-                   'OC_KvasirSEG': 'KvasirSEG_epito', 'OC_ISIC2018': 'ISIC2018_epito', 'OD_DOTA': 'DOTA_epito'}
+                   'OC_KvasirSEG': 'KvasirSEG_epito', 'OC_ISIC2018': 'ISIC2018_epito', 'OD_DOTA': 'DOTA_epito',
+                   'VL_RefCOCO': 'RefCOCO_epito'}
 MODEL_NAMES = {'OC_VGG': 'vgg16', 'OC_PartImageNet': 'resnet50', 'OC_BUSI': 'ghostsas001/busi-breast-ultrasound-siglip', 'OD_DETR': 'facebook/detr-resnet-50', 'OC_ResNet': 'resnet50',
                'OC_ViT': 'vit_b_16', 'COD_ViT': 'vit_b_16', 'OC_CelebA': 'celeba_cnn',
                'OC_FunnyBirds': 'resnet50', 'OC_PACO': 'resnet50',
                'OC_KvasirSEG': 'mmuratarat/kvasir-v2-classifier',
-               'OC_ISIC2018': 'adeIaide/skin-lesion-7class-efficientnet', 'OD_DOTA': 'yolo11s-obb'}
+               'OC_ISIC2018': 'adeIaide/skin-lesion-7class-efficientnet', 'OD_DOTA': 'yolo11s-obb',
+               'VL_RefCOCO': 'openai/clip-vit-base-patch32'}
 # Runners that are not ImageNet classifiers, by the data.name their config must declare.
 EXPECTED_DATASETS = {'OD_DETR': 'mscoco', 'COD_ViT': 'camo', 'OC_CelebA': 'celebahq', 'OC_BUSI': 'busi',
                      'OC_PartImageNet': 'partimagenet', 'OC_FunnyBirds': 'funnybirds', 'OC_PACO': 'paco',
-                     'OC_KvasirSEG': 'kvasirseg', 'OC_ISIC2018': 'isic2018', 'OD_DOTA': 'dota'}
+                     'OC_KvasirSEG': 'kvasirseg', 'OC_ISIC2018': 'isic2018', 'OD_DOTA': 'dota',
+                     'VL_RefCOCO': 'refcoco'}
 # These load a local checkpoint from --checkpoint or the config's model.checkpoint.
 CHECKPOINT_HELP = {'OC_CelebA': 'download_celeba_checkpoint.py',
                    **{kind: f'download_datasets.py --dataset {name} --assets model' for kind, name in
                       [('OC_FunnyBirds', 'funnybirds'), ('OC_KvasirSEG', 'kvasirseg'), ('OC_ISIC2018', 'isic2018'),
-                       ('OD_DOTA', 'dota')]}}
+                       ('OD_DOTA', 'dota'), ('VL_RefCOCO', 'refcoco')]}}
 LESION_RUNNERS = {'OC_BUSI', 'OC_KvasirSEG', 'OC_ISIC2018'}
 # Detectors: a class score sums its detections, any detector weights are accepted, and GT follows the explained class.
 DETECTOR_RUNNERS = {'OD_DETR', 'OD_DOTA'}
 # Pointing accuracy and best IoU on every run with --show-gt, not only with --explain_all.
-LOCALIZATION_RUNNERS = LESION_RUNNERS | {'OD_DOTA'}
+LOCALIZATION_RUNNERS = LESION_RUNNERS | {'OD_DOTA', 'VL_RefCOCO'}
+# Vision-language: one record per referring expression; the adapter scores the image against it.
+EXPRESSION_RUNNERS = {'VL_RefCOCO'}
 
 
 def create_parser(kind, auc_background=True, road=True):
@@ -76,6 +81,9 @@ def create_parser(kind, auc_background=True, road=True):
         parser.add_argument('--auc-bg-type', choices=['black', 'gray', 'white', 'blurred', 'noise', 'full'],
                             help='Background for AUC and other faithfulness metrics; default: same as --bg-type')
     parser.add_argument('--class-aggregation', choices=['sum', 'max'], default='sum')
+    if kind in EXPRESSION_RUNNERS:
+        parser.add_argument('--all-sentences', action='store_true',
+                            help='Explain every expression of each referred object; default: the first one')
     if kind == 'OD_DOTA':
         parser.add_argument('--conf', type=float, default=.25,
                             help='YOLO-OBB confidence threshold (Ultralytics and OD_yolo default: 0.25)')
@@ -216,19 +224,22 @@ def prepare_inputs(kind, args):
                                  'generate partitions for annotated images or select the correct GT variant')
         elif len(matched) < len(ids):
             print('Some images have no ImageNetS annotation. Use --gt-only to select annotated images before --limit.')
-    if args.limit is not None:
-        ids = ids[:args.limit]
-    if not ids:
-        raise ValueError(f'No completed SAM_c inputs in {folder}; generate --save-partitions compact first')
-    records = []
-    for image_id in ids:
-        if image_id not in completed:
-            raise ValueError(f'{image_id}: missing image, completed metadata, or compact partition')
-        if not images[image_id].is_file():
-            raise FileNotFoundError(images[image_id])
-        records.append({'image_id': image_id, 'image_path': images[image_id],
-                        'partition_path': folder / f'{image_id}_compact.npy',
-                        'partition_metadata': completed[image_id]})
+    if expected == 'refcoco':
+        records = expression_records(data, completed, images, folder, args)
+    else:
+        if args.limit is not None:
+            ids = ids[:args.limit]
+        if not ids:
+            raise ValueError(f'No completed SAM_c inputs in {folder}; generate --save-partitions compact first')
+        records = []
+        for image_id in ids:
+            if image_id not in completed:
+                raise ValueError(f'{image_id}: missing image, completed metadata, or compact partition')
+            if not images[image_id].is_file():
+                raise FileNotFoundError(images[image_id])
+            records.append({'image_id': image_id, 'image_path': images[image_id],
+                            'partition_path': folder / f'{image_id}_compact.npy',
+                            'partition_metadata': completed[image_id]})
     if args.attribute and kind != 'OC_CelebA':
         raise ValueError('--attribute is for OC_CelebA')
     if kind in CHECKPOINT_HELP and not (kind in DETECTOR_RUNNERS and args.model != MODEL_NAMES[kind]):
@@ -258,6 +269,46 @@ def prepare_inputs(kind, args):
             'annotation_file': annotation_file, 'methods': comparison_names(args) if args.explain_all else list(METHODS),
             'ground_truth': ({'format': 'coco', 'annotation_file': annotation_file}
                              if expected == 'mscoco' else data.get('ground_truth')) if args.show_gt else None}
+
+
+def expression_records(data, completed, images, folder, args):
+    """One record per referring expression; records of one image share its partition.
+
+    Ordered so that --limit N first takes one object from each of N images.
+    """
+    from refcoco_data import load_expressions, select_expressions
+    entries = select_expressions(load_expressions(resolve_path(data['expressions'])), args.all_sentences)
+    if args.image_ids:
+        wanted = set(args.image_ids)
+        entries = [entry for entry in entries if entry['record_id'] in wanted or entry['image_stem'] in wanted]
+        unknown = wanted - {entry['record_id'] for entry in entries} - {entry['image_stem'] for entry in entries}
+        if unknown:
+            raise ValueError(f'Unknown RefCOCO record or image IDs: {sorted(unknown)[:5]}')
+        missing = sorted({entry['image_stem'] for entry in entries} - set(completed))
+        if missing:
+            raise ValueError(f'{missing[0]}: missing image, completed metadata, or compact partition')
+    rank, seen = {}, {}
+    for entry in entries:
+        key = (entry['image_stem'], entry['ref_id'])
+        if key not in rank:
+            rank[key] = seen.get(entry['image_stem'], 0)
+            seen[entry['image_stem']] = rank[key] + 1
+    entries = sorted((entry for entry in entries if entry['image_stem'] in completed),
+                     key=lambda entry: (entry['sentence_index'], rank[(entry['image_stem'], entry['ref_id'])],
+                                        entry['image_stem'], entry['ref_id']))
+    if args.limit is not None:
+        entries = entries[:args.limit]
+    if not entries:
+        raise ValueError(f'No completed SAM_c inputs in {folder}; generate --save-partitions compact first')
+    records = []
+    for entry in entries:
+        stem = entry['image_stem']
+        if not images[stem].is_file():
+            raise FileNotFoundError(images[stem])
+        records.append({'image_id': entry['record_id'], 'partition_id': stem, 'image_path': images[stem],
+                        'partition_path': folder / f'{stem}_compact.npy', 'partition_metadata': completed[stem],
+                        **{key: entry[key] for key in ['expression', 'ann_id', 'ref_id', 'sent_id', 'category']}})
+    return records
 
 
 def auc_background(args):
@@ -605,7 +656,8 @@ def run(kind, args, adapter=None):
                'max_evals': args.max_evals,
                'results_dir': run_dir, 'evaluations_dir': evaluations, 'settings': vars(args),
                'ground_truth': inputs['ground_truth'],
-               'score_type': 'detection confidence' if kind in DETECTOR_RUNNERS else 'attribute logit' if kind == 'OC_CelebA' else 'classification probability'})
+               'score_type': 'detection confidence' if kind in DETECTOR_RUNNERS else
+               'image-text cosine similarity' if kind in EXPRESSION_RUNNERS else 'attribute logit' if kind == 'OC_CelebA' else 'classification probability'})
     rows = [row for manifest in prior for row in manifest['rows']]
     for manifest in prior:
         image_id = manifest['prediction']['image_id']
@@ -641,7 +693,10 @@ def run(kind, args, adapter=None):
             started = time.perf_counter()
             with Image.open(record['image_path']) as source:
                 image = np.asarray(source.convert('RGB'))
-            _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id, 'compact')
+            _, labels = runtime.partitions.load_refine_partitions(
+                image, str(inputs['partition_dir']), record.get('partition_id', image_id), 'compact')
+            if hasattr(adapter, 'set_record'):
+                adapter.set_record(record)  # The referring expression this record explains.
             replacements = backgrounds(image, args.bg_type)
             predict = make_masked_predictor(adapter, image, replacements, args.model_batch_size)
             full = predict(np.ones((1, *image.shape[:2]), dtype=bool))[0]
@@ -671,10 +726,14 @@ def run(kind, args, adapter=None):
                           'top_k_classes': [{'class_id': int(index), 'class_name': adapter.class_names[int(index)],
                                              'confidence': float(full[index])} for index in np.argsort(full)[::-1][:5]],
                           'detections': adapter.detections(image)}
+            if kind in EXPRESSION_RUNNERS:
+                prediction.update({key: record[key] for key in ['expression', 'ann_id', 'ref_id', 'sent_id', 'category']})
+                prediction['image_stem'] = record['partition_id']
             ground_truth = None
             if args.show_gt:
                 from ground_truth import load_ground_truth, save_ground_truth
-                gt_class = (args.gt_class or prediction['explained_class']) if kind in DETECTOR_RUNNERS else args.gt_class
+                gt_class = ((args.gt_class or prediction['explained_class']) if kind in DETECTOR_RUNNERS else
+                            str(record['ann_id']) if kind in EXPRESSION_RUNNERS and args.gt_class is None else args.gt_class)
                 ground_truth = load_ground_truth(
                     inputs['config'], record['image_path'], image.shape, gt_class=gt_class,
                     predicted_index=target, label_space=getattr(adapter, 'label_space', None),

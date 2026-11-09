@@ -1,4 +1,4 @@
-"""Dataset GT loaders for CAMO, CelebAMask-HQ, ImageNet-S, part datasets, lesion masks, DOTA, and COCO previews."""
+"""Dataset GT loaders for CAMO, CelebAMask-HQ, ImageNet-S, part datasets, lesion masks, DOTA, RefCOCO, and COCO previews."""
 from functools import lru_cache
 import importlib.util
 import json
@@ -368,6 +368,54 @@ def _load_dota(root, image_path, shape, gt_class):
                    scope=scope, semantic_labels=True, label_names=label_names, semantic_classes=list(CLASSES))
 
 
+@lru_cache(maxsize=2)
+def _refcoco_referred(expressions_file):
+    from refcoco_data import load_expressions, referred_annotations
+    return referred_annotations(load_expressions(expressions_file))
+
+
+def refcoco_objects(settings, image_path, shape):
+    """(annotation ID, category, mask) for every referred object of one image."""
+    coco = _coco(str(resolve_path(settings['annotation_file'])))
+    referred = _refcoco_referred(str(resolve_path(settings['expressions']))).get(Path(image_path).stem, {})
+    objects = []
+    for ann_id, category in sorted(referred.items()):
+        mask = annotation_mask(coco, coco.anns[ann_id])
+        if mask is not None:
+            if mask.shape != tuple(shape[:2]):
+                raise ValueError(f'{Path(image_path).name}: annotation {ann_id} is {mask.shape}, image is {shape[:2]}')
+            objects.append((ann_id, category, mask))
+    return objects
+
+
+def _load_refcoco(settings, image_path, shape, gt_class):
+    """The object one expression refers to (gt_class = its annotation ID), or every referred object.
+
+    gt_class may also be a COCO category name, which keeps the referred objects of that category.
+    """
+    objects = refcoco_objects(settings, image_path, shape)
+    if gt_class in {None, 'all', 'foreground'}:
+        chosen, name, scope = objects, 'RefCOCO referred objects', 'all_referred_objects'
+    elif str(gt_class).isdigit():
+        chosen = [item for item in objects if item[0] == int(gt_class)]
+        if not chosen:
+            raise ValueError(f'{Path(image_path).stem}: annotation {gt_class} is not a referred object of this image')
+        name, scope = chosen[0][1], 'referred_object'
+    else:
+        chosen = [item for item in objects if item[1].lower() == str(gt_class).lower()]
+        name, scope = str(gt_class), 'referred_category'
+    labels = np.zeros(shape[:2], dtype=np.uint16)
+    label_names = {}
+    for number, (_, category, mask) in enumerate(sorted(chosen, key=lambda item: -int(item[2].sum())), 1):
+        labels[mask] = number
+        label_names[number] = category
+    return _result(labels, shape, name, [resolve_path(settings['annotation_file'])],
+                   'matched' if chosen else 'no matching referred object', scope=scope,
+                   annotation_ids=[item[0] for item in chosen], instance_count=len(chosen),
+                   display_count=len(chosen), count_label='objects', semantic_labels=True, label_names=label_names,
+                   semantic_classes=sorted({item[1] for item in objects}))
+
+
 def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_index=None, label_space=None,
                       predicted_class=None):
     """Load dataset GT; never interpret RGB encoding as a grayscale class mask."""
@@ -432,6 +480,8 @@ def load_ground_truth(config, image_path, image_shape, gt_class=None, predicted_
         return _load_imagenets(settings, root, stem, image_shape, gt_class, predicted_index, label_space, predicted_class)
     if format_name == 'dota':
         return _load_dota(root, image_path, image_shape, gt_class)
+    if format_name == 'refcoco':
+        return _load_refcoco(settings, image_path, image_shape, gt_class)
     raise ValueError(f'Unsupported GT format: {format_name}')
 
 

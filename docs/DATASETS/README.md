@@ -15,6 +15,7 @@ How to download each dataset. Checkpoints have their own pages in [Models](../MO
 | [CAMO](CAMO.md)                 | Camouflaged objects    | [ViT-B/16](../MODELS/VIT_B16.md)      | Not via CAMO; ImageNet not audited     | `COD_ViT`         |
 | [CelebA-HQ](CelebAHQ.md)        | Face parts             | [CelebA CNN](../MODELS/CELEBA_CNN.md) | Unknown: see the notebook | `OC_CelebA` |
 | [DOTA](DOTA.md)                 | Oriented boxes, 15 aerial classes | [YOLO11s-OBB](../MODELS/YOLO_OBB.md) | **Possibly**: val may be in training | `OD_DOTA` |
+| [RefCOCO](REFCOCO.md)           | Mask of the referred object | [CLIP ViT-B/32](../MODELS/CLIP.md) | Unknown: CLIP's data is not public | `VL_RefCOCO` |
 
 Models trained on the explained images are still valid to explain, since an attribution describes the model. They do not support claims about held-out performance, so state the overlap when reporting results.
 
@@ -23,7 +24,7 @@ Models trained on the explained images are still valid to explain, since an attr
 From the repository root, on a node with internet access:
 
 ```bash
-python src/scripts/download_datasets.py --dataset funnybirds --assets dataset   # or paco, kvasirseg, isic2018, dota, all
+python src/scripts/download_datasets.py --dataset funnybirds --assets dataset   # or paco, kvasirseg, isic2018, dota, refcoco, all
 ```
 
 Then get the [model checkpoints](../MODELS/README.md).
@@ -31,10 +32,10 @@ Then get the [model checkpoints](../MODELS/README.md).
 Then generate partitions and run the explanation commands in that dataset's page. Check progress with:
 
 ```bash
-python src/scripts/check_partition_progress.py --config FunnyBirds_epito PACO_epito KvasirSEG_epito ISIC2018_epito DOTA_epito
+python src/scripts/check_partition_progress.py --config FunnyBirds_epito PACO_epito KvasirSEG_epito ISIC2018_epito DOTA_epito RefCOCO_epito
 ```
 
-All five use the existing SAM1 and SAM2 checkpoints for partitions. Paths in the `*_epito.yaml` configs are for EPITO.
+All six use the existing SAM1 and SAM2 checkpoints for partitions. Paths in the `*_epito.yaml` configs are for EPITO.
 
 To include them in the budget study, name them explicitly:
 
@@ -89,3 +90,4 @@ Before spending time on XAI for a dataset, [evaluate its partitions](../Partitio
 - [x] [Kvasir-SEG](docs/DATASETS/KVASIR_SEG.md)
 - [x] [ISIC-2018](docs/DATASETS/ISIC_2018.md)
 - [x] [DOTA](docs/DATASETS/DOTA.md) (code and tests; first full EPITO run pending)
+- [x] [RefCOCO](docs/DATASETS/REFCOCO.md), vision–language with CLIP (code and tests; first full EPITO run pending)

@@ -212,6 +212,8 @@ class ModelExplanationTest(unittest.TestCase):
             for method in common.METHODS:
                 self.assertEqual(values[method].shape, (1, 16, 20))
             self.assertTrue((result['evaluation_dir'] / 'method_summary.csv').is_file())
+            for name in ['winner.md', 'leaderboard.csv', 'metric_winners.csv', 'method_boxplots.png', 'method_ranks.png']:
+                self.assertTrue((result['evaluation_dir'] / name).is_file(), name)
             report = result['evaluation_dir'] / 'xai_results_report.html'
             self.assertIn(image_id, report.read_text())
             with patch.object(common, 'load_adapter', side_effect=AssertionError('Model loaded during resume')):

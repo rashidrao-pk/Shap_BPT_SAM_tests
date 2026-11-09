@@ -15,7 +15,11 @@ AUC and the other faithfulness metrics use the same background as the explanatio
 
 ## ROAD evaluation
 
-To score finished runs with noisy imputation instead of masked backgrounds, see [ROAD](ROAD.md).
+ROAD is scored during every run by default; see [ROAD](ROAD.md).
+
+## Who wins
+
+Each run ends with a leaderboard, per-metric boxplots and a written verdict. To compare methods across every dataset and domain, see [Leaderboard](LEADERBOARD.md).
 
 ## Before running
 

@@ -497,30 +497,29 @@ def explanation_grid(runtime, image, partition, attributions, prediction, output
 
 
 def build_report(runtime, run_dir, evaluation_dir, rows, summaries, save_plots, build_html):
-    pd, plt = runtime.pd, runtime.plt
+    pd = runtime.pd
     evaluation_dir.mkdir(parents=True, exist_ok=True)
     frame = pd.DataFrame(rows)
     csv = evaluation_dir / 'auc_results_all_images_current_run.csv'
     frame.to_csv(csv, index=False)
     frame.to_csv(run_dir / csv.name, index=False)
-    metrics = [column for column in ['auc_ins', 'auc_del', 'time_exp', 'time_eval',
-                                    'sensitivity_n_corr', 'stability_top10_jaccard', 'best_iou'] if column in frame]
+    metrics = [column for column in ['auc_ins', 'auc_del', 'road_gap', 'road_morf', 'road_lerf', 'time_exp',
+                                    'time_eval', 'sensitivity_n_corr', 'stability_top10_jaccard', 'best_iou',
+                                    'pointing_accuracy'] if column in frame]
     if not frame.empty:
         frame.groupby('method', sort=False)[metrics].agg(['mean', 'std', 'median']).to_csv(
             evaluation_dir / 'method_summary.csv')
-    if save_plots and not frame.empty:
-        fig, axes = plt.subplots(1, max(1, len(metrics)), figsize=(4 * max(1, len(metrics)), 4), squeeze=False)
+        # Who wins: leaderboard.csv, metric_winners.csv, winner.md, method_boxplots.png, method_ranks.png.
         try:
-            for ax, metric in zip(axes.ravel(), metrics):
-                available = list(dict.fromkeys(frame['method']))
-                ax.boxplot([frame.loc[frame['method'] == method, metric].dropna() for method in available],
-                           tick_labels=available)
-                ax.set_title(metric)
-                ax.tick_params(axis='x', rotation=45)
-            fig.tight_layout()
-            fig.savefig(evaluation_dir / 'method_boxplots.png', dpi=130)
-        finally:
-            plt.close(fig)
+            import xai_leaderboard
+            title = ' / '.join(Path(evaluation_dir).parts[-3:])
+            result = xai_leaderboard.dataset_report(xai_leaderboard.use_relative_road(frame), evaluation_dir,
+                                                    title, save_plots)
+            if result is not None:
+                print((evaluation_dir / 'winner.md').read_text(), flush=True)
+        except Exception:
+            print('Leaderboard failed; the results are saved. Rebuild it with xai_leaderboard.py dataset:\n'
+                  + traceback.format_exc(), file=sys.stderr, flush=True)
     if not build_html:
         return
     sections = []

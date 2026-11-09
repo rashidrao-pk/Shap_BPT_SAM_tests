@@ -43,16 +43,30 @@ python src/scripts/generate_paco_partitions.py \
   --limit 2
 ```
 
+#### Large Model
+
+```bash
+export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
+
+python src/scripts/generate_paco_partitions.py \
+  --config PACO_epito \
+  --model sam2 \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
+  --device cuda --max-regions 62 --generate_at_least_n_masks 50 \
+  --save-partitions sam compact --limit 1000
+```
+
 Remove `--limit 2` to process all 2,410 val images. Repeat the same command to resume: completed images are skipped.
 
 Keep `--save-partitions sam compact`. Saving other stages changes the folder name, so it would no longer match the config or the budget study.
 
 ### Choose the partitions for XAI
 
-| Model | Folder |
-| --- | --- |
+| Model | Folder                              |
+| ----- | ----------------------------------- |
 | SAM-1 | `PACO_sam1_vit_b_62_compact-sam_50` |
-| SAM-2 | `PACO_sam2_tiny_62_compact-sam_50` |
+| SAM-2 | `PACO_sam2_tiny_62_compact-sam_50`  |
 
 The config selects SAM-2. To explain SAM-1 partitions, set `data.mask_dir_final` to the SAM-1 folder.
 

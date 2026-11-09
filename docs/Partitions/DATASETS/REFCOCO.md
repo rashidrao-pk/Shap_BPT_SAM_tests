@@ -49,10 +49,10 @@ These are COCO `train2014` photos, so the existing MS-COCO partitions (`val2017`
 
 ### Choose the partitions for XAI
 
-| Model | Folder |
-| --- | --- |
+| Model | Folder                                  |
+| ----- | --------------------------------------- |
 | SAM-1 | `RefCOCO_sam1_vit_b_62_compact-sam_200` |
-| SAM-2 | `RefCOCO_sam2_tiny_62_compact-sam_200` |
+| SAM-2 | `RefCOCO_sam2_tiny_62_compact-sam_200`  |
 
 ## Preview
 

@@ -248,3 +248,10 @@ def test_label_iou_averages_over_objects():
     predicted = np.array([[1, 0, 2, 2]])
     assert ep.label_iou(truth, predicted, 2) == pytest.approx((.5 + 1) / 2)
     assert ep.label_iou(truth, np.zeros_like(truth), 2) == 0
+
+
+def test_labels_name_the_sam_model_and_size():
+    assert ep.sam_label('BUSI_sam1_vit_b_62_compact-sam_200') == 'SAM1-VB'
+    assert ep.sam_label('BUSI_sam2_tiny_62_compact-sam_200') == 'SAM2-T'
+    assert ep.sam_label('BUSI_sam2_large_62_compact-sam_200') == 'SAM2-L'
+    assert ep.sam_label('X_sam2_base_plus_62') == 'SAM2-B+'

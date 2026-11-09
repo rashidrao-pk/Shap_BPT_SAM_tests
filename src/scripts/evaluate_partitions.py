@@ -291,13 +291,29 @@ def partition_folders(config, all_sam):
     return sorted({folder, *(path for path in folder.parent.glob(f'{prefix}_sam*') if path.is_dir())})
 
 
+SAM_SIZES = {'tiny': 'T', 'small': 'S', 'base_plus': 'B+', 'large': 'L'}
+
+
+def sam_label(folder_name):
+    """SAM model and size from a partition folder name, e.g. sam1_vit_b -> SAM1-VB, sam2_large -> SAM2-L."""
+    parts = folder_name.split('_')
+    if 'sam1' in parts:
+        size = parts[parts.index('sam1') + 2:parts.index('sam1') + 3]
+        return f"SAM1-V{size[0].upper()}" if size and parts[parts.index('sam1') + 1] == 'vit' else 'SAM1'
+    if 'sam2' in parts:
+        rest = '_'.join(parts[parts.index('sam2') + 1:])
+        size = next((short for name, short in sorted(SAM_SIZES.items(), key=lambda item: -len(item[0]))
+                     if rest.startswith(name)), None)
+        return f'SAM2-{size}' if size else 'SAM2'
+    return folder_name
+
+
 def evaluate_folder(name, config, folder, args):
     suffix = f'_{args.partition_type}.npy'
     files = {path.name.removesuffix(suffix): path for path in folder.glob(f'*{suffix}')} if folder.is_dir() else {}
     paths = image_paths(config['data']) if files else {}
     ids = sorted(set(files) & set(paths))
-    label = Path(name).stem.removesuffix('_epito')
-    label = f"{label} {folder.name.split('_')[1].upper()}" if args.all_sam else label
+    label = f"{Path(name).stem.removesuffix('_epito')} {sam_label(folder.name)}"
     combine = combines_parts(config, args)
     rows, images, failed = [], 0, 0
     for index in np.random.default_rng(args.seed).permutation(len(ids)):

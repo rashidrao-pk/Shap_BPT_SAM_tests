@@ -12,7 +12,7 @@ From the repository root, in your EPITO GPU session:
 python src/scripts/evaluate_partitions.py --all-sam
 ```
 
-This scores every completed partition with GT, for every dataset and every SAM folder. Common changes:
+This scores every completed partition with GT, for every dataset and every SAM folder. Each row names the model that made the partitions, read from the folder name: `SAM1-VB` (SAM-1 ViT-B; `-VL`, `-VH` for ViT-L, ViT-H), `SAM2-T` (SAM-2 tiny), `SAM2-S` (small), `SAM2-B+` (base plus) and `SAM2-L` (large). Plot file names use the same label, for example `BUSI_SAM2-L.png`. Common changes:
 
 ```bash
 python src/scripts/evaluate_partitions.py                                    # Only the folder each config selects
@@ -25,34 +25,34 @@ python src/scripts/evaluate_partitions.py --no-plots                         # T
 
 Saved in `results/evaluations/partition_quality/`:
 
-| File | Contents | Thesis equivalent |
-| --- | --- | --- |
-| `conclusion.md` | Verdict and reason for each dataset | |
-| `partition_quality_summary.csv` | Mean, SD, and median of best IoU and GT coverage; share at each IoU level | Tables 4.8 and 4.10 |
-| `partition_quality_objects.csv` | Best IoU, grid IoU, and coverage for each GT object | |
-| `diagnosis.md` | For each dataset: why objects score low, by cause, size, and class, plus its worst images | |
-| `partition_quality_images.csv` | Every image, worst first, with its main cause | |
-| `failure_causes` | Share of objects below IoU 0.5, split by cause | |
-| `iou_by_object_size` | Median best IoU by object size | |
-| `worst/<dataset>.png` | The worst images, set by `--worst` (default 6) | |
-| `overview` | Median best IoU against the grid, the limits, and the verdict | |
-| `best_iou_boxplot`, `best_iou_violin` | Best IoU distribution; the triangle is the mean | Figure 4.8 |
-| `gt_coverage_boxplot`, `gt_coverage_violin` | GT coverage distribution | Figure 4.9 |
-| `iou_thresholds` | Share of objects at IoU 0.5, 0.75, and 0.9 | Table 4.10 |
-| `examples/<dataset>.png` | Highest, middle, and lowest IoU images: GT, partition, optimal subsets, and masks → GT | Figures 4.10 to 4.12 |
+| File                                        | Contents                                                                                  | Thesis equivalent    |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------- |
+| `conclusion.md`                             | Verdict and reason for each dataset                                                       |                      |
+| `partition_quality_summary.csv`             | Mean, SD, and median of best IoU and GT coverage; share at each IoU level                 | Tables 4.8 and 4.10  |
+| `partition_quality_objects.csv`             | Best IoU, grid IoU, and coverage for each GT object                                       |                      |
+| `diagnosis.md`                              | For each dataset: why objects score low, by cause, size, and class, plus its worst images |                      |
+| `partition_quality_images.csv`              | Every image, worst first, with its main cause                                             |                      |
+| `failure_causes`                            | Share of objects below IoU 0.5, split by cause                                            |                      |
+| `iou_by_object_size`                        | Median best IoU by object size                                                            |                      |
+| `worst/<dataset>.png`                       | The worst images, set by `--worst` (default 6)                                            |                      |
+| `overview`                                  | Median best IoU against the grid, the limits, and the verdict                             |                      |
+| `best_iou_boxplot`, `best_iou_violin`       | Best IoU distribution; the triangle is the mean                                           | Figure 4.8           |
+| `gt_coverage_boxplot`, `gt_coverage_violin` | GT coverage distribution                                                                  | Figure 4.9           |
+| `iou_thresholds`                            | Share of objects at IoU 0.5, 0.75, and 0.9                                                | Table 4.10           |
+| `examples/<dataset>.png`                    | Highest, middle, and lowest IoU images: GT, partition, optimal subsets, and masks → GT    | Figures 4.10 to 4.12 |
 
 Plots are saved as PNG and SVG, except the examples, which are PNG. Datasets with too few images for a verdict are left out of the plots but stay in the tables.
 
 ## Verdicts
 
-| Verdict | Meaning |
-| --- | --- |
-| `USE` | Median IoU at least 0.75, at least 75% of objects at IoU 0.5, and a median lead over the grid of at least 0.05 |
-| `CAUTION` | Usable, but at least one `USE` condition failed; the reason names it |
-| `SKIP` | Median IoU below 0.5, or no lead over the grid |
-| `NEED PARTITIONS` | Fewer than 30 partitions, so no verdict is given |
-| `NO GT` | Fewer than 30 evaluated images have GT |
-| `ERROR` | The dataset could not be read; the reason gives the error |
+| Verdict           | Meaning                                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- |
+| `USE`             | Median IoU at least 0.75, at least 75% of objects at IoU 0.5, and a median lead over the grid of at least 0.05 |
+| `CAUTION`         | Usable, but at least one `USE` condition failed; the reason names it                                           |
+| `SKIP`            | Median IoU below 0.5, or no lead over the grid                                                                 |
+| `NEED PARTITIONS` | Fewer than 30 partitions, so no verdict is given                                                               |
+| `NO GT`           | Fewer than 30 evaluated images have GT                                                                         |
+| `ERROR`           | The dataset could not be read; the reason gives the error                                                      |
 
 The limits are starting values, set just below the MS-COCO reference from the notebook: median IoU 0.825 and 79.3% of objects at IoU 0.5. They have not been checked against XAI results. Change them with `--use-median-iou`, `--use-iou-50`, `--skip-median-iou`, `--min-gain`, and `--min-images`.
 
@@ -60,11 +60,11 @@ The limits are starting values, set just below the MS-COCO reference from the no
 
 An object below IoU 0.5 gets one cause:
 
-| Cause | Meaning | What to check |
-| --- | --- | --- |
-| `Unassigned` | At least half of the object is in cell 0, which is never selected | SAM found no mask there, as with dark, low-contrast regions |
-| `Merged` | The selected cells are mostly outside the object | The object has no boundary of its own, which is common for tiny objects |
-| `Partial` | The cells that fit cover only part of the object | The object is split among cells that are mostly outside it |
+| Cause        | Meaning                                                           | What to check                                                           |
+| ------------ | ----------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `Unassigned` | At least half of the object is in cell 0, which is never selected | SAM found no mask there, as with dark, low-contrast regions             |
+| `Merged`     | The selected cells are mostly outside the object                  | The object has no boundary of its own, which is common for tiny objects |
+| `Partial`    | The cells that fit cover only part of the object                  | The object is split among cells that are mostly outside it              |
 
 Sizes are the object's share of the image: tiny below 0.1%, small below 1%, medium below 10%, and large above that.
 

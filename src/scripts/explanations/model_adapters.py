@@ -229,6 +229,21 @@ class YoloObbAdapter:
         return found
 
 
+def clip_size(crop):
+    """(height, width) from crop_size: a dict, a transformers SizeDict (newer versions), or an int."""
+    if isinstance(crop, int):
+        return crop, crop
+    if isinstance(crop, dict):
+        return int(crop['height']), int(crop['width'])
+    height, width = getattr(crop, 'height', None), getattr(crop, 'width', None)
+    if height is None or width is None:
+        side = getattr(crop, 'shortest_edge', None)
+        if side is None:
+            raise ValueError(f'Unsupported CLIP crop_size: {crop!r}')
+        return int(side), int(side)
+    return int(height), int(width)
+
+
 class ClipAdapter:
     """CLIP image-text cosine similarity for the current referring expression: one output.
 
@@ -253,7 +268,7 @@ class ClipAdapter:
         self.tokenizer = processor.tokenizer
         settings = processor.image_processor
         crop = getattr(settings, 'crop_size', None) or {'height': 224, 'width': 224}
-        size = (crop['height'], crop['width']) if isinstance(crop, dict) else (crop, crop)
+        size = clip_size(crop)
         self.preprocess = transforms.Compose([
             transforms.Resize(size, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
             transforms.ToTensor(), transforms.Normalize(settings.image_mean, settings.image_std)])

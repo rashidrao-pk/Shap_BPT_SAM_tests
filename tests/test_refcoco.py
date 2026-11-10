@@ -300,3 +300,11 @@ def test_summary_setup_counts_images_with_expressions(tmp_path):
     _, config = dataset(tmp_path)
     assert summary_setup.masks_found(config['data']) == set(STEMS)
     assert summary_setup.DATASETS['refcoco'].models == ('clip_b32',)
+
+
+def test_clip_size_reads_dicts_sizedict_objects_and_ints():
+    from types import SimpleNamespace
+    from model_adapters import clip_size
+    assert clip_size({'height': 224, 'width': 224}) == (224, 224)
+    assert clip_size(SimpleNamespace(height=224, width=224, shortest_edge=None)) == (224, 224)
+    assert clip_size(224) == (224, 224)

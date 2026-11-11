@@ -55,6 +55,17 @@ Saved in `<evaluations>/budget_steps/<runner>/<partitions>/bg_<background>/steps
 | `budget_steps.csv`         | Signed and absolute change for each image, method, and step   |
 | `budget_steps_summary.csv` | Mean and SD across images for each method and step            |
 | `settled_budget.json`      | The settled budget for each method                            |
+| `budget_time.png`          | Mean explanation time per image at each budget (log scale)    |
+| `budget_timing.csv`        | Per method and budget: time mean, SD and total, AUC scoring time, model calls, ms per call |
+| `timing_summary.json`      | Totals per method, and this run: model load, wall time, maps computed and cached |
+
+## Timing
+
+At the end (and after each image) the run prints a timing table: mean explanation and AUC scoring time per image for each method and budget, the total per method, and what this run did.
+
+- Times come from each saved map, so maps finished in earlier runs keep the time they took then. If those ran on another GPU, mixed times are not comparable; check `device` in `timing_summary.json`.
+- `this_run` counts only maps computed now; cached maps take no time. `wall_sec` includes model loading, tree building and AUC scoring.
+- Explanation time excludes AUC scoring, which is reported on its own.
 
 ## Reading the plot
 

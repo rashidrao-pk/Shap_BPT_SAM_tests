@@ -171,7 +171,7 @@ def plot_values(plt, path, results, title):
          {metric: f'E[{name}]' for metric, name in METRICS.items()}, title)
 
 
-def write_reports(runtime, folder, rows, args, partition_name):
+def write_reports(runtime, folder, rows, args, partition_name, run_timing=None):
     results = runtime.pd.DataFrame(rows)
     results.to_csv(folder / 'budget_auc.csv', index=False)
     steps = step_frame(results)
@@ -187,8 +187,104 @@ def write_reports(runtime, folder, rows, args, partition_name):
     for _, row in summary.iterrows():
         print(f"{row['method']:<18} {row['from_budget']:>5} -> {row['to_budget']:<5} "
               f"|dAUC+| {row['auc_ins_abs_change_mean']:.4f}  |dAUC-| {row['auc_del_abs_change_mean']:.4f}", flush=True)
-    print(f'Settled at tolerance {args.tolerance:g}: {settled}\nSaved: {folder}', flush=True)
+    print(f'Settled at tolerance {args.tolerance:g}: {settled}', flush=True)
+    write_timing(runtime, folder, results, run_timing or {}, f'{args.runner}, {partition_name}, {images} images')
+    print(f'Saved: {folder}', flush=True)
     return summary
+
+
+def timing_table(results):
+    """Explanation time per method and budget, from the time saved with each map (cached maps included)."""
+    grouped = results.groupby(['method', 'budget'], sort=False)
+    table = grouped.agg(images=('image_id', 'nunique'), explanation_sec_mean=('explanation_sec', 'mean'),
+                        explanation_sec_std=('explanation_sec', 'std'), explanation_sec_total=('explanation_sec', 'sum'),
+                        evaluation_sec_mean=('evaluation_sec', 'mean'), mask_evaluations_mean=('mask_evaluations', 'mean'))
+    table['explanation_sec_std'] = table['explanation_sec_std'].fillna(0)
+    table['ms_per_mask'] = 1000 * table['explanation_sec_mean'] / table['mask_evaluations_mean'].where(
+        table['mask_evaluations_mean'] > 0)
+    return table.reset_index().sort_values(['method', 'budget'], kind='stable')
+
+
+def timing_summary(results, table, run_timing):
+    methods = {}
+    for method, group in results.groupby('method', sort=False):
+        trees = group.drop_duplicates('image_id')['tree_sec']
+        methods[method] = {'maps': len(group), 'explanation_sec': float(group['explanation_sec'].sum()),
+                           'evaluation_sec': float(group['evaluation_sec'].sum(skipna=True)),
+                           'tree_sec_this_run': float(trees.sum()),
+                           'explanation_sec_at_largest_budget': float(table[table['method'] == method]['explanation_sec_mean'].iloc[-1])}
+    computed = results[results['computed']]
+    return {
+        'note': 'all_maps times are those saved with each map, so cached maps keep the time of the run that made them',
+        'this_run': {**run_timing, 'maps_computed': int(len(computed)), 'maps_cached': int((~results['computed']).sum()),
+                     'explanation_sec': float(computed['explanation_sec'].sum()),
+                     'evaluation_sec': float(computed['evaluation_sec'].sum(skipna=True))},
+        'all_maps': {'maps': len(results), 'images': int(results['image_id'].nunique()),
+                     'explanation_sec': float(results['explanation_sec'].sum()),
+                     'evaluation_sec': float(results['evaluation_sec'].sum(skipna=True)), 'methods': methods}}
+
+
+def duration(seconds):
+    seconds = float(seconds)
+    if seconds < 60:
+        return f'{seconds:.1f}s'
+    minutes, rest = divmod(round(seconds), 60)
+    return f'{minutes}m {rest:02d}s' if minutes < 60 else f'{minutes // 60}h {minutes % 60:02d}m'
+
+
+def plot_time(plt, path, table, title):
+    """Mean explanation time per image against budget, one line per method, on a log scale."""
+    budgets = sorted(table['budget'].unique())
+    positions = {budget: index for index, budget in enumerate(budgets)}
+    figure, ax = plt.subplots(figsize=(7.5, 4.6))
+    for method, group in table.groupby('method', sort=False):
+        color, marker = STYLES.get(method, (MUTED, 'o'))
+        x = [positions[budget] for budget in group['budget']]
+        means, deviations = group['explanation_sec_mean'].to_numpy(), group['explanation_sec_std'].to_numpy()
+        ax.errorbar(x, means, yerr=[np.minimum(deviations, means * .999), deviations], color=color, marker=marker,
+                    markersize=7, linewidth=2, capsize=4, elinewidth=1.2, markeredgecolor='white', label=method)
+        ax.annotate(duration(means[-1]), (x[-1], means[-1]), xytext=(8, 0), textcoords='offset points',
+                    va='center', color=INK, fontsize=9)
+    ax.set_yscale('log')
+    ax.set_xticks(range(len(budgets)), [str(budget) for budget in budgets], rotation=45, ha='right', rotation_mode='anchor')
+    ax.set_xlim(-.4, len(budgets) - .4)
+    ax.set_xlabel('Budget', color=MUTED)
+    ax.set_ylabel('Explanation time per image (s, log scale)', color=MUTED)
+    ax.grid(axis='y', color=GRID, linewidth=.8, which='both')
+    ax.set_axisbelow(True)
+    ax.tick_params(colors=MUTED, length=0, which='both')
+    ax.spines[['top', 'right', 'left']].set_visible(False)
+    ax.spines['bottom'].set_color(GRID)
+    ax.legend(frameon=False, labelcolor=MUTED)
+    figure.suptitle(title, color=INK, x=.01, ha='left', fontsize=11)
+    figure.tight_layout(rect=(0, 0, 1, .93))
+    figure.savefig(path, dpi=160, facecolor='white')
+    plt.close(figure)
+
+
+def write_timing(runtime, folder, results, run_timing, scope):
+    table = timing_table(results)
+    table.to_csv(folder / 'budget_timing.csv', index=False)
+    summary = timing_summary(results, table, run_timing)
+    common.write_json(folder / 'timing_summary.json', summary)
+    plot_time(runtime.plt, folder / 'budget_time.png', table,
+              f'Explanation time by budget\n{scope}. Error bars: SD across images.')
+    print('\nTiming (mean per image; saved times, cached maps included):', flush=True)
+    print(f"{'Method':<18} {'Budget':>6} {'Explain':>9} {'SD':>8} {'Score AUC':>10} {'Masks':>7} {'ms/mask':>8}", flush=True)
+    for _, row in table.iterrows():
+        print(f"{row['method']:<18} {row['budget']:>6} {duration(row['explanation_sec_mean']):>9} "
+              f"{row['explanation_sec_std']:>7.1f}s {duration(row['evaluation_sec_mean']):>10} "
+              f"{row['mask_evaluations_mean']:>7.0f} {row['ms_per_mask']:>8.2f}", flush=True)
+    for method, item in summary['all_maps']['methods'].items():
+        print(f"{method:<18} all budgets: explain {duration(item['explanation_sec'])}, "
+              f"score AUC {duration(item['evaluation_sec'])} over {item['maps']} maps", flush=True)
+    this_run = summary['this_run']
+    print(f"This run: {this_run['maps_computed']} maps computed, {this_run['maps_cached']} cached; "
+          f"explain {duration(this_run['explanation_sec'])}, score AUC {duration(this_run['evaluation_sec'])}"
+          + (f"; model load {duration(this_run['model_load_sec'])}" if 'model_load_sec' in this_run else '')
+          + (f"; wall {duration(this_run['wall_sec'])}" if 'wall_sec' in this_run else ''), flush=True)
+    print(f"All maps: explain {duration(summary['all_maps']['explanation_sec'])}, "
+          f"score AUC {duration(summary['all_maps']['evaluation_sec'])}", flush=True)
 
 
 def explain_image(runtime, args, adapter, record, inputs, folder, signature):
@@ -207,8 +303,13 @@ def explain_image(runtime, args, adapter, record, inputs, folder, signature):
     target = int(np.argmax(scores)) if args.target_class is None else args.target_class
     explainer = runtime.shap_bpt.Explainer(predict, image, num_explained_classes=None,
                                            explained_class_ids=[target], verbose=False)
-    trees = {method: runtime.shap_bpt.build_bpt_from_image(image, **({'prebuilt_partitions': labels} if method == 'BPT+SAM_c' else {}))
-             for method in args.methods if method != 'SAM_c+KernelSHAP'}
+    trees, tree_sec = {}, {}
+    for method in args.methods:
+        if method != 'SAM_c+KernelSHAP':
+            tree_started = time.perf_counter()
+            trees[method] = runtime.shap_bpt.build_bpt_from_image(
+                image, **({'prebuilt_partitions': labels} if method == 'BPT+SAM_c' else {}))
+            tree_sec[method] = time.perf_counter() - tree_started
     shared = {'image_id': image_id, 'target': target, 'class_name': adapter.class_names[target],
               'f_S': float(explainer.base_nuN[0]), 'f_0': float(explainer.base_nu0[0])}
     print(f"{image_id}: explaining {shared['class_name']} (score {shared['f_S']:.3f}, empty {shared['f_0']:.3f})", flush=True)
@@ -216,11 +317,14 @@ def explain_image(runtime, args, adapter, record, inputs, folder, signature):
     for method in args.methods:
         for budget in args.budgets:
             cache = folder / image_id / method.replace('+', '_') / f'B{budget}'
+            before = counters['masks']  # Scoring a new map always calls the model; a cached one does not.
             _, saved = ablation.evaluate_map(runtime, args, image, labels, predict, explainer, target, trees,
                                              method, budget, args.seed, cache, signature, counters)
             rows.append({**shared, 'method': method, 'budget': budget, 'auc_ins': saved['auc_ins'],
                          'auc_del': saved['auc_del'], 'explanation_sec': saved['explanation_sec'],
-                         'mask_evaluations': saved['mask_evaluations']})
+                         'evaluation_sec': saved.get('evaluation_sec', np.nan),
+                         'mask_evaluations': saved['mask_evaluations'], 'tree_sec': tree_sec.get(method, 0.),
+                         'computed': counters['masks'] > before})
     return rows
 
 
@@ -247,15 +351,19 @@ def run(args, adapter=None):
     if device == 'auto':
         device = 'cuda' if runtime.torch.cuda.is_available() else 'mps' if runtime.torch.backends.mps.is_available() else 'cpu'
     device = runtime.torch.device(device)
+    run_started = time.perf_counter()
     if adapter is None:
         adapter = ablation.YoloAdapter(args, device) if args.runner == 'OD_yolo' else common.load_adapter(args.runner, args, device)
     common.write_json(folder / 'study.json', {**identity, 'images': images, 'budgets': args.budgets,
                                               'methods': args.methods, 'tolerance': args.tolerance, 'device': str(device)})
     started, rows, summary = time.perf_counter(), [], None
+    model_load_sec = started - run_started
     for number, record in enumerate(records, 1):
         rows.extend(explain_image(runtime, args, adapter, record, inputs, folder, signature))
         print(f'IMAGE DONE {number}/{len(records)} | {time.perf_counter() - started:.0f}s', flush=True)
-        summary = write_reports(runtime, folder, rows, args, inputs['partition_dir'].name)  # Inspect while it runs.
+        run_timing = {'model_load_sec': model_load_sec, 'wall_sec': time.perf_counter() - run_started,
+                      'images_done': number, 'images': len(records), 'device': str(device)}
+        summary = write_reports(runtime, folder, rows, args, inputs['partition_dir'].name, run_timing)  # Inspect while it runs.
     return summary
 
 

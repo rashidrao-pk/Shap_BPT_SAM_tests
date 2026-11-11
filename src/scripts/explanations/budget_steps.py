@@ -127,7 +127,7 @@ def draw(plt, path, series, labels, xlabel, ylabels, title, tolerance=None, ring
         if tolerance is not None:
             ax.axhline(tolerance, color=MUTED, linestyle=':', linewidth=1.2, label=f'Tolerance {tolerance:g}')
             ax.set_ylim(bottom=0)
-        ax.set_xticks(positions, labels)
+        ax.set_xticks(positions, labels, rotation=45, ha='right', rotation_mode='anchor')  # Long budget labels stay readable.
         ax.set_xlabel(xlabel, color=MUTED)
         ax.set_ylabel(ylabels[metric], color=MUTED)
         ax.set_title(METRICS[metric], color=INK, loc='left', fontweight='bold')

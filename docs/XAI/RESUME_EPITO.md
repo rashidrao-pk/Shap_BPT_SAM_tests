@@ -86,3 +86,7 @@ python src/scripts/check_experiment_progress.py --results-root results/explanati
 ```
 
 Replace `JOBID` with the submitted job ID. The progress scanner covers the shared/YOLO experiment layout. The separate BUSI pipeline writes under `results/busi` and reports its resume counts on startup; its markers are not indexed by that scanner.
+
+## Several budgets in a row
+
+To run one experiment at several budgets in order (for example MS COCO at 3000, then 5000), with automatic follow-up jobs, see [budget runs](BUDGET_RUNS.md).

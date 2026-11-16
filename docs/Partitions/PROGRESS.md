@@ -86,3 +86,13 @@ sibling `.log` and original dataset images are excluded. `--methods` also
 controls which images qualify as complete for the timing sums; storage still
 includes every saved stage. Different folders can contain the same input images.
 The JSON report includes exact byte sizes, timing sums, and timing sample counts.
+
+### Time summary
+
+After the table, the command prints the `Time(subset)` sums grouped three ways:
+
+- **By model:** `SAM1-VB` (SAM-1 ViT-B), `SAM2-T` (tiny), `SAM2-L` (large), read from the folder names.
+- **By dataset:** all of that dataset's folders together.
+- **Total:** every folder listed, also in hours.
+
+`s/image` is the mean recorded time per image. It depends on the dataset (image size, mask target such as `sam_200` or `sam_50`), so compare models within one dataset rather than across the by-model totals. With `--json`, the same numbers are saved under `time_summary`.

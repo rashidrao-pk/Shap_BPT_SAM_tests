@@ -76,6 +76,23 @@ def source_ids(data, limit=None, gt_only=False):
     return set(ids if limit is None else ids[:limit])
 
 
+SAM_SIZES = {'tiny': 'T', 'small': 'S', 'base_plus': 'B+', 'large': 'L'}
+
+
+def sam_label(folder_name):
+    """SAM model and size from a partition folder name, e.g. sam1_vit_b -> SAM1-VB, sam2_large -> SAM2-L."""
+    parts = folder_name.split('_')
+    if 'sam1' in parts:
+        size = parts[parts.index('sam1') + 2:parts.index('sam1') + 3]
+        return f"SAM1-V{size[0].upper()}" if size and parts[parts.index('sam1') + 1] == 'vit' else 'SAM1'
+    if 'sam2' in parts:
+        rest = '_'.join(parts[parts.index('sam2') + 1:])
+        size = next((short for name, short in sorted(SAM_SIZES.items(), key=lambda item: -len(item[0]))
+                     if rest.startswith(name)), None)
+        return f'SAM2-{size}' if size else 'SAM2'
+    return folder_name
+
+
 def format_bytes(size):
     value = float(size)
     for unit in ['B', 'KiB', 'MiB', 'GiB', 'TiB']:
@@ -258,6 +275,44 @@ def check_dataset(config_name, methods=None, limit=None, configured_only=False, 
     return rows
 
 
+def time_summary(rows):
+    """Recorded generation time (subset) grouped by SAM model, by dataset, and in total."""
+    def group(key):
+        groups = {}
+        for row in rows:
+            item = groups.setdefault(key(row), {'folders': 0, 'images': 0, 'seconds': 0.})
+            item['folders'] += 1
+            item['images'] += row['subset_timed_images']
+            item['seconds'] += row['subset_generation_seconds']
+        for item in groups.values():
+            item['seconds_per_image'] = item['seconds'] / item['images'] if item['images'] else None
+        return groups
+    total = group(lambda row: 'Total')['Total'] if rows else {'folders': 0, 'images': 0, 'seconds': 0., 'seconds_per_image': None}
+    order = ['SAM1-VB', 'SAM1-VL', 'SAM1-VH', 'SAM1', 'SAM2-T', 'SAM2-S', 'SAM2-B+', 'SAM2-L', 'SAM2']
+    models = group(lambda row: sam_label(row.get('display_folder', Path(row['folder']).name)))
+    models = dict(sorted(models.items(), key=lambda item: order.index(item[0]) if item[0] in order else len(order)))
+    return {'by_model': models,
+            'by_dataset': group(lambda row: row['dataset']), 'total': total}
+
+
+def print_time_summary(summary):
+    print('\nGeneration time summary (recorded per-image times, subset):')
+    print(f'{"":<14} {"Folders":>7} {"Images":>7} {"Time":>10} {"s/image":>8}')
+    for title, key in [('By model', 'by_model'), ('By dataset', 'by_dataset')]:
+        print(title)
+        for name, item in summary[key].items():
+            per_image = f'{item["seconds_per_image"]:.1f}' if item['seconds_per_image'] is not None else 'n/a'
+            print(f'  {name:<12} {item["folders"]:>7} {item["images"]:>7} '
+                  f'{format_duration(item["seconds"], item["images"]):>10} {per_image:>8}')
+    total = summary['total']
+    per_image = f'{total["seconds_per_image"]:.1f}' if total['seconds_per_image'] is not None else 'n/a'
+    print(f'{"Total":<14} {total["folders"]:>7} {total["images"]:>7} '
+          f'{format_duration(total["seconds"], total["images"]):>10} {per_image:>8}   '
+          f'= {total["seconds"] / 3600:.1f} hours')
+    print('Models: SAM1-VB = SAM-1 ViT-B, SAM2-T = SAM-2 tiny, SAM2-L = SAM-2 large. s/image depends on the '
+          'dataset and mask target, so compare models within a dataset.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', '--configs', nargs='+', default=DEFAULT_CONFIGS)
@@ -303,13 +358,15 @@ def main():
         print('BUSI nested rows: sizes include SAM input_* outputs only; time is inference + refinement, excluding XAI.')
     print('Size = logical file sizes; subset follows --limit, folder includes all files. '
           'Time = sum of recorded per-image generation times (HH:MM:SS), not Slurm wall time.')
+    summary = time_summary(rows)
+    print_time_summary(summary)
     if not args.gt_only and any(row['dataset'].lower() == 'imagenet' for row in rows):
         print('For ImageNet partitions generated with --gt-only, pass --gt-only here as well.')
     for error in errors:
         print(f'ERROR {error["config"]}: {error["error"]}')
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)
-        args.json.write_text(json.dumps({'datasets': rows, 'errors': errors}, indent=2) + '\n')
+        args.json.write_text(json.dumps({'datasets': rows, 'time_summary': summary, 'errors': errors}, indent=2) + '\n')
     if errors:
         raise SystemExit(1)
 

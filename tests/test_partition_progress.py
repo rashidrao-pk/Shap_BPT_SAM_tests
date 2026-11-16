@@ -302,3 +302,15 @@ runpy.run_path(script, run_name='__main__')
             for name in names:
                 self.assertIn(name, hidden.stdout)
             self.assertTrue((nested / 'input_sam1_refined_62.npy').is_file())
+
+
+def test_time_summary_groups_by_model_dataset_and_total():
+    import check_partition_progress as cpp
+    rows = [{'dataset': 'BUSI', 'folder': '/r/BUSI_sam2_large_62', 'subset_timed_images': 2, 'subset_generation_seconds': 20.},
+            {'dataset': 'BUSI', 'folder': '/r/BUSI_sam1_vit_b_62', 'subset_timed_images': 2, 'subset_generation_seconds': 10.},
+            {'dataset': 'CAMO', 'folder': '/r/CAMO_sam2_tiny_62', 'subset_timed_images': 1, 'subset_generation_seconds': 30.}]
+    summary = cpp.time_summary(rows)
+    assert list(summary['by_model']) == ['SAM1-VB', 'SAM2-T', 'SAM2-L']
+    assert summary['by_model']['SAM2-L']['seconds_per_image'] == 10.
+    assert summary['by_dataset']['BUSI'] == {'folders': 2, 'images': 4, 'seconds': 30., 'seconds_per_image': 7.5}
+    assert summary['total']['seconds'] == 60. and summary['total']['images'] == 5

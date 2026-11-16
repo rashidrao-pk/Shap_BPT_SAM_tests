@@ -19,7 +19,7 @@ for directory in [ROOT, ROOT / 'src/scripts']:
     if str(directory) not in sys.path:
         sys.path.insert(0, str(directory))
 
-from check_partition_progress import DEFAULT_CONFIGS
+from check_partition_progress import DEFAULT_CONFIGS, sam_label
 from config_paths import load_path_config, partition_path, resolve_path
 from ground_truth import _coco, annotation_mask, load_ground_truth
 from partition_diagnosis import diagnose, failure_cause, image_table, report, size_band
@@ -289,23 +289,6 @@ def partition_folders(config, all_sam):
         return [folder]
     prefix = folder.name.split('_sam')[0]
     return sorted({folder, *(path for path in folder.parent.glob(f'{prefix}_sam*') if path.is_dir())})
-
-
-SAM_SIZES = {'tiny': 'T', 'small': 'S', 'base_plus': 'B+', 'large': 'L'}
-
-
-def sam_label(folder_name):
-    """SAM model and size from a partition folder name, e.g. sam1_vit_b -> SAM1-VB, sam2_large -> SAM2-L."""
-    parts = folder_name.split('_')
-    if 'sam1' in parts:
-        size = parts[parts.index('sam1') + 2:parts.index('sam1') + 3]
-        return f"SAM1-V{size[0].upper()}" if size and parts[parts.index('sam1') + 1] == 'vit' else 'SAM1'
-    if 'sam2' in parts:
-        rest = '_'.join(parts[parts.index('sam2') + 1:])
-        size = next((short for name, short in sorted(SAM_SIZES.items(), key=lambda item: -len(item[0]))
-                     if rest.startswith(name)), None)
-        return f'SAM2-{size}' if size else 'SAM2'
-    return folder_name
 
 
 def evaluate_folder(name, config, folder, args):

@@ -1,6 +1,6 @@
 # MS-COCO explanations
 
-Run from the repository root on a GPU node. First [download the dataset](../../DATASETS/MS_COCO.md), get the checkpoint ([YOLO11s](../../MODELS/YOLO.md), [DETR](../../MODELS/DETR.md)), and [generate partitions](../../Partitions/DATASETS/MSCOCO_EPITO.md). Make sure `data.mask_dir_final` names the generated folder.
+Run from the repository root on a GPU node. First [download the dataset](../../DATASETS/MS_COCO.md), get the checkpoint ([YOLO11s](../../MODELS/YOLO.md), [DETR](../../MODELS/DETR.md)), and [generate partitions](../../Partitions/DATASETS/MSCOCO.md). Make sure `data.mask_dir_final` names the generated folder.
 
 ## YOLO
 

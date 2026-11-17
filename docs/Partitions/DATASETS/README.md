@@ -1,9 +1,9 @@
 ### DATASETS
 
 - [BUSI](BUSI_SETUP.md)
-- [MS-COCO](MSCOCO_EPITO.md)
+- [MS-COCO](MSCOCO.md)
 - [ImageNet](ImageNet.md)
-- [CAMO](CAMO_EPITO.md)
+- [CAMO](CAMO.md)
 - [FunnyBirds](FUNNYBIRDS.md)
 - [PACO](PACO.md)
 - [Kvasir-SEG](KVASIR_SEG.md)

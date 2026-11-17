@@ -88,18 +88,32 @@ def preview_ground_truth(args, image):
     return load_ground_truth(config, image, shape, gt_class=args.gt_class)
 
 
-def load_view_config(config_name):
+def load_view_config(config_name, sam=None, partition_folder=None):
+    """Load a config; `sam` ('sam1'/'sam2') or `partition_folder` replaces data.mask_dir_final."""
     root = Path(__file__).resolve().parents[2]
     path = Path(config_name).expanduser()
     if not path.suffix:
         path = root / 'src/configs' / f'{config_name}.yaml'
     elif not path.is_absolute():
         path = root / path
-    return root, yaml.safe_load(path.read_text())
+    config = yaml.safe_load(path.read_text())
+    data = config['data']
+    if partition_folder:
+        data['mask_dir_final'] = partition_folder
+    elif sam:
+        key = f'mask_dir_final_{sam}'
+        if not data.get(key):
+            raise ValueError(f'{path.name} has no data.{key}; pass --partition-folder FOLDER_NAME instead')
+        data['mask_dir_final'] = data[key]
+    return root, config
 
 
-def discover_image_ids(config_name, methods, limit, allowed_ids=None):
-    root, config = load_view_config(config_name)
+def partition_choice(args):
+    return {'sam': getattr(args, 'sam', None), 'partition_folder': getattr(args, 'partition_folder', None)}
+
+
+def discover_image_ids(config_name, methods, limit, allowed_ids=None, **choice):
+    root, config = load_view_config(config_name, **choice)
     data = config['data']
     folder = partition_path(config, root)
     if not folder.is_dir():
@@ -130,7 +144,7 @@ def resolve_paths(args, image_index=None):
     """Resolve config paths; explicit CLI paths take precedence."""
     image, partitions, output = args.image, args.partitions, args.output
     if args.config:
-        root, config = load_view_config(args.config)
+        root, config = load_view_config(args.config, **partition_choice(args))
         data = config['data']
         image_id = args.image_id or (image.stem if image else None)
         if image_id is None:
@@ -181,6 +195,12 @@ def main():
                         help='Preview first N completed images from the config partition folder')
     parser.add_argument('--methods', nargs='+', default=['sam', 'refined'],
                         help='Partition suffixes to view (default: sam refined)')
+    choice = parser.add_mutually_exclusive_group()
+    choice.add_argument('--sam', choices=['sam1', 'sam2'],
+                        help="Partitions of this SAM model: the config's data.mask_dir_final_sam1 / _sam2 "
+                             '(default: data.mask_dir_final)')
+    choice.add_argument('--partition-folder', help='Partition folder name under output.partitions, '
+                                                   'e.g. MSCOCO_sam1_vit_b_62_compact-sam_200')
     parser.add_argument('--image', type=Path)
     parser.add_argument('--partitions', type=Path, nargs='+')
     parser.add_argument('--output', type=Path)
@@ -197,10 +217,10 @@ def main():
             parser.error('--limit cannot be combined with explicit image/partition/output paths')
     try:
         if args.limit is not None:
-            _, config = load_view_config(args.config)
+            _, config = load_view_config(args.config, **partition_choice(args))
             image_index = (partimagenet_image_index(config)
                            if config['data'].get('name', '').lower() in {'partimagenet', 'paco'} else None)
-            for image_id in discover_image_ids(args.config, args.methods, args.limit, image_index):
+            for image_id in discover_image_ids(args.config, args.methods, args.limit, image_index, **partition_choice(args)):
                 selected = copy.copy(args)
                 selected.image_id = image_id
                 image, partitions, output = resolve_paths(selected, image_index)

@@ -43,5 +43,5 @@ Cite the [CAMO paper](https://arxiv.org/abs/2105.09451) when using this dataset.
 
 ## Next steps
 
-1. [Generate partitions](../Partitions/DATASETS/CAMO_EPITO.md)
+1. [Generate partitions](../Partitions/DATASETS/CAMO.md)
 2. [Run explanations](../XAI/DATASETS/CAMO.md)

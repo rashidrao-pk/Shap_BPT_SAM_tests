@@ -32,5 +32,5 @@ Masks are grouped by `image_id // 2000`, so image 4500 is in folder `2`.
 
 ## Next steps
 
-1. [Generate partitions](../Partitions/DATASETS/CelebAHQ_EPITO.md)
+1. [Generate partitions](../Partitions/DATASETS/CelebAHQ.md)
 2. [Run explanations](../XAI/DATASETS/CELEBA.md)

@@ -16,7 +16,7 @@ This scores every completed partition with GT, for every dataset and every SAM f
 
 ```bash
 python src/scripts/evaluate_partitions.py                                    # Only the folder each config selects
-python src/scripts/evaluate_partitions.py --config CAMO_epito PACO_epito     # Selected datasets
+python src/scripts/evaluate_partitions.py --config MSCOCO_epito CAMO_epito PACO_epito     # Selected datasets
 python src/scripts/evaluate_partitions.py --limit 100                        # Quick check on fewer images
 python src/scripts/evaluate_partitions.py --no-plots                         # Tables only
 ```
@@ -96,13 +96,13 @@ If an image cannot be read, it is skipped and counted, and the verdict reason sa
 python src/scripts/partition_descriptors.py --all-sam --paper-dir results/paper/T-0d
 ```
 
-| Column | Meaning |
-| --- | --- |
-| `sam_masks`, `target_met` | Raw SAM masks after tuning, and whether the mask-count target was reached |
-| `regions_raw`, `regions_after_cap` | Labels in the saved map, and labels the explainers see after the 255-label cap |
-| `unassigned_share` | Share of pixels in label 0 (no SAM mask) |
-| `generation_sec` | Recorded generation time |
-| `lab_variance` | Within-region colour variance in CIELAB (lower = more homogeneous regions) |
-| `boundary_recall` | Share of Canny edge pixels (σ = 2, thresholds at the 75th/90th gradient percentile) within 2 px of a partition boundary |
+| Column                             | Meaning                                                                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `sam_masks`, `target_met`          | Raw SAM masks after tuning, and whether the mask-count target was reached                                               |
+| `regions_raw`, `regions_after_cap` | Labels in the saved map, and labels the explainers see after the 255-label cap                                          |
+| `unassigned_share`                 | Share of pixels in label 0 (no SAM mask)                                                                                |
+| `generation_sec`                   | Recorded generation time                                                                                                |
+| `lab_variance`                     | Within-region colour variance in CIELAB (lower = more homogeneous regions)                                              |
+| `boundary_recall`                  | Share of Canny edge pixels (σ = 2, thresholds at the 75th/90th gradient percentile) within 2 px of a partition boundary |
 
 `partition_descriptors_summary.csv` gives the medians per folder. These scores describe the partition alone: high boundary recall can also come from many small regions, and neither score says whether regions match objects. It takes about 0.1 s per image on a CPU; `--limit N` scores a random N per folder.

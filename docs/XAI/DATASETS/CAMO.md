@@ -1,6 +1,6 @@
 # CAMO explanations
 
-Run from the repository root on a GPU node. First [download the dataset](../../DATASETS/CAMO.md), get the checkpoint ([ViT-B/16](../../MODELS/VIT_B16.md)), and [generate partitions](../../Partitions/DATASETS/CAMO_EPITO.md). Make sure `data.mask_dir_final` names the generated folder.
+Run from the repository root on a GPU node. First [download the dataset](../../DATASETS/CAMO.md), get the checkpoint ([ViT-B/16](../../MODELS/VIT_B16.md)), and [generate partitions](../../Partitions/DATASETS/CAMO.md). Make sure `data.mask_dir_final` names the generated folder.
 
 ## Run
 

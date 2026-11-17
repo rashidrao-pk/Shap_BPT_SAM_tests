@@ -84,6 +84,9 @@ def create_parser(kind, auc_background=True, road=True):
     if kind in EXPRESSION_RUNNERS:
         parser.add_argument('--all-sentences', action='store_true',
                             help='Explain every expression of each referred object; default: the first one')
+        parser.add_argument('--score', choices=['softmax-expressions', 'cosine'], default='softmax-expressions',
+                            help="softmax over the cosine similarities of all the image's referring expressions, at "
+                                 "CLIP's logit scale (default); cosine = raw image-text cosine similarity")
     if kind == 'OD_DOTA':
         parser.add_argument('--conf', type=float, default=.25,
                             help='YOLO-OBB confidence threshold (Ultralytics and OD_yolo default: 0.25)')
@@ -277,7 +280,12 @@ def expression_records(data, completed, images, folder, args):
     Ordered so that --limit N first takes one object from each of N images.
     """
     from refcoco_data import load_expressions, select_expressions
-    entries = select_expressions(load_expressions(resolve_path(data['expressions'])), args.all_sentences)
+    every = load_expressions(resolve_path(data['expressions']))
+    # Every expression of an image, of every referred object and sentence: the softmax candidates.
+    candidates = {}
+    for entry in sorted(every, key=lambda item: (item['ref_id'], item['sent_id'])):
+        candidates.setdefault(entry['image_stem'], {})[entry['expression']] = None
+    entries = select_expressions(every, args.all_sentences)
     if args.image_ids:
         wanted = set(args.image_ids)
         entries = [entry for entry in entries if entry['record_id'] in wanted or entry['image_stem'] in wanted]
@@ -307,6 +315,7 @@ def expression_records(data, completed, images, folder, args):
             raise FileNotFoundError(images[stem])
         records.append({'image_id': entry['record_id'], 'partition_id': stem, 'image_path': images[stem],
                         'partition_path': folder / f'{stem}_compact.npy', 'partition_metadata': completed[stem],
+                        'image_expressions': list(candidates[stem]),
                         **{key: entry[key] for key in ['expression', 'ann_id', 'ref_id', 'sent_id', 'category']}})
     return records
 
@@ -657,7 +666,8 @@ def run(kind, args, adapter=None):
                'results_dir': run_dir, 'evaluations_dir': evaluations, 'settings': vars(args),
                'ground_truth': inputs['ground_truth'],
                'score_type': 'detection confidence' if kind in DETECTOR_RUNNERS else
-               'image-text cosine similarity' if kind in EXPRESSION_RUNNERS else 'attribute logit' if kind == 'OC_CelebA' else 'classification probability'})
+               ('image-text cosine similarity' if getattr(args, 'score', '') == 'cosine' else
+                'softmax over the image\'s referring expressions (CLIP logits)') if kind in EXPRESSION_RUNNERS else 'attribute logit' if kind == 'OC_CelebA' else 'classification probability'})
     rows = [row for manifest in prior for row in manifest['rows']]
     for manifest in prior:
         image_id = manifest['prediction']['image_id']
@@ -728,6 +738,7 @@ def run(kind, args, adapter=None):
                           'detections': adapter.detections(image)}
             if kind in EXPRESSION_RUNNERS:
                 prediction.update({key: record[key] for key in ['expression', 'ann_id', 'ref_id', 'sent_id', 'category']})
+                prediction.update(score=args.score, image_expressions=record['image_expressions'])
                 prediction['image_stem'] = record['partition_id']
             ground_truth = None
             if args.show_gt:

@@ -142,7 +142,7 @@ def test_partition_gt_lists_each_referred_object(tmp_path):
 class FakeTokenizer:
     def __call__(self, texts, **options):
         import torch
-        return {'input_ids': torch.tensor([[1.0 if 'red' in texts[0] else -1.0]])}
+        return {'input_ids': torch.tensor([[1.0 if 'red' in text else -1.0] for text in texts])}
 
 
 class FakeClip:
@@ -175,9 +175,10 @@ def fake_processor():
         crop_size={'height': 8, 'width': 8}, image_mean=[.5, .5, .5], image_std=[.5, .5, .5]))
 
 
-def clip_adapter():
+def clip_adapter(score='cosine'):
     from model_adapters import ClipAdapter
-    args = SimpleNamespace(model_batch_size=4, checkpoint=None, model='openai/clip-vit-base-patch32', local_files_only=False)
+    args = SimpleNamespace(model_batch_size=4, checkpoint=None, model='openai/clip-vit-base-patch32',
+                           local_files_only=False, score=score)
     return ClipAdapter(args, 'cpu', model=FakeClip(), processor=fake_processor())
 
 
@@ -195,6 +196,47 @@ def test_clip_adapter_scores_cosine_similarity_with_the_current_expression():
     assert -1 <= scores.min() and scores.max() <= 1 and scores[0, 0] > scores[1, 0]
     adapter.set_record({'expression': 'blue man'})
     assert adapter.predict_batch([red])[0, 0] < 0  # Text now points the other way.
+
+
+def test_softmax_score_is_the_probability_of_the_records_own_expression():
+    adapter = clip_adapter('softmax-expressions')
+    red = np.zeros((16, 20, 3), dtype=np.uint8)
+    red[..., 0] = 255
+    gray = np.full((16, 20, 3), 127, dtype=np.uint8)
+    texts = ['red man', 'blue man']
+    adapter.set_record({'expression': 'red man', 'image_expressions': texts})
+    red_score = adapter.predict_batch([red, gray])
+    adapter.set_record({'expression': 'blue man', 'image_expressions': texts})
+    blue_score = adapter.predict_batch([red, gray])
+    np.testing.assert_allclose(red_score + blue_score, 1, atol=1e-6)  # The two candidates share the probability.
+    assert red_score[0, 0] > .5 > blue_score[0, 0]
+    assert adapter.class_names == ['blue man'] and adapter.target == 1
+
+
+def test_softmax_score_needs_two_expressions_including_the_own_one():
+    adapter = clip_adapter('softmax-expressions')
+    with pytest.raises(ValueError, match='at least two'):
+        adapter.set_record({'expression': 'red man', 'image_expressions': ['red man', 'red man']})
+    with pytest.raises(ValueError, match='own expression'):
+        adapter.set_record({'expression': 'red man', 'image_expressions': ['blue man', 'blue car']})
+    assert clip_adapter('cosine').score == 'cosine'
+
+
+def test_records_list_every_expression_of_their_image():
+    import experiment_common as common
+    import tempfile
+    with tempfile.TemporaryDirectory() as folder:
+        config, _ = dataset(Path(folder))
+        args = common.create_parser('VL_RefCOCO').parse_args(['--config', str(config)])
+        assert args.score == 'softmax-expressions'
+        records = common.prepare_inputs('VL_RefCOCO', args)['records']
+    by_image = {}
+    for record in records:
+        assert record['expression'] in record['image_expressions']
+        assert len(record['image_expressions']) == len(set(record['image_expressions']))
+        by_image[record['partition_id']] = record['image_expressions']
+    # The first fixture image has two referred objects; the second only one (real RefCOCO always has two).
+    assert len(by_image[STEMS[0]]) >= 2 and by_image[STEMS[1]] == ['red dog']
 
 
 def test_clip_preprocessing_resizes_the_whole_image():
@@ -276,7 +318,7 @@ def test_explanation_run_credits_the_referred_object(tmp_path):
     for row in table:
         assert row['auc_ins'] and row['road_gap'] and row['best_iou'] and row['pointing_accuracy']
     info = json.loads((result['run_dir'] / 'run_info.json').read_text())
-    assert info['score_type'] == 'image-text cosine similarity'
+    assert info['score_type'] == "softmax over the image's referring expressions (CLIP logits)"
 
 
 def test_road_sets_the_expression_before_scoring(tmp_path):

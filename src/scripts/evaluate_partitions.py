@@ -31,7 +31,7 @@ USE, CAUTION, SKIP = 'USE', 'CAUTION', 'SKIP'
 NEED_PARTITIONS, NO_GT, ERROR = 'NEED PARTITIONS', 'NO GT', 'ERROR'
 NUMBERS = ['found', 'images', 'failed', 'objects', 'cells', 'mean_iou', 'std_iou', 'median_iou', 'grid_median_iou', 'gain',
            'iou_50', 'iou_75', 'iou_90', 'mean_coverage', 'std_coverage', 'median_coverage']
-SUMMARY_FIELDS = ['config', 'partitions', *NUMBERS, 'verdict', 'reason']
+SUMMARY_FIELDS = ['config', 'dataset', 'segmenter', 'partitions', *NUMBERS, 'verdict', 'reason']
 OBJECT_FIELDS = ['config', 'image_id', 'object', 'gt_pixels', 'gt_share', 'size', 'cells', 'best_iou', 'grid_iou',
                  'gt_coverage', 'precision', 'unassigned', 'cause']
 IMAGE_FIELDS = ['config', 'image_id', 'mean_iou', 'objects', 'low_objects', 'cells', 'smallest_object', 'main_cause']
@@ -53,6 +53,9 @@ def parser():
     result.add_argument('--no-plots', dest='plots', action='store_false')
     result.add_argument('--worst', type=int, default=6, help='Worst images to list and draw per dataset')
     result.add_argument('--split-parts', action='store_true', help='Score each CelebA part alone, not the combined face')
+    result.add_argument('--paper-dir', type=Path,
+                        help='Also write the paper table here: partition_quality.csv (one row per dataset and '
+                             'segmenter) and a README.md with this exact command, e.g. results/paper/T-0b')
     return result
 
 
@@ -311,6 +314,7 @@ def evaluate_folder(name, config, folder, args):
         rows.extend(image_rows)
         images += bool(image_rows)  # Images without GT do not use up the limit.
     summary = summarize(label, folder.name, len(ids), images, rows, args, failed)
+    summary.update(dataset=Path(name).stem.removesuffix('_epito'), segmenter=sam_label(folder.name))
     if rows and args.plots and summary['verdict'] in {USE, CAUTION, SKIP}:
         from partition_quality_plots import plot_examples
         cases = {title: case_maps(config, paths[image_id], files[image_id], combine) for title, image_id in example_ids(rows).items()}
@@ -331,6 +335,26 @@ def write_csv(path, rows, fields):
         writer = csv.DictWriter(stream, fields, extrasaction='ignore')
         writer.writeheader()
         writer.writerows(rows)
+
+
+def write_paper_table(folder, summaries, args):
+    """Tidy table for the paper's figure scripts, plus the command that made it."""
+    import shlex
+    from datetime import date
+    folder.mkdir(parents=True, exist_ok=True)
+    write_csv(folder / 'partition_quality.csv', summaries, SUMMARY_FIELDS)
+    command = 'python src/scripts/evaluate_partitions.py ' + ' '.join(shlex.quote(item) for item in sys.argv[1:])
+    (folder / 'README.md').write_text(
+        '# Partition quality (T-0b)\n\n'
+        f'Produced on {date.today().isoformat()} with:\n\n```bash\n{command}\n```\n\n'
+        '`partition_quality.csv` has one row per dataset and segmenter. `segmenter` is read from the partition '
+        'folder name: SAM1-VB = SAM-1 ViT-B, SAM2-T = SAM-2.1 tiny, SAM2-L = SAM-2.1 large. `images` counts images '
+        'with GT that were scored, out of `found` completed partitions. IoU columns are the best union IoU per GT '
+        'object; `gain` is the median lead over a same-size grid. Verdict rules: '
+        f'USE needs median IoU >= {args.use_median_iou:g}, >= {args.use_iou_50:.0%} of objects at IoU 0.5 and '
+        f'gain >= {args.min_gain:g}; SKIP is median IoU < {args.skip_median_iou:g} or no gain. '
+        f'Full outputs: `{args.output_dir}`.\n')
+    print(f'Paper table: {folder / "partition_quality.csv"}', flush=True)
 
 
 def conclusion(summaries, args):
@@ -385,6 +409,8 @@ def run(args):
     if args.plots:
         from partition_quality_plots import plot_all
         plot_all(summaries, rows, args, diagnoses)
+    if args.paper_dir:
+        write_paper_table(args.paper_dir, summaries, args)
     print_table(summaries)
     print(f'\nSaved: {args.output_dir}', flush=True)
     return summaries

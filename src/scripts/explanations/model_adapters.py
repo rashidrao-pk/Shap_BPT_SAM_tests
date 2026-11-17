@@ -244,8 +244,18 @@ def clip_size(crop):
     return int(height), int(width)
 
 
+CLIP_SCORES = ('softmax-expressions', 'cosine')
+
+
 class ClipAdapter:
-    """CLIP image-text cosine similarity for the current referring expression: one output.
+    """CLIP score of the current referring expression: one output.
+
+    score='softmax-expressions' (default): softmax, at CLIP's logit scale, over the cosine similarities
+    between the image and every referring expression of the same image; the output is the probability
+    of the record's own expression. Raw cosine similarity barely reacts to masking (a blank image often
+    matches a short phrase better than the photo), so the softmax compares the expression with the
+    image's other expressions instead, which share that offset.
+    score='cosine': the raw cosine similarity, as in FIxLIP.
 
     The runner calls set_record() before each record. Images are resized whole to the model's
     224x224 input instead of CLIP's usual center crop, so objects near the border stay visible.
@@ -273,19 +283,33 @@ class ClipAdapter:
             transforms.Resize(size, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
             transforms.ToTensor(), transforms.Normalize(settings.image_mean, settings.image_std)])
         self.source = source
-        self.text_features, self.expression = None, None
+        self.score = getattr(args, 'score', CLIP_SCORES[0])
+        if self.score not in CLIP_SCORES:
+            raise ValueError(f'Unknown CLIP score {self.score!r}; use one of {CLIP_SCORES}')
+        scale = getattr(self.model, 'logit_scale', None)
+        self.logit_scale = float(scale.exp()) if scale is not None else 100.  # CLIP ViT-B/32: 100.
+        self.text_features, self.texts, self.target, self.expression = None, None, 0, None
         self.class_names = ['<no expression set>']
 
     def set_record(self, record):
         expression = record['expression']
-        if expression == self.expression:
-            return
-        tokens = self.tokenizer([expression], padding=True, truncation=True, return_tensors='pt')
-        tokens = {key: value.to(self.device) for key, value in tokens.items()}
-        with self.torch.inference_mode():
-            features = self._features(self.model.get_text_features(**tokens))
-        self.text_features = features / features.norm(dim=-1, keepdim=True)
-        self.expression, self.class_names = expression, [expression]
+        if self.score == 'cosine':
+            texts = [expression]
+        else:
+            texts = list(dict.fromkeys(record.get('image_expressions') or []))
+            if expression not in texts:
+                raise ValueError(f"{record.get('image_id', expression)}: image_expressions must contain the record's "
+                                 'own expression for --score softmax-expressions')
+            if len(texts) < 2:
+                raise ValueError(f"{record.get('image_id', expression)}: the softmax needs at least two different "
+                                 'expressions of this image; use --score cosine')
+        if texts != self.texts:
+            tokens = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
+            tokens = {key: value.to(self.device) for key, value in tokens.items()}
+            with self.torch.inference_mode():
+                features = self._features(self.model.get_text_features(**tokens))
+            self.text_features, self.texts = features / features.norm(dim=-1, keepdim=True), texts
+        self.target, self.expression, self.class_names = texts.index(expression), expression, [expression]
 
     def _features(self, output):
         # Transformers 4 returns the projected embedding; newer versions wrap it in an output object.
@@ -296,7 +320,11 @@ class ClipAdapter:
             raise RuntimeError('ClipAdapter.set_record() must be called before scoring')
         image = self._features(self.model.get_image_features(pixel_values=tensor))
         image = image / image.norm(dim=-1, keepdim=True)
-        return image @ self.text_features.T.to(image.dtype)
+        similarity = image @ self.text_features.T.to(image.dtype)  # [batch, expressions]
+        if self.score == 'cosine':
+            return similarity
+        probabilities = self.torch.softmax(self.logit_scale * similarity, dim=-1)
+        return probabilities[:, self.target:self.target + 1]
 
     def predict_batch(self, images):
         import numpy as np

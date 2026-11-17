@@ -16,6 +16,7 @@ import experiment_common as common
 from budget_selection import DEFAULT_CRITERIA, compare_maps, passes, select_budget, load_study
 from config_paths import output_path, resolve_path
 from auc_export import auc_columns
+from yolo_io import YOLO_INPUT_VERSION, ultralytics_input
 
 RUNNERS = ['OC_ResNet', 'OC_VGG', 'OC_ViT', 'COD_ViT', 'OD_DETR', 'OD_yolo',
            'OC_CelebA', 'OC_BUSI', 'OC_PartImageNet', 'OC_FunnyBirds', 'OC_PACO',
@@ -114,7 +115,8 @@ class YoloAdapter:
     def predict_batch(self, images):
         rows = []
         for start in range(0, len(images), self.batch_size):
-            results = self.model.predict(list(images[start:start+self.batch_size]), verbose=False, device=self.device)
+            results = self.model.predict(ultralytics_input(list(images[start:start+self.batch_size])), verbose=False,
+                                         device=self.device)  # RGB arrays -> BGR, as Ultralytics expects
             rows.extend(self.od.yolo_result_to_scores(result, len(self.class_names), self.aggregate) for result in results)
         return np.asarray(rows)
 
@@ -401,6 +403,8 @@ def run(args, adapter=None):
     study['model_files'] = {name: [Path(value).stat().st_size, Path(value).stat().st_mtime_ns]
                             for name in ['checkpoint', 'class_names', 'attribute_file']
                             if (value := getattr(args, name)) is not None}
+    if args.runner == 'OD_yolo':
+        study['yolo_input_version'] = YOLO_INPUT_VERSION  # Pilots made with swapped channels are not reused.
     identity = {key: value for key, value in study.items() if key not in {'state'}}
     for key in ['resume', 'dry_run', 'verbose_level', 'torch_threads', 'fail_fast', 'stop_after_images',
                 'reuse_study', 'progress_every_image']:

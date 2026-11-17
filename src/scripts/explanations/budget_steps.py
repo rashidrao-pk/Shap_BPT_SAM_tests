@@ -19,6 +19,7 @@ import budget_ablation as ablation
 from budget_selection import DEFAULT_CRITERIA
 from config_paths import output_path, resolve_path
 import experiment_common as common
+from yolo_io import YOLO_INPUT_VERSION
 
 DEFAULT_BUDGETS = [20, 50, 100, 500, 1000, 2000]
 DEFAULT_IMAGES = 5
@@ -418,6 +419,9 @@ def run(args, adapter=None):
     identity = {'runner': args.runner, 'model': args.model, 'checkpoint': str(args.checkpoint), 'seed': args.seed,
                 'background': args.bg_type, 'auc_points': args.auc_num_samples, 'target': args.target_class,
                 'aggregation': args.class_aggregation, 'partitions': inputs['partition_dir'].name}
+    if args.runner == 'OD_yolo':
+        # Maps cached with swapped YOLO channels (version 1) get a different signature and are recomputed.
+        identity['yolo_input_version'] = YOLO_INPUT_VERSION
     signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     root = resolve_path(args.output_dir) if args.output_dir else output_path(inputs['config'], 'evaluations') / 'budget_steps'
     folder = root / args.runner / inputs['partition_dir'].name / f'bg_{args.bg_type}' / args.study_name

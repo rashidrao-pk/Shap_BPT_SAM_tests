@@ -10,6 +10,12 @@ For one image and one step:
 
 The plot shows the mean over images, with AUC+ and AUC- in separate panels. Absolute values are used so that a rise on one image and a fall on another do not cancel. Signed changes are also saved.
 
+> **YOLO results before 2026-11-17 are invalid.** YOLO received RGB arrays where Ultralytics expects BGR, so red and blue were swapped. This is fixed (`yolo_io.py`, input version 2). The YOLO signature now includes the input version, so the old cached maps are recomputed automatically when the study is repeated. The MS-COCO/YOLO numbers recorded earlier (settled budgets 5000 and 7000) must be redone:
+>
+> ```bash
+> python src/scripts/explanations/budget_steps.py --budget-steps 20 50 100 500 1000 2000 3000 4000 5000 6000 7000 8000 --limit 20
+> ```
+
 It differs from [the budget ablation](BUDGET_ABLATION.md), which compares each budget with a high-budget reference map. This study needs no reference, so it is much cheaper, but small steps show only that AUC has stopped moving, not that the map is correct.
 
 ## Run it

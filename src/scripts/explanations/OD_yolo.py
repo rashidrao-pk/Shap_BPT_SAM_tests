@@ -33,6 +33,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 import yaml
 from config_paths import output_path, partition_path, evaluation_path
+from yolo_io import YOLO_INPUT_VERSION, ultralytics_input  # Ultralytics expects BGR arrays
 
 
 def load_runtime_dependencies():
@@ -495,7 +496,7 @@ def yolo_result_to_scores(result, num_classes: int, aggregate: str = "sum"):
 
 def predict_yolo(model: YOLO, x, num_classes: int | None = None, verbose: bool = False, aggregate: str = "sum"):
     num_classes = yolo_class_count(model) if num_classes is None else num_classes
-    result = model.predict(source=x, verbose=verbose)[0]
+    result = model.predict(source=ultralytics_input(x), verbose=verbose)[0]  # RGB arrays -> BGR
     return yolo_result_to_scores(result, num_classes=num_classes, aggregate=aggregate)
 
 
@@ -504,7 +505,7 @@ def predict_yolo_batch(model: YOLO, images, num_classes: int | None = None, verb
     images = list(images)
     if not images:
         return np.empty((0, num_classes))
-    results = model.predict(source=images, verbose=verbose, batch=len(images))
+    results = model.predict(source=ultralytics_input(images), verbose=verbose, batch=len(images))  # RGB -> BGR
     return np.stack(
         [yolo_result_to_scores(result, num_classes=num_classes, aggregate=aggregate) for result in results],
         axis=0,
@@ -687,6 +688,34 @@ def latest_matching_file(folder: Path, pattern: str) -> Path | None:
     if not matches:
         return None
     return max(matches, key=lambda path: path.stat().st_mtime)
+
+
+def retire_old_yolo_results(*folders: Path) -> int:
+    """Stop results made with swapped YOLO channels from being resumed.
+
+    A folder is current when its yolo_input.json holds YOLO_INPUT_VERSION. Otherwise its AUC tables are
+    renamed to *.v1_swapped_channels.csv (kept for reference, never read again), so every image is
+    recomputed, and the marker is written. Renaming comes first, so an interruption cannot resurrect them.
+    """
+    retired = 0
+    for folder in folders:
+        marker = folder / "yolo_input.json"
+        try:
+            if json.loads(marker.read_text()).get("yolo_input_version") == YOLO_INPUT_VERSION:
+                continue
+        except (OSError, ValueError, AttributeError):
+            pass
+        if folder.is_dir():
+            for table in folder.glob("auc_results_all_images_*.csv"):
+                table.replace(table.with_name(table.stem + ".v1_swapped_channels.csv"))
+                retired += 1
+        folder.mkdir(parents=True, exist_ok=True)
+        marker.write_text(json.dumps({"yolo_input_version": YOLO_INPUT_VERSION,
+                                      "meaning": "RGB arrays converted to BGR before Ultralytics"}, indent=2) + "\n")
+    if retired:
+        print(f"YOLO: {retired} result table(s) made with swapped colour channels were set aside "
+              "(*.v1_swapped_channels.csv); all images will be recomputed.", flush=True)
+    return retired
 
 
 def load_existing_auc_rows(path_results: Path) -> list[dict]:
@@ -1527,6 +1556,7 @@ def prepare_inputs(project_root, config, args):
 def run(args):
     from all_methods import apply_budget_selection
     apply_budget_selection(args, 'OD_yolo')
+    args.yolo_input_version = YOLO_INPUT_VERSION  # Part of the all-method signature: old markers don't match.
     run_started = time.perf_counter()
     if getattr(args, "explain_all", False):
         from all_methods import validate
@@ -1640,6 +1670,7 @@ def run(args):
     partition_summary_df.to_csv(path_evaluations / "partition_summary.csv", index=False)
 
     failures = []
+    retire_old_yolo_results(path_results, path_evaluations)
     auc_table_rows = load_existing_auc_rows(path_results) if args.resume else []
     skipped_images = 0
     top_classes_n = 5
@@ -1695,7 +1726,7 @@ def run(args):
             has_segmentation = image_has_segmentation(coco, image_no)
             first_iteration_breakdown["segmentation_lookup"] += time.time() - timing_start
             timing_start = time.time()
-            results = model.predict(input_data["image_to_explain"], verbose=False)
+            results = model.predict(ultralytics_input(input_data["image_to_explain"]), verbose=False)
             first_iteration_breakdown["yolo_predict"] += time.time() - timing_start
             top_k_classes = utx.get_top_k_classes(results, model.names, k=top_classes_n)
             path_results_img = path_results / str(image_no)

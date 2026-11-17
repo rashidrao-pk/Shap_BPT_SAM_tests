@@ -255,3 +255,17 @@ def test_labels_name_the_sam_model_and_size():
     assert ep.sam_label('BUSI_sam2_tiny_62_compact-sam_200') == 'SAM2-T'
     assert ep.sam_label('BUSI_sam2_large_62_compact-sam_200') == 'SAM2-L'
     assert ep.sam_label('X_sam2_base_plus_62') == 'SAM2-B+'
+
+
+def test_paper_table_has_one_labelled_row_per_segmenter(tmp_path, monkeypatch):
+    import csv
+    monkeypatch.setattr(sys, 'argv', ['evaluate_partitions.py', '--all-sam', '--paper-dir', str(tmp_path)])
+    args = ep.parser().parse_args(['--paper-dir', str(tmp_path)])
+    rows = [{'config': 'BUSI SAM2-L', 'dataset': 'BUSI', 'segmenter': 'SAM2-L', 'partitions': 'BUSI_sam2_large_62',
+             'images': 647, 'median_iou': .75, 'verdict': 'CAUTION', 'reason': 'x'},
+            {'config': 'BUSI SAM2-T', 'dataset': 'BUSI', 'segmenter': 'SAM2-T', 'partitions': 'BUSI_sam2_tiny_62',
+             'images': 647, 'median_iou': .69, 'verdict': 'CAUTION', 'reason': 'y'}]
+    ep.write_paper_table(tmp_path, rows, args)
+    table = list(csv.DictReader((tmp_path / 'partition_quality.csv').open()))
+    assert [(row['dataset'], row['segmenter']) for row in table] == [('BUSI', 'SAM2-L'), ('BUSI', 'SAM2-T')]
+    assert '--all-sam' in (tmp_path / 'README.md').read_text()

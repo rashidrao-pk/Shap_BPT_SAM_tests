@@ -21,6 +21,14 @@ python src/scripts/evaluate_partitions.py --limit 100                        # Q
 python src/scripts/evaluate_partitions.py --no-plots                         # Tables only
 ```
 
+For the paper, add `--paper-dir results/paper/T-0b`. It also writes `partition_quality.csv` there, with one row per dataset and segmenter (explicit `dataset` and `segmenter` columns), and a `README.md` holding the exact command:
+
+```bash
+python src/scripts/evaluate_partitions.py --all-sam --paper-dir results/paper/T-0b
+```
+
+Check the `found` and `images` columns: a folder whose generation was still running is scored only on its finished images.
+
 ## Outputs
 
 Saved in `results/evaluations/partition_quality/`:
@@ -79,3 +87,22 @@ If an image cannot be read, it is skipped and counted, and the verdict reason sa
 - High coverage with low IoU means one large cell contains the object, so the partition does not follow its boundary. Check `examples/` for this.
 - `Coverage` is the share of the GT inside the best union of cells. Cell 0 is background and is never selected.
 - Results for COCO use each non-crowd annotation, as in the notebook. Other datasets use each label in the GT map, so overlapping parts count only where they are visible.
+
+## Without ground truth
+
+`partition_descriptors.py` describes partitions without GT, model or GPU, one row per image:
+
+```bash
+python src/scripts/partition_descriptors.py --all-sam --paper-dir results/paper/T-0d
+```
+
+| Column | Meaning |
+| --- | --- |
+| `sam_masks`, `target_met` | Raw SAM masks after tuning, and whether the mask-count target was reached |
+| `regions_raw`, `regions_after_cap` | Labels in the saved map, and labels the explainers see after the 63-label cap |
+| `unassigned_share` | Share of pixels in label 0 (no SAM mask) |
+| `generation_sec` | Recorded generation time |
+| `lab_variance` | Within-region colour variance in CIELAB (lower = more homogeneous regions) |
+| `boundary_recall` | Share of Canny edge pixels (σ = 2, thresholds at the 75th/90th gradient percentile) within 2 px of a partition boundary |
+
+`partition_descriptors_summary.csv` gives the medians per folder. These scores describe the partition alone: high boundary recall can also come from many small regions, and neither score says whether regions match objects. It takes about 0.1 s per image on a CPU; `--limit N` scores a random N per folder.

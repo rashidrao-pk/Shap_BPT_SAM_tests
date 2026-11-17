@@ -22,27 +22,31 @@ The three partition methods share the budget: BPT, BPT+SAM_c, and SAM_c+KernelSH
 | `--image-ids` | all | Record IDs (`<image>__ref<r>_s<s>`) or image IDs (all their objects) |
 | `--limit` | all | Records; one object per image first, so `--limit 20` covers 20 photos |
 
-## Known problem: raw cosine similarity has almost no signal
+## Score (`--score`)
 
-Measured locally on 5 expressions from 2 val images (CLIP ViT-B/32, 224×224):
+| Option | Output | Default |
+| --- | --- | --- |
+| `softmax-expressions` | Softmax, at CLIP's logit scale (100), over the cosine similarities between the image and every distinct referring expression of that image (all objects, all sentences); the probability of the record's own expression | Yes |
+| `cosine` | Raw image–text cosine similarity, as in FIxLIP | |
 
-| Expression | Photo | Black | Gray | White | Blurred | Noise |
-| --- | --- | --- | --- | --- | --- | --- |
-| person standing | 0.210 | 0.262 | 0.233 | 0.224 | 0.222 | 0.246 |
-| person in bottom right corner | 0.222 | 0.253 | 0.220 | 0.214 | 0.232 | 0.249 |
-| man on right | 0.227 | 0.224 | 0.204 | 0.206 | 0.223 | 0.206 |
-| monitor far right | 0.234 | 0.248 | 0.227 | 0.218 | 0.244 | 0.248 |
-| computer monitor | 0.256 | 0.254 | 0.231 | 0.218 | 0.249 | 0.253 |
+Each record carries `image_expressions`, the softmax candidates. An image whose expressions are all identical cannot use the softmax; that record fails with a message, and `--score cosine` works for it. RefCOCO images always have at least two referred objects. The score is saved in `run_info.json` (`score_type`) and in each `<record>_predictions.json`.
 
-A blank image often matches the phrase as well as, or better than, the photo. With the default `full` background, the fully masked score was 0.237 for both images, against 0.210 and 0.234 for the photos. The explained difference is then about zero or negative, the BPT and SAM_c maps came out at a scale of 1e-6, and AUC normalised by that difference is unstable. Do not run the full set with this score until it is changed. Options under consideration:
+### Measured behaviour (13 records from 5 val images, CLIP ViT-B/32, `full` background; 2026-11-17)
 
-1. **Softmax over the image's expressions:** how much more the photo matches this expression than the expressions for the image's other referred objects. The shared offset cancels, and a blank image scores 1/k. RefCOCO images always hold at least two objects of the same category, so k ≥ 2.
-2. **Cosine minus a neutral prompt:** similarity to the expression minus similarity to "a photo", which removes the blank-image bias.
-3. **Gray background only,** as FIxLIP masks with the mean colour: the photo then beats the blank image for 4 of 5 expressions, but only by 0.002 to 0.025.
+| Score | Photo beats chance (1/n) | Photo beats blank (f_S > f_0) | Blank vs 1/n, mean / max deviation |
+| --- | --- | --- | --- |
+| `cosine` | – | 7/13 | – (blank 0.19–0.24, photo 0.20–0.28) |
+| `softmax-expressions` | 7/13 | 5/13 | 0.126 / 0.378 |
+| Softmax calibrated by each expression's blank-image similarity (not implemented) | 5/13 | 5/13 | 0.026 / 0.075 |
+
+- **Cosine** barely moves: the photo and the blank image differ by 0.00–0.07, often in the wrong direction.
+- **The softmax** widens the range (for example 0.79 vs 0.06 for "the guy in the background…"). But a blank image does **not** score 1/n. At logit scale 100, small differences in how each phrase matches a blank image become large: generic phrases win ("man": 0.578 on a blank image, chance 0.2).
+- **Calibration** (subtracting each expression's mean similarity over the five blank backgrounds before the softmax, as in contextual calibration) makes the blank score ≈ 1/n. It does not change how often the photo prefers the right expression.
+- **The remaining failures are CLIP's.** On 6–8 of 13 records CLIP prefers another of the image's expressions even on the full photo, often for location phrases ("person left", "monitor far right"). No score built on CLIP ViT-B/32 fixes that. Explanations of those records show what drives CLIP away from the phrase. Report how many records have f_S > f_0.
 
 ## What is explained
 
-For each record, the text is the referring expression, fixed. The score is CLIP's cosine similarity between the image and that text, as in [FIxLIP](https://shapiq.readthedocs.io/en/latest/demos/fixlip/index.html). Masking image regions changes the similarity; the map shows which regions raise or lower it. FIxLIP also explains the text tokens and their interactions with patches; here only the image is explained.
+For each record, the text is the referring expression, fixed. By default the score is the softmax probability of that expression among the image's expressions (see above); `--score cosine` uses the raw cosine similarity, as in [FIxLIP](https://shapiq.readthedocs.io/en/latest/demos/fixlip/index.html). Masking image regions changes the similarity; the map shows which regions raise or lower it. FIxLIP also explains the text tokens and their interactions with patches; here only the image is explained.
 
 In the outputs, `explained_class` is the expression, and `<record>_predictions.json` also holds the object's annotation ID, category and image.
 
@@ -54,7 +58,7 @@ In the outputs, `explained_class` is the expression, and `<record>_predictions.j
 
 - CLIP scores the whole photo against the phrase; it is not a grounding model. A map that highlights the other man in "man on right" shows what CLIP used, not a bug in the method.
 - Compare expressions that name only appearance with those that rely on location ("left", "right"); CLIP is known to be weak on the second kind.
-- The similarity range is narrow (about 0.1 to 0.35). AUC is normalised by the scores of the full and the fully masked image, so it remains comparable.
+- AUC is normalised by the scores of the full and the fully masked image. When f_S < f_0 the curve is flipped; when they are close, AUC is unstable. Check `f_S` and `f_0` in the predictions.
 - Several expressions come from one image; report the number of images next to the number of expressions.
 - CLIP's training data is not public; the photos may have been seen.
 

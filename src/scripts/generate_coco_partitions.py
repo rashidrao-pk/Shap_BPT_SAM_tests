@@ -24,7 +24,7 @@ def create_parser(description=__doc__, default_config='MSCOCO_epito'):
     parser.add_argument('--config', default=default_config)
     parser.add_argument('--model', choices=['sam1', 'sam2'], default='sam2')
     parser.add_argument('--checkpoint', type=Path)
-    parser.add_argument('--sam2-config', default='configs/sam2.1/sam2.1_hiera_t.yaml')
+    parser.add_argument('--sam2-config', default='configs/sam2.1/sam2.1_hiera_l.yaml')
     parser.add_argument('--sam1-variant', choices=['vit_b', 'vit_l', 'vit_h'], default='vit_b')
     parser.add_argument('--device', choices=['auto', 'cuda', 'cpu', 'mps'], default='cuda')
     parser.add_argument('--max-regions', type=int, default=254)
@@ -138,7 +138,7 @@ def partition_folder_name(data, args):
         variant = next((value for suffix, value in variants.items()
                         if stem.endswith('hiera_' + suffix)), None)
         if variant is None:
-            config = Path(getattr(args, 'sam2_config', 'sam2.1_hiera_t.yaml')).stem
+            config = Path(getattr(args, 'sam2_config', 'sam2.1_hiera_l.yaml')).stem
             variant = {'t': 'tiny', 's': 'small', 'b+': 'base_plus', 'l': 'large'}.get(config.rsplit('_', 1)[-1])
         if variant is None:
             raise ValueError('Cannot determine SAM2 model size from checkpoint/config')

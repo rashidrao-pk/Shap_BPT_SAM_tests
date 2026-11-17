@@ -37,15 +37,15 @@ python src/scripts/generate_celebahq_partitions.py \
   --limit 2
 ```
 
-## SAM2.1 Tiny
+## SAM2.1 Large
 
 ```bash
 export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
 python src/scripts/generate_celebahq_partitions.py \
   --config CelebAHQ_epito \
   --model sam2 \
-  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
-  --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda \
   --max-regions 254 \
   --generate_at_least_n_masks 50 \
@@ -57,8 +57,8 @@ Remove `--limit 2` for the full dataset. Resume with the same command; completed
 images with matching settings are skipped. For the SAM2 command above, outputs and log are:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_tiny_254_compact-sam_50/
-/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_tiny_254_compact-sam_50.log
+/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_large_254_compact-sam_50/
+/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_large_254_compact-sam_50.log
 ```
 
 The terminal shows text tqdm; the log records mask counts, saved stage names,
@@ -69,8 +69,8 @@ only `sam` and `refined` are saved. These two stages are capped to 254 labels;
 notebook stages retain their original behavior. The raw mask target of 50 is
 a bounded threshold search, not a guarantee. See [stage details](../EPITO.md#choose-which-partition-stages-to-save).
 
-For Tiny, use `sam2.1_hiera_tiny.pt` with `sam2.1_hiera_t.yaml`, and set
-`data.mask_dir_final` to `CelebAHQ_sam2_tiny_254_compact-sam_50` before previewing.
+For Large, use `sam2.1_hiera_large.pt` with `sam2.1_hiera_l.yaml`, and set
+`data.mask_dir_final` to `CelebAHQ_sam2_large_254_compact-sam_50` before previewing.
 
 ## Preview saved partitions
 
@@ -84,7 +84,7 @@ python src/scripts/view_partitions.py \
 For one image, replace `--limit 5` with `--image-id 0` (or another actual filename
 stem). Use only stages that were saved. Previews and statistics JSON files are
 written under `output.evaluations` in
-`previews/CelebAHQ_sam2_tiny_254_compact-sam_50/`. No GPU is needed for viewing.
+`previews/CelebAHQ_sam2_large_254_compact-sam_50/`. No GPU is needed for viewing.
 
 Generated labels are regions, not semantic face-part names. For attribute
 explanations, use [OC_CelebA](../../XAI/DATASETS/CELEBA.md) after selecting the generated

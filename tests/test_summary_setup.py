@@ -102,9 +102,9 @@ def test_sam2_searches_the_environment_folder(tmp_path, monkeypatch):
     assert setup.check_model(model).status == setup.OK
 
 
-def test_coco_uses_the_large_sam2_checkpoint():
+def test_every_dataset_uses_the_large_sam2_checkpoint():
     assert setup.DATASETS['mscoco'].sam2 == 'sam2_large'
-    assert setup.DATASETS['camo'].sam2 == 'sam2_tiny'
+    assert all(dataset.sam2 == 'sam2_large' for dataset in setup.DATASETS.values())
 
 
 def test_hf_cache_without_weights_is_missing(tmp_path, monkeypatch):

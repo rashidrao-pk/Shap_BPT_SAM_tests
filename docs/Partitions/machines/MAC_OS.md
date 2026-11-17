@@ -174,14 +174,14 @@ from sam2.build_sam import build_sam2
 device = torch.device("mps")
 
 model = build_sam2(
-    "configs/sam2.1/sam2.1_hiera_t.yaml",
-    "checkpoints/sam2.1_hiera_tiny.pt",
+    "configs/sam2.1/sam2.1_hiera_l.yaml",
+    "checkpoints/sam2.1_hiera_large.pt",
     device=device,
     apply_postprocessing=False,
 )
 
 print("=" * 50)
-print("SAM2.1 Tiny loaded successfully!")
+print("SAM2.1 Large loaded successfully!")
 print("Device:", device)
 print("Model:", type(model).__name__)
 print("=" * 50)

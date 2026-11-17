@@ -43,7 +43,7 @@ class Dataset:
     doc: str
     images: int = None       # For the split selected by the default config
     gt: int = None           # Images with annotations, when fewer than all
-    sam2: str = 'sam2_tiny'
+    sam2: str = 'sam2_large'
     models: tuple = ()
     packages: tuple = ()
 

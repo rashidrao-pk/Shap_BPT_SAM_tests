@@ -43,7 +43,7 @@ python src/scripts/run_busi_shapbpt.py run --limit 2 --sam sam1 sam2 --regions 6
 The script invokes existing `generate_sam_partitions.py` and `build_sam_bpt.py`, then estimates the contribution of each leaf using random child-order permutations through the verified binary tree. It saves `attribution.npy`, `explanation.png`, `metrics.json`, and insertion/deletion curves for both SAM variants.
 
 - SAM1 checkpoint: `checkpoints/sam1/sam_vit_b_01ec64.pth`.
-- SAM2.1 Tiny checkpoint: `checkpoints/third_party/sam2/checkpoints/sam2.1_hiera_tiny.pt` (existing symlink expected). Override via `--sam2-checkpoint` if necessary.
+- SAM2.1 Large checkpoint: `checkpoints/third_party/sam2/checkpoints/sam2.1_hiera_large.pt` (existing symlink expected). Override via `--sam2-checkpoint` if necessary.
 - `--budget 504` for 62 leaves evaluates 8 complete permutations × 63 classifier calls = 504 calls **per method per image**, plus 42 insertion/deletion evaluations and the original score.
 - Attributions are **hierarchically constrained random-permutation marginal estimates**. Verify equivalence to the specific original ShapBPT/Owen estimator before reporting these as exact Owen values in a publication.
 - Localization uses positive attributions: point-in-mask and equal-lesion-area top-ranked IoU. Normal images have no lesion mask and report null localization.

@@ -34,8 +34,8 @@ python src/scripts/generate_paco_partitions.py \
 python src/scripts/generate_paco_partitions.py \
   --config PACO_epito \
   --model sam2 \
-  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
-  --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda \
   --max-regions 254 \
   --generate_at_least_n_masks 50 \
@@ -66,7 +66,7 @@ Keep `--save-partitions sam compact`. Saving other stages changes the folder nam
 | Model | Folder                              |
 | ----- | ----------------------------------- |
 | SAM-1 | `PACO_sam1_vit_b_254_compact-sam_50` |
-| SAM-2 | `PACO_sam2_tiny_254_compact-sam_50`  |
+| SAM-2 | `PACO_sam2_large_254_compact-sam_50`  |
 
 The config selects SAM-2. To explain SAM-1 partitions, set `data.mask_dir_final` to the SAM-1 folder.
 

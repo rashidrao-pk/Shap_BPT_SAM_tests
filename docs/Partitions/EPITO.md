@@ -28,10 +28,10 @@ python src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito --limit 2 --dry-run
 ```
 
-For the Tiny/254-region/200-mask commands below, the automatically named output folder is:
+For the Large/254-region/200-mask commands below, the automatically named output folder is:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_254_refined_200/
+/beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_large_254_refined_200/
 ```
 
 Your previous `300_boosted_filled` folder is preserved.
@@ -44,7 +44,7 @@ export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
 python src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito \
   --model sam2 \
-  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --device cuda \
   --max-regions 254 \
   --generate_at_least_n_masks 200 \
@@ -84,7 +84,7 @@ python src/scripts/generate_coco_partitions.py \
 python src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito \
   --model sam2 \
-  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --device cuda \
   --max-regions 254 \
   --save-partitions sam compact \
@@ -96,17 +96,17 @@ mask count, region count, and image time. Run details and per-image counts,
 SAM/refinement timings, total time, and failures are appended to:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_254_refined_200.log
+/beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_large_254_refined_200.log
 ```
 
 To watch the log from another terminal:
 
 ```bash
-tail -f /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_254_refined_200.log
+tail -f /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_large_254_refined_200.log
 ```
 
 The default log filename matches the generated partition folder name. You can also pass
-`--log-file /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_254_refined_200.log` explicitly.
+`--log-file /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_large_254_refined_200.log` explicitly.
 The log stores counts and timings; partition arrays remain in the output folder.
 
 Completed images with matching settings are skipped. Restart the same command
@@ -121,7 +121,7 @@ renamed or moved. Other settings are still checked when resuming.
 For XAI, set `data.mask_dir_final` in the config to the generated folder name.
 Generation prints that value in the log (and directly during `--dry-run`);
 it does not modify your config. The checked-in config selects
-`MSCOCO_sam2_tiny_254_refined_200`.
+`MSCOCO_sam2_large_254_refined_200`.
 
 ## Choose which partition stages to save
 
@@ -189,7 +189,7 @@ Use the notebook's `generate_at_least_n_masks` approach:
 python src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito \
   --model sam2 \
-  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --device cuda \
   --max-regions 254 \
   --generate_at_least_n_masks 400

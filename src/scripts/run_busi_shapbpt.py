@@ -468,8 +468,8 @@ def main():
                         help="Optional legacy baseline override; defaults to --bg-type (full)")
     parser.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
     parser.add_argument("--sam1-checkpoint", type=Path, default=Path("checkpoints/sam1/sam_vit_b_01ec64.pth"))
-    parser.add_argument("--sam2-checkpoint", type=Path, default=Path("checkpoints/third_party/sam2/checkpoints/sam2.1_hiera_tiny.pt"))
-    parser.add_argument("--sam2-config", default="configs/sam2.1/sam2.1_hiera_t.yaml")
+    parser.add_argument("--sam2-checkpoint", type=Path, default=Path("checkpoints/third_party/sam2/checkpoints/sam2.1_hiera_large.pt"))
+    parser.add_argument("--sam2-config", default="configs/sam2.1/sam2.1_hiera_l.yaml")
     parser.add_argument("--points-per-side", type=int, default=24)
     parser.add_argument("--points-per-batch", type=int, default=32)
     parser.add_argument('--explain_all', '--explain-all', action='store_true',

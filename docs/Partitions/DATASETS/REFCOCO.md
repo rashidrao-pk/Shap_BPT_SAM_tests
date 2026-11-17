@@ -19,8 +19,8 @@ python src/scripts/generate_refcoco_partitions.py \
 python src/scripts/generate_refcoco_partitions.py \
   --config RefCOCO_epito \
   --model sam2 \
-  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
-  --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda \
   --max-regions 254 \
   --generate_at_least_n_masks 200 \
@@ -52,7 +52,7 @@ These are COCO `train2014` photos, so the existing MS-COCO partitions (`val2017`
 | Model | Folder                                  |
 | ----- | --------------------------------------- |
 | SAM-1 | `RefCOCO_sam1_vit_b_254_compact-sam_200` |
-| SAM-2 | `RefCOCO_sam2_tiny_254_compact-sam_200`  |
+| SAM-2 | `RefCOCO_sam2_large_254_compact-sam_200`  |
 
 ## Preview
 

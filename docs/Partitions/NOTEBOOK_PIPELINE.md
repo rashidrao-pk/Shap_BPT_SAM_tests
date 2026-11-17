@@ -60,8 +60,8 @@ Inside the existing EPITO GPU environment:
 export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
 python src/scripts/run_notebook_pipeline.py \
   --image data/sample_images/truck.jpg \
-  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
-  --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda \
   --generate_at_least_n_masks 200 \
   --select-count 400 \

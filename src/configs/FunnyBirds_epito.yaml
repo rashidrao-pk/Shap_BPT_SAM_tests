@@ -4,7 +4,7 @@ data:
   name: FunnyBirds
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/FunnyBirds/test
-  mask_dir_final: FunnyBirds_sam2_tiny_254_compact-sam_50
+  mask_dir_final: FunnyBirds_sam2_large_254_compact-sam_50
   ground_truth:
     format: funnybirds
     root: /beegfs/home/mrashid/datasets/FunnyBirds

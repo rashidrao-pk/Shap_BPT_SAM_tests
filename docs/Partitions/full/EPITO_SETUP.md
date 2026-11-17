@@ -181,13 +181,13 @@ if this optional build fails.
 
 ## 6. Download SAM2.1 checkpoints and verify CUDA loading
 
-Download Tiny, used in this guide:
+Download Large, used by every dataset in this repository:
 
 ```bash
 mkdir -p "$SAM2_DIR/checkpoints"
 curl -fL --retry 3 \
-  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt \
-  -o "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt"
+  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt \
+  -o "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt"
 ls -lh "$SAM2_DIR/checkpoints"
 ```
 
@@ -211,12 +211,12 @@ import torch
 from sam2.build_sam import build_sam2
 assert torch.cuda.is_available(), "Run inside the Slurm GPU allocation"
 model = build_sam2(
-    "configs/sam2.1/sam2.1_hiera_t.yaml",
-    str(Path(os.environ["SAM2_DIR"]) / "checkpoints/sam2.1_hiera_tiny.pt"),
+    "configs/sam2.1/sam2.1_hiera_l.yaml",
+    str(Path(os.environ["SAM2_DIR"]) / "checkpoints/sam2.1_hiera_large.pt"),
     device="cuda",
     apply_postprocessing=False,
 )
-print("SAM2.1 Tiny loaded:", type(model).__name__)
+print("SAM2.1 Large loaded:", type(model).__name__)
 print("Device:", next(model.parameters()).device)
 PY
 ```

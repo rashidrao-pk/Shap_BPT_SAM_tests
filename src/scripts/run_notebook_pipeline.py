@@ -80,7 +80,7 @@ def main():
     parser.add_argument('--create-gif', action='store_true')
     parser.add_argument('--save-step-images', action='store_true')
     parser.add_argument('--checkpoint', type=Path)
-    parser.add_argument('--sam2-config', default='configs/sam2.1/sam2.1_hiera_t.yaml')
+    parser.add_argument('--sam2-config', default='configs/sam2.1/sam2.1_hiera_l.yaml')
     parser.add_argument('--device', default='cuda', choices=['cpu', 'cuda', 'mps', 'auto'])
     parser.add_argument('--generate_at_least_n_masks', type=int, default=200)
     parser.add_argument('--mask-tuning-max-steps', type=int, default=3)

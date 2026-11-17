@@ -136,8 +136,8 @@ as the original run, add `--gt-only`, and omit `--limit`:
 python src/scripts/generate_imagenet_partitions.py \
   --config ImageNet_epito --gt-only \
   --model sam2 \
-  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
-  --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda --max-regions 254 \
   --generate_at_least_n_masks 100 \
   --save-partitions sam compact refined

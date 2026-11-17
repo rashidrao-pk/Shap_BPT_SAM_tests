@@ -318,7 +318,7 @@ def test_config_and_runner_are_registered():
     from summarize_ablation_study import DATASETS
     config = yaml.safe_load((ROOT / 'src/configs/DOTA_epito.yaml').read_text())
     assert config['data']['name'] == 'DOTA' and config['data']['ground_truth']['format'] == 'dota'
-    assert config['data']['mask_dir_final'] == 'DOTA_sam2_tiny_254_compact-sam_200'
+    assert config['data']['mask_dir_final'] == 'DOTA_sam2_large_254_compact-sam_200'
     assert config['model']['checkpoint'] == 'src/checkpoints/yolo11s-obb.pt'
     assert common.DEFAULT_CONFIGS['OD_DOTA'] == 'DOTA_epito' and common.MODEL_NAMES['OD_DOTA'] == 'yolo11s-obb'
     assert common.EXPECTED_DATASETS['OD_DOTA'] == 'dota' and 'OD_DOTA' in common.DETECTOR_RUNNERS

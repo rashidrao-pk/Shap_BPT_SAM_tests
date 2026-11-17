@@ -71,14 +71,14 @@ Follow [SigLIP download instructions](../MODELS/SigLIP_BUSI.md), including how t
 
 Skip checkpoints you already have. SAM packages must already be installed through the EPITO setup guide.
 
-SAM2.1 Tiny, matching the routine BUSI command ([Meta download script](https://github.com/facebookresearch/sam2/blob/main/checkpoints/download_ckpts.sh)):
+SAM2.1 Large, matching the routine BUSI command ([Meta download script](https://github.com/facebookresearch/sam2/blob/main/checkpoints/download_ckpts.sh)):
 
 ```bash
 export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
 mkdir -p "$SAM2_DIR/checkpoints"
 curl --fail --location --retry 3 \
-  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt \
-  --output "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt"
+  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt \
+  --output "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt"
 ```
 
 Alternatively, SAM1 ViT-B ([Meta checkpoints](https://github.com/facebookresearch/segment-anything#model-checkpoints)):

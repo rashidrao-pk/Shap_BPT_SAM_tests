@@ -27,7 +27,7 @@ export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
 python src/scripts/generate_imagenet_partitions.py \
   --config ImageNet_epito \
   --model sam2 \
-  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --device cuda \
   --max-regions 254 \
   --generate_at_least_n_masks 200 \
@@ -41,8 +41,8 @@ match. The text tqdm bar shows progress; counts, tuning attempts, and timings go
 to the matching log:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/ImageNet_sam2_tiny_254_refined_200/
-/beegfs/home/mrashid/datasets/SAM_BPT/ImageNet_sam2_tiny_254_refined_200.log
+/beegfs/home/mrashid/datasets/SAM_BPT/ImageNet_sam2_large_254_refined_200/
+/beegfs/home/mrashid/datasets/SAM_BPT/ImageNet_sam2_large_254_refined_200.log
 ```
 
 For each image, the folder contains:

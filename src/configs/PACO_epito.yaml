@@ -5,7 +5,7 @@ data:
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/PACO/images
   annotation_file: /beegfs/home/mrashid/datasets/PACO/annotations/paco_lvis_v1_val.json
-  mask_dir_final: PACO_sam2_tiny_254_compact-sam_50
+  mask_dir_final: PACO_sam2_large_254_compact-sam_50
   ground_truth:
     format: paco
     root: /beegfs/home/mrashid/datasets/PACO

@@ -31,7 +31,7 @@ def parse_args():
     p.add_argument("--output-dir", type=Path, default=Path("results/partitions/sam2"))
     p.add_argument("--checkpoint", type=Path, default=None)
     p.add_argument("--sam2-config", default=None,
-                   help="Hydra config name, e.g. configs/sam2.1/sam2.1_hiera_t.yaml")
+                   help="Hydra config name, e.g. configs/sam2.1/sam2.1_hiera_l.yaml")
     p.add_argument("--sam1-variant", choices=["vit_b", "vit_l", "vit_h"], default="vit_b")
     # SAM automatic mask generator parameters; see SAM docs for details.
     p.add_argument("--points-per-side", type=int, default=32)
@@ -62,10 +62,10 @@ def locate_sam2_checkpoint():
     """Try paths used by this project and its third_party installations."""
     root = Path(__file__).resolve().parents[2]
     candidates = [
-        root / "checkpoints/third_party/sam2/checkpoints/sam2.1_hiera_tiny.pt",
-        root / "third_party/sam2/checkpoints/sam2.1_hiera_tiny.pt",
-        root.parent / "third_party/sam2/checkpoints/sam2.1_hiera_tiny.pt",
-        Path.cwd() / "checkpoints/sam2.1_hiera_tiny.pt",
+        root / "checkpoints/third_party/sam2/checkpoints/sam2.1_hiera_large.pt",
+        root / "third_party/sam2/checkpoints/sam2.1_hiera_large.pt",
+        root.parent / "third_party/sam2/checkpoints/sam2.1_hiera_large.pt",
+        Path.cwd() / "checkpoints/sam2.1_hiera_large.pt",
     ]
     return next((f for f in candidates if f.is_file()), None)
 
@@ -100,7 +100,7 @@ def build_generator(args):
     if args.model == "sam2":
         from sam2.build_sam import build_sam2
         from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
-        config = args.sam2_config or "configs/sam2.1/sam2.1_hiera_t.yaml"
+        config = args.sam2_config or "configs/sam2.1/sam2.1_hiera_l.yaml"
         model = build_sam2(config, str(checkpoint), device=device, apply_postprocessing=False)
         generator = SAM2AutomaticMaskGenerator(
             model=model,

@@ -5,7 +5,7 @@ from matplotlib.colors import ListedColormap
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 import numpy as np
-from partition_colors import colorize
+from partition_colors import colorize, count_title
 
 from partition_diagnosis import CAUSES, SIZES
 
@@ -188,7 +188,7 @@ def plot_examples(cases, label, folder):
         row[3].imshow(case['subsets'], **labels)
         row[4].imshow(outcome_map(case['gt'], case['closest']), cmap=OUTCOME_COLORS, vmin=0, vmax=3,
                       interpolation='nearest')
-        names = [f"{title}\n{case['image_id']}" if case.get('image_id') else title, f"Ground truth\n{case['objects']} object{'s' if case['objects'] != 1 else ''}", f"Partition\n{case['cells']} cells",
+        names = [f"{title}\n{case['image_id']}" if case.get('image_id') else title, f"Ground truth\n{case['objects']} object{'s' if case['objects'] != 1 else ''}", count_title(case['cells'], case.get('sam_cells'), case.get('kind', 'partition')),
                  f"Optimal subsets\nMean IoU {case['mean_iou']:.3f}", f"Masks → GT\nMean IoU {case['closest_iou']:.3f}"]
         for ax, name in zip(row, names):
             ax.set_title(name, fontsize=11)

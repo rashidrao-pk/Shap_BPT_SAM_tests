@@ -22,3 +22,15 @@ def colorize(labels):
     colors[foreground] = label_palette(int(foreground.sum()))
     colors[~foreground] = BACKGROUND
     return colors[inverse.reshape(labels.shape)]
+
+
+def region_count(labels):
+    """Regions in a label map, not counting label 0 (pixels no SAM mask covers)."""
+    return int(np.count_nonzero(np.unique(labels)))
+
+
+def count_title(final, raw=None, kind='compact'):
+    """Panel subtitle: 'SAM → Compact' over '62 → 19 regions', or just the count when the SAM map is missing."""
+    if raw is None:
+        return f'{kind.capitalize()}\n{final} regions'
+    return f'SAM → {kind.capitalize()}\n{raw} → {final} regions'

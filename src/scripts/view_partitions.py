@@ -13,7 +13,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from skimage.segmentation import mark_boundaries
-from partition_colors import colorize
+from partition_colors import colorize, count_title, region_count
 
 
 def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None):
@@ -29,14 +29,22 @@ def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None):
     axes[1, 0].set_title('Original')
     statistics = []
     try:
-        for column, path in enumerate(paths, 1):
+        maps = []
+        for path in paths:
             labels = np.load(path, allow_pickle=False)
             if labels.ndim != 2 or labels.shape != image.shape[:2] or not np.issubdtype(labels.dtype, np.integer):
                 raise ValueError(f'{path}: expected integer labels of shape {image.shape[:2]}')
+            maps.append(labels)
+        kinds = [path.stem.rsplit('_', 1)[-1] for path in paths]
+        sam_regions = region_count(maps[kinds.index('sam')]) if 'sam' in kinds else None
+        for column, (path, labels, kind) in enumerate(zip(paths, maps, kinds), 1):
             unique, counts = np.unique(labels, return_counts=True)
             colored = colorize(labels)  # Label 0 (no SAM mask) is black.
             axes[0, column].imshow(colored)
-            axes[0, column].set_title(f'{path.stem}\n{len(unique)} labels', fontsize=9)
+            regions = region_count(labels)
+            title = (count_title(regions, sam_regions, kind) if kind != 'sam' and sam_regions is not None
+                     else f'{kind.upper() if kind == "sam" else kind.capitalize()}\n{regions} regions')
+            axes[0, column].set_title(f'{path.stem}\n{title}', fontsize=9)
             overlay = (1 - alpha) * (image / 255.) + alpha * colored
             axes[1, column].imshow(mark_boundaries(overlay, labels, color=(1, 1, 1)))
             axes[1, column].set_title('Overlay + boundaries')

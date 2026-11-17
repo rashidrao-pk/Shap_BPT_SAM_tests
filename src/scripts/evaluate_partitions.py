@@ -23,6 +23,7 @@ from check_partition_progress import DEFAULT_CONFIGS, sam_label
 from config_paths import load_path_config, partition_path, resolve_path
 from ground_truth import _coco, annotation_mask, load_ground_truth
 from partition_diagnosis import diagnose, failure_cause, image_table, report, size_band
+from partition_colors import region_count
 from utils_sam_2 import load_partition_array
 
 IGNORED_LABEL = 1000  # ImageNet-S marks pixels to ignore with this value.
@@ -294,6 +295,24 @@ def partition_folders(config, all_sam):
     return sorted({folder, *(path for path in folder.parent.glob(f'{prefix}_sam*') if path.is_dir())})
 
 
+def sam_region_count(partition_file, shape, partition_type):
+    """Regions in the image's full SAM map (<id>_sam.npy next to the partition), or None if it is missing."""
+    name = Path(partition_file).name
+    if partition_type == 'sam' or not name.endswith(f'_{partition_type}.npy'):
+        return None
+    sam = Path(partition_file).with_name(name.removesuffix(f'_{partition_type}.npy') + '_sam.npy')
+    try:
+        return region_count(load_partition_array(sam, shape)) if sam.is_file() else None
+    except (OSError, ValueError):
+        return None
+
+
+def figure_case(config, image_id, image_path, partition_file, combine, partition_type):
+    case = case_maps(config, image_path, partition_file, combine)
+    return {**case, 'image_id': image_id, 'kind': partition_type,
+            'sam_cells': sam_region_count(partition_file, case['partition'].shape, partition_type)}
+
+
 def evaluate_folder(name, config, folder, args):
     suffix = f'_{args.partition_type}.npy'
     files = {path.name.removesuffix(suffix): path for path in folder.glob(f'*{suffix}')} if folder.is_dir() else {}
@@ -317,11 +336,12 @@ def evaluate_folder(name, config, folder, args):
     summary.update(dataset=Path(name).stem.removesuffix('_epito'), segmenter=sam_label(folder.name))
     if rows and args.plots and summary['verdict'] in {USE, CAUTION, SKIP}:
         from partition_quality_plots import plot_examples
-        cases = {title: {**case_maps(config, paths[image_id], files[image_id], combine), 'image_id': image_id}
+        kind = args.partition_type
+        cases = {title: figure_case(config, image_id, paths[image_id], files[image_id], combine, kind)
                  for title, image_id in example_ids(rows).items()}
         plot_examples(cases, label, args.output_dir / 'examples')
-        worst = {f"Worst {number}": {**case_maps(config, paths[item['image_id']], files[item['image_id']], combine),
-                                     'image_id': item['image_id']}
+        worst = {f"Worst {number}": figure_case(config, item['image_id'], paths[item['image_id']],
+                                                files[item['image_id']], combine, kind)
                  for number, item in enumerate(image_table(rows)[:args.worst], 1)}
         plot_examples(worst, label, args.output_dir / 'worst')
     return summary, rows

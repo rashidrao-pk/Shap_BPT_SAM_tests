@@ -36,3 +36,20 @@ def test_sam_region_count_reads_the_sibling_sam_map(tmp_path):
     assert evaluate_partitions.sam_region_count(tmp_path / '139_compact.npy', (3, 4), 'compact') == 11
     assert evaluate_partitions.sam_region_count(tmp_path / '7_compact.npy', (3, 4), 'compact') is None
     assert evaluate_partitions.sam_region_count(tmp_path / '139_sam.npy', (3, 4), 'sam') is None
+
+
+def test_gt_object_names_are_written_inside_their_objects():
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from partition_quality_plots import label_objects
+    gt = np.zeros((40, 60), dtype=np.int64)
+    gt[5:35, 5:25], gt[10:30, 35:55] = 1, 2
+    figure, ax = plt.subplots()
+    label_objects(ax, gt, ['person', 'dog'])
+    placed = {text.get_text(): text.get_position() for text in ax.texts}
+    plt.close(figure)
+    assert set(placed) == {'person', 'dog'}
+    for number, name in enumerate(['person', 'dog'], 1):
+        column, row = placed[name]
+        assert gt[int(row), int(column)] == number

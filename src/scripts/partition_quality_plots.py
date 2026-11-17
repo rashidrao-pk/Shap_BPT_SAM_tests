@@ -173,6 +173,23 @@ def outcome_map(truth, predicted):
     return result
 
 
+def label_objects(ax, gt, names, limit=12):
+    """Write each GT object's name at its most interior visible pixel; the largest `limit` objects only."""
+    from matplotlib import patheffects
+    from scipy import ndimage as ndi
+    areas = np.bincount(gt.ravel(), minlength=len(names) + 1)[1:]
+    for number in np.argsort(-areas)[:limit] + 1:
+        if areas[number - 1] == 0:
+            continue
+        depth = ndi.distance_transform_edt(np.pad(gt == number, 1))[1:-1, 1:-1]
+        row, column = np.unravel_index(np.argmax(depth), depth.shape)
+        ax.text(column, row, names[number - 1], color='white', fontsize=7, ha='center', va='center',
+                path_effects=[patheffects.withStroke(linewidth=2, foreground='black')])
+    if len(names) > limit:
+        ax.text(.98, .02, f'+{len(names) - limit} more', transform=ax.transAxes, color='white', fontsize=7,
+                ha='right', va='bottom', path_effects=[patheffects.withStroke(linewidth=2, foreground='black')])
+
+
 def plot_examples(cases, label, folder):
     """Thesis Figures 4.10 to 4.12: one row each for the highest, middle, and lowest IoU image."""
     folder.mkdir(parents=True, exist_ok=True)
@@ -184,6 +201,8 @@ def plot_examples(cases, label, folder):
         labels = {'vmin': 0, 'vmax': objects, 'cmap': colors, 'interpolation': 'nearest'}
         row[0].imshow(case['image'])
         row[1].imshow(case['gt'], **labels)
+        if case.get('names'):
+            label_objects(row[1], case['gt'], case['names'])
         row[2].imshow(colorize(case['partition']), interpolation='nearest')  # Label 0 (no SAM mask) is black.
         row[3].imshow(case['subsets'], **labels)
         row[4].imshow(outcome_map(case['gt'], case['closest']), cmap=OUTCOME_COLORS, vmin=0, vmax=3,

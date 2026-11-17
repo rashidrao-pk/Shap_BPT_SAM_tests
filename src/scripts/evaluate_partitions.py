@@ -209,8 +209,9 @@ def case_maps(config, image_path, partition_file, combine=False):
     cells = int(partition.max()) + 1
     area = np.bincount(partition.ravel(), minlength=cells)
     closest, owner = np.zeros(cells), np.zeros(cells, dtype=np.int64)
-    ious = []
-    for number, (_, mask, valid) in enumerate(gt_objects(config, Path(image_path), partition.shape, combine), 1):
+    ious, names = [], []
+    for number, (object_name, mask, valid) in enumerate(gt_objects(config, Path(image_path), partition.shape, combine), 1):
+        names.append(str(object_name))
         selected = np.ones(partition.shape, dtype=bool) if valid is None else valid
         iou, _, ids = maximize_iou(mask[selected], partition[selected])
         ious.append(iou)
@@ -224,7 +225,7 @@ def case_maps(config, image_path, partition_file, combine=False):
     closest_map = owner[partition]
     return {'image': image, 'partition': partition, 'gt': gt_labels, 'subsets': subsets, 'closest': closest_map,
             'objects': len(ious), 'cells': int(np.count_nonzero(np.unique(partition))), 'mean_iou': float(np.mean(ious)),
-            'closest_iou': label_iou(gt_labels, closest_map, len(ious))}
+            'closest_iou': label_iou(gt_labels, closest_map, len(ious)), 'names': names}
 
 
 def label_iou(truth, predicted, objects):

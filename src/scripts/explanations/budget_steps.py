@@ -323,7 +323,7 @@ def write_timing(runtime, folder, results, run_timing, scope):
           f"score AUC {duration(summary['all_maps']['evaluation_sec'])}", flush=True)
 
 
-def explain_image(runtime, args, adapter, record, inputs, folder, signature):
+def explain_image(runtime, args, adapter, record, inputs, folder, signature, progress=''):
     image_id = record['image_id']
     image = np.asarray(Image.open(record['image_path']).convert('RGB'))
     _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id, 'compact')
@@ -348,10 +348,12 @@ def explain_image(runtime, args, adapter, record, inputs, folder, signature):
             tree_sec[method] = time.perf_counter() - tree_started
     shared = {'image_id': image_id, 'target': target, 'class_name': adapter.class_names[target],
               'f_S': float(explainer.base_nuN[0]), 'f_0': float(explainer.base_nu0[0])}
-    print(f"{image_id}: explaining {shared['class_name']} (score {shared['f_S']:.3f}, empty {shared['f_0']:.3f})", flush=True)
-    rows = []
+    print(f"{progress} {image_id}: explaining {shared['class_name']} (score {shared['f_S']:.3f}, empty {shared['f_0']:.3f}) | "
+          f"{image.shape[1]}x{image.shape[0]}, {len(np.unique(labels))} SAM_c regions", flush=True)
+    rows, maps = [], len(args.methods) * len(args.budgets)
     for method in args.methods:
         for budget in args.budgets:
+            print(f'{progress} map {len(rows) + 1}/{maps} | {method} | B={budget}', flush=True)
             cache = folder / image_id / method.replace('+', '_') / f'B{budget}'
             before = counters['masks']  # Scoring a new map always calls the model; a cached one does not.
             _, saved = ablation.evaluate_map(runtime, args, image, labels, predict, explainer, target, trees,
@@ -448,10 +450,22 @@ def run(args, adapter=None):
                                                      'methods': args.methods, 'tolerance': args.tolerance, 'device': str(device)})
     started, rows, summary = time.perf_counter(), [], None
     model_load_sec = started - run_started
+    worked = []  # Seconds of images that computed new maps; fully cached images take almost no time.
     for number, record in enumerate(records, 1):
-        rows.extend({**row, 'stratum': strata.get(record['image_id'])}
-                    for row in explain_image(runtime, args, adapter, record, inputs, folder, signature))
-        print(f'IMAGE DONE {number}/{len(records)} | {time.perf_counter() - started:.0f}s', flush=True)
+        stratum = strata.get(record['image_id'])
+        print(f"\n=== IMAGE {number}/{len(records)} | {record['image_id']}"
+              + (f' | {stratum}' if stratum else '') + f' | elapsed {duration(time.perf_counter() - started)} ===', flush=True)
+        image_started = time.perf_counter()
+        image_rows = explain_image(runtime, args, adapter, record, inputs, folder, signature, f'[{number}/{len(records)}]')
+        rows.extend({**row, 'stratum': stratum} for row in image_rows)
+        seconds, new = time.perf_counter() - image_started, sum(row['computed'] for row in image_rows)
+        if new:
+            worked.append(seconds)
+        left = len(records) - number
+        eta = f' | ETA ~{duration(np.mean(worked) * left)} for {left} left' if worked and left else ''
+        print(f"IMAGE DONE {number}/{len(records)} | {record['image_id']} | {duration(seconds)} "
+              f"({new} new maps, {len(image_rows) - new} cached) | elapsed {duration(time.perf_counter() - started)}{eta}",
+              flush=True)
         run_timing = {'model_load_sec': model_load_sec, 'wall_sec': time.perf_counter() - run_started,
                       'images_done': number, 'images': len(records), 'device': str(device)}
         summary = write_reports(runtime, report_folder, rows, args, inputs['partition_dir'].name, run_timing)  # Inspect while it runs.

@@ -41,6 +41,13 @@ def parser(argv=None):
     result.add_argument('--tolerance', type=float, default=DEFAULT_CRITERIA['max_auc_difference'],
                         help='A step counts as settled when its mean change is at most this')
     result.add_argument('--study-name', default='steps')
+    result.add_argument('--select', choices=['random', 'stratified', 'hard'], default='random',
+                        help='random; stratified = equal easy/medium/hard thirds by difficulty; hard = hardest third')
+    result.add_argument('--difficulty-pool', type=int,
+                        help='Score only this many random candidates for difficulty (default: all)')
+    result.add_argument('--check-difficulty', type=int, metavar='BUDGET',
+                        help='No new runs: correlate difficulty features with |AUC(BUDGET) - AUC(largest)| '
+                             'for the images already in this study')
     result.set_defaults(bg_type='full')
     if runner == 'OD_yolo':
         result.set_defaults(model='yolo11s', config='MSCOCO_epito_sam1')
@@ -60,6 +67,10 @@ def validate(args):
         raise ValueError('This study measures AUC, so --no-auc cannot be used')
     if args.tolerance < 0:
         raise ValueError('--tolerance must be nonnegative')
+    if args.select != 'random' and args.image_ids:
+        raise ValueError('--select chooses images itself; drop --image-ids or use --select random')
+    if args.difficulty_pool is not None and args.difficulty_pool < 3:
+        raise ValueError('--difficulty-pool must be at least 3')
 
 
 def select_images(records, limit, seed, explicit):
@@ -188,9 +199,34 @@ def write_reports(runtime, folder, rows, args, partition_name, run_timing=None):
         print(f"{row['method']:<18} {row['from_budget']:>5} -> {row['to_budget']:<5} "
               f"|dAUC+| {row['auc_ins_abs_change_mean']:.4f}  |dAUC-| {row['auc_del_abs_change_mean']:.4f}", flush=True)
     print(f'Settled at tolerance {args.tolerance:g}: {settled}', flush=True)
+    if 'stratum' in results and results['stratum'].notna().any():
+        write_strata(folder, results, args)
     write_timing(runtime, folder, results, run_timing or {}, f'{args.runner}, {partition_name}, {images} images')
     print(f'Saved: {folder}', flush=True)
     return summary
+
+
+def write_strata(folder, results, args):
+    """Step summary and settled budget within each difficulty stratum."""
+    from image_difficulty import STRATA
+    frames, settled = [], {}
+    for stratum in [name for name in STRATA if name in set(results['stratum'])]:
+        part = results[results['stratum'] == stratum]
+        if part['image_id'].nunique() < 2:
+            continue
+        summary = step_summary(step_frame(part))
+        summary.insert(0, 'stratum', stratum)
+        frames.append(summary)
+        settled[stratum] = {'images': int(part['image_id'].nunique()),
+                            'budgets': {method: settled_budget(summary, method, args.tolerance) for method in args.methods}}
+    if not frames:
+        return
+    import pandas as pd
+    pd.concat(frames).to_csv(folder / 'budget_steps_by_stratum.csv', index=False)
+    saved = json.loads((folder / 'settled_budget.json').read_text())
+    common.write_json(folder / 'settled_budget.json', {**saved, 'by_stratum': settled})
+    for stratum, item in settled.items():
+        print(f"Settled ({stratum}, {item['images']} images): {item['budgets']}", flush=True)
 
 
 def timing_table(results):
@@ -328,22 +364,76 @@ def explain_image(runtime, args, adapter, record, inputs, folder, signature):
     return rows
 
 
+def difficulty_pool(args, inputs):
+    records = inputs['records']
+    if args.difficulty_pool and args.difficulty_pool < len(records):
+        order = np.random.default_rng(args.seed).permutation(len(records))[:args.difficulty_pool]
+        records = [records[int(index)] for index in sorted(order)]
+    return records
+
+
+def difficulty_records(args, inputs, folder, count):
+    """Score the pool (features cached in folder/image_difficulty.csv), then pick by stratum."""
+    import image_difficulty as difficulty
+    pool = difficulty_pool(args, inputs)
+    table = difficulty.score(difficulty.feature_table(inputs['config'], pool, folder / 'image_difficulty.csv'))
+    chosen = difficulty.select(table, count, args.seed, args.select)
+    report = folder / args.select
+    report.mkdir(parents=True, exist_ok=True)
+    table.assign(selected=table['image_id'].isin(chosen)).to_csv(report / 'image_difficulty_scored.csv', index=False)
+    by_id = {record['image_id']: record for record in pool}
+    strata = dict(zip(table['image_id'], table['stratum']))
+    print(f"Difficulty pool: {len(table)} images; selected {len(chosen)} ({args.select}): "
+          + ', '.join(f"{name} {sum(strata[image] == name for image in chosen)}" for name in difficulty.STRATA), flush=True)
+    return [by_id[image] for image in chosen], {image: strata[image] for image in chosen}
+
+
+def check_difficulty(args, inputs, report_folder, folder):
+    """Which difficulty features predict slow convergence, on the images this study already ran."""
+    import pandas as pd
+    import image_difficulty as difficulty
+    path = report_folder / 'budget_auc.csv'
+    if not path.is_file():
+        raise FileNotFoundError(f'{path}: run the study first (same --select and --study-name)')
+    results = pd.read_csv(path, dtype={'image_id': str})
+    ran = set(results['image_id'])
+    records = [record for record in inputs['records'] if record['image_id'] in ran]
+    features = difficulty.feature_table(inputs['config'], records, folder / 'image_difficulty.csv')
+    table = difficulty.check_features(results, features, args.check_difficulty)
+    table.to_csv(report_folder / f'difficulty_check_B{args.check_difficulty}.csv', index=False)
+    largest = results['budget'].max()
+    print(f'Spearman of each feature with |AUC({args.check_difficulty}) - AUC({largest})|, '
+          f"{results['image_id'].nunique()} images. 'agrees' = sign as expected for a harder image.", flush=True)
+    print(table.pivot_table(index='feature', columns=['metric', 'method'], values='spearman').round(2).to_string(), flush=True)
+    print(f"Saved: {report_folder / f'difficulty_check_B{args.check_difficulty}.csv'}", flush=True)
+    return table
+
+
 def run(args, adapter=None):
     validate(args)
     count, args.limit = args.limit, None  # Select uniformly from eligible partitions, not the first N filenames.
     inputs = common.prepare_inputs('OD_DETR' if args.runner == 'OD_yolo' else args.runner, args)
-    records = select_images(inputs['records'], count, args.seed, bool(args.image_ids))
     identity = {'runner': args.runner, 'model': args.model, 'checkpoint': str(args.checkpoint), 'seed': args.seed,
                 'background': args.bg_type, 'auc_points': args.auc_num_samples, 'target': args.target_class,
                 'aggregation': args.class_aggregation, 'partitions': inputs['partition_dir'].name}
     signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     root = resolve_path(args.output_dir) if args.output_dir else output_path(inputs['config'], 'evaluations') / 'budget_steps'
     folder = root / args.runner / inputs['partition_dir'].name / f'bg_{args.bg_type}' / args.study_name
+    # Cached maps stay in folder for every selection; each selection reports to its own subfolder.
+    report_folder = folder if args.select == 'random' else folder / args.select
+    if args.check_difficulty is not None:
+        return check_difficulty(args, inputs, report_folder, folder)
+    strata = {}
+    if args.select == 'random':
+        records = select_images(inputs['records'], count, args.seed, bool(args.image_ids))
+    else:
+        records, strata = difficulty_records(args, inputs, folder, count or DEFAULT_IMAGES)
     images = [record['image_id'] for record in records]
-    print(json.dumps({'folder': str(folder), 'images': images, 'budgets': args.budgets, 'methods': args.methods}, indent=2), flush=True)
+    print(json.dumps({'folder': str(report_folder), 'images': images, 'budgets': args.budgets, 'methods': args.methods,
+                      'select': args.select, **({'strata': strata} if strata else {})}, indent=2), flush=True)
     if args.dry_run:
         return None
-    folder.mkdir(parents=True, exist_ok=True)
+    report_folder.mkdir(parents=True, exist_ok=True)
     runtime = common.load_runtime()
     if args.torch_threads:
         runtime.torch.set_num_threads(args.torch_threads)
@@ -354,16 +444,17 @@ def run(args, adapter=None):
     run_started = time.perf_counter()
     if adapter is None:
         adapter = ablation.YoloAdapter(args, device) if args.runner == 'OD_yolo' else common.load_adapter(args.runner, args, device)
-    common.write_json(folder / 'study.json', {**identity, 'images': images, 'budgets': args.budgets,
-                                              'methods': args.methods, 'tolerance': args.tolerance, 'device': str(device)})
+    common.write_json(report_folder / 'study.json', {**identity, 'images': images, 'budgets': args.budgets, 'select': args.select,
+                                                     'methods': args.methods, 'tolerance': args.tolerance, 'device': str(device)})
     started, rows, summary = time.perf_counter(), [], None
     model_load_sec = started - run_started
     for number, record in enumerate(records, 1):
-        rows.extend(explain_image(runtime, args, adapter, record, inputs, folder, signature))
+        rows.extend({**row, 'stratum': strata.get(record['image_id'])}
+                    for row in explain_image(runtime, args, adapter, record, inputs, folder, signature))
         print(f'IMAGE DONE {number}/{len(records)} | {time.perf_counter() - started:.0f}s', flush=True)
         run_timing = {'model_load_sec': model_load_sec, 'wall_sec': time.perf_counter() - run_started,
                       'images_done': number, 'images': len(records), 'device': str(device)}
-        summary = write_reports(runtime, folder, rows, args, inputs['partition_dir'].name, run_timing)  # Inspect while it runs.
+        summary = write_reports(runtime, report_folder, rows, args, inputs['partition_dir'].name, run_timing)  # Inspect while it runs.
     return summary
 
 

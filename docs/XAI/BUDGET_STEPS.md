@@ -43,6 +43,53 @@ Finished maps are reused, so a larger `--limit` only computes the new images, an
 
 For another dataset, pass its runner and config, for example `--runner OC_ResNet --config ImageNet_epito`. Repeat a command to resume it. Plots and tables are refreshed after each image.
 
+## Choose images by difficulty
+
+By default the images are a random sample. To base the budget on harder images, select them by difficulty:
+
+```bash
+# Equal numbers of easy, medium and hard images (recommended)
+python src/scripts/explanations/budget_steps.py --budget-steps 100 500 1000 2000 3000 4000 5000 6000 8000 10000 \
+  --limit 30 --select stratified
+
+# Only the hardest third: a worst-case budget
+python src/scripts/explanations/budget_steps.py --budget-steps 100 500 1000 2000 3000 4000 5000 6000 8000 10000 \
+  --limit 30 --select hard
+```
+
+**How difficulty is measured.** No model is needed; it uses the GT and the SAM_c partition of each candidate image:
+
+| Feature | Harder when |
+| --- | --- |
+| `regions` (SAM_c cells) | more |
+| `objects`, `categories` | more |
+| `max_same_class` (instances of the most repeated class) | more |
+| `smallest_object`, `mean_object` (share of the image) | smaller |
+| `partition_fit` (mean best IoU of the partition with each GT object) | lower |
+
+Each feature is ranked across all candidates. The difficulty score is the mean of those percentile ranks, from 0 (easy) to 1 (hard), and the candidates are split into thirds. `stratified` takes hard, medium and easy images in turn; `hard` takes only the top third. With either, a larger `--limit` keeps the images already chosen. Features are computed once and cached in `image_difficulty.csv`. Scoring about 1000 COCO images takes a few minutes. `--difficulty-pool 300` scores only a random 300.
+
+**Where results go.** Explanations are cached in the `steps/` folder and shared by every selection, so an image already explained is not explained again. Reports go to `steps/stratified/` or `steps/hard/`:
+
+| File | Contents |
+| --- | --- |
+| `image_difficulty_scored.csv` | Every candidate: features, score, stratum, and whether it was selected |
+| `budget_steps_by_stratum.csv` | Step summary within each stratum |
+| `settled_budget.json` | Settled budget overall and `by_stratum` |
+
+The run also prints the settled budget for each stratum, for example "5000 overall; 7000 for hard images".
+
+**Check that the features matter.** Whether these features predict slow convergence is an assumption. Test it on images a study has already run, without running anything new:
+
+```bash
+python src/scripts/explanations/budget_steps.py --budget-steps 20 50 100 500 1000 2000 3000 4000 5000 6000 7000 8000 \
+  --check-difficulty 3000
+```
+
+For each method, metric and feature, this gives the Spearman correlation between the feature and |AUC(3000) − AUC(largest budget)|, the distance an image still has to go. It is saved as `difficulty_check_B3000.csv`. A feature whose sign matches "harder when" and is clearly away from 0 is useful. With about 20 images only strong correlations (|ρ| > 0.45) are distinguishable from noise. Use the same `--select` and `--study-name` as the study you are checking.
+
+**Choosing a budget from strata.** `stratified` gives a budget that represents the dataset and shows how much harder images need. `hard` gives a conservative worst-case budget, which every image in the full run then pays for. Report which one you used.
+
 ## Outputs
 
 Saved in `<evaluations>/budget_steps/<runner>/<partitions>/bg_<background>/steps/`:

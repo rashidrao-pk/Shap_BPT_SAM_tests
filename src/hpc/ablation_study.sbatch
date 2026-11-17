@@ -11,7 +11,7 @@
 #SBATCH --output=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/logs/ablation_study_%j.out
 #SBATCH --error=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/logs/ablation_study_%j.err
 set -euo pipefail
-source /beegfs/home/mrashid/pt_312_sam/bin/activate
+source "${SAM_ENV:-/beegfs/home/mrashid/pt_312_sam}/bin/activate"  # Override with --export=ALL,SAM_ENV=... on other nodes
 unset PYTHONPATH
 export PYTHONUNBUFFERED=1
 exec python "$1/driver.py" "$1/manifest.json"

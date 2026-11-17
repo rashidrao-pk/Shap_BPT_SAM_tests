@@ -18,7 +18,7 @@ if (( $# < 1 )); then
     echo 'Usage: sbatch src/hpc/run_xai.sbatch SCRIPT.py [arguments...]' >&2
     exit 2
 fi
-source /beegfs/home/mrashid/pt_312_sam/bin/activate
+source "${SAM_ENV:-/beegfs/home/mrashid/pt_312_sam}/bin/activate"  # Override with --export=ALL,SAM_ENV=... on other nodes
 unset PYTHONPATH
 export PYTHONUNBUFFERED=1
 export HF_HUB_DISABLE_XET=1

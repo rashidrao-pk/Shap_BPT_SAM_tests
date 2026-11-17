@@ -29,7 +29,7 @@ echo "=========================================="
 
 
 # Environment
-source /beegfs/home/mrashid/pt_312_sam/bin/activate
+source "${SAM_ENV:-/beegfs/home/mrashid/pt_312_sam}/bin/activate"  # Override with --export=ALL,SAM_ENV=... on other nodes
 
 export PYTHONPATH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages
 export PROJECT_DIR=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests

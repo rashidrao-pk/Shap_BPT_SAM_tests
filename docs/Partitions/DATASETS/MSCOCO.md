@@ -56,6 +56,15 @@ python src/scripts/generate_coco_partitions.py --config MSCOCO_epito_sam1 --mode
   --generate_at_least_n_masks 200 --save-partitions sam compact --image-id 76211 28285 57725 113867 11615
 ```
 
+```bash
+python src/scripts/generate_coco_partitions.py \
+  --config MSCOCO_epito \
+  --model sam2 \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
+  --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
+  --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact --image-id 76211 28285 57725 113867 11615
+```
+
 COCO IDs work padded or not (`76211` = `000000076211`); other datasets use the file stem, e.g. `--image-id "benign (12)"`. Unknown IDs stop the run before SAM loads. The output folder and resume settings are the same as for a full run, so the images join the normal folder, and a later full run skips them. Completed images are skipped unless `--overwrite` is given. Every `generate_*_partitions.py` has this flag.
 
 ### Choose the partitions for XAI

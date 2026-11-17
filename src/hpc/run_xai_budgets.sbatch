@@ -31,7 +31,7 @@ if (( CHAIN_LEFT > 0 )); then
     echo "Follow-up job $CHAIN_NEXT_JOB queued ($((CHAIN_LEFT - 1)) more allowed after it)"
 fi
 echo "Job $SLURM_JOB_ID on $(hostname), started $(date)"
-source /beegfs/home/mrashid/pt_312_sam/bin/activate
+source "${SAM_ENV:-/beegfs/home/mrashid/pt_312_sam}/bin/activate"  # Override with --export=ALL,SAM_ENV=... on other nodes
 unset PYTHONPATH
 export PYTHONUNBUFFERED=1
 export HF_HUB_DISABLE_XET=1

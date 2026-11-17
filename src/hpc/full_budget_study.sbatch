@@ -12,7 +12,7 @@
 #SBATCH --output=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/logs/full_budget_%j.out
 #SBATCH --error=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/logs/full_budget_%j.err
 set -euo pipefail
-source /beegfs/home/mrashid/pt_312_sam/bin/activate
+source "${SAM_ENV:-/beegfs/home/mrashid/pt_312_sam}/bin/activate"  # Override with --export=ALL,SAM_ENV=... on other nodes
 unset PYTHONPATH
 export PYTHONUNBUFFERED=1
 STUDY_HOME=$1

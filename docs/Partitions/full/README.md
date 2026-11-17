@@ -9,6 +9,7 @@ If installation is complete, start with **[EPITO.md](EPITO.md)**.
 | EPITO XAI from saved partitions | [XAI/EPITO.md](../XAI/EPITO.md) |
 | SAM1/SAM2 partition generation and optional SAM3 inference | [SAM_Exps.md](SAM_Exps.md) |
 | Optional one-time SAM3 installation and authentication | [EPITO_SAM3.md](EPITO_SAM3.md) |
+| EPITO busy: run on the H100 (`gh`) or L40S nodes | [OTHER_GPU_NODES.md](OTHER_GPU_NODES.md) |
 | macOS installation | [MAC_OS.md](MAC_OS.md) |
 | Conceptual workflow | [FLOW.md](FLOW.md) |
 

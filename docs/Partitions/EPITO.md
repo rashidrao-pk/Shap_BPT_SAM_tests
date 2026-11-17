@@ -110,7 +110,7 @@ The default log filename matches the generated partition folder name. You can al
 The log stores counts and timings; partition arrays remain in the output folder.
 
 Completed images with matching settings are skipped. Restart the same command
-to resume. Use `--overwrite` to regenerate outputs.
+to resume. Use `--overwrite` to regenerate outputs. Add `--image-id ID [ID ...]` to process only specific images (see [MS-COCO](DATASETS/MSCOCO_EPITO.md#specific-images)).
 
 Folders are named automatically as
 `<dataset>_<sam>_<model-size>_<max-regions>_refined_<mask-target>`.

@@ -46,6 +46,18 @@ python src/scripts/generate_coco_partitions.py \
 
 Remove `--limit 1000` for all 5,000 val2017 images. Repeat the same command to resume: completed images are skipped.
 
+### Specific images
+
+Add `--image-id ID [ID ...]` to generate only those images, for example to redo or inspect one:
+
+```bash
+python src/scripts/generate_coco_partitions.py --config MSCOCO_epito_sam1 --model sam1 \
+  --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" --sam1-variant vit_b --device cuda \
+  --generate_at_least_n_masks 200 --save-partitions sam compact --image-id 76211 139
+```
+
+COCO IDs work padded or not (`76211` = `000000076211`); other datasets use the file stem, e.g. `--image-id "benign (12)"`. Unknown IDs stop the run before SAM loads. The output folder and resume settings are the same as for a full run, so the images join the normal folder, and a later full run skips them. Completed images are skipped unless `--overwrite` is given. Every `generate_*_partitions.py` has this flag.
+
 ### Choose the partitions for XAI
 
 | Model | Folder |

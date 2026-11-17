@@ -68,6 +68,9 @@ def create_parser(description=__doc__, default_config='MSCOCO_epito'):
     parser.add_argument('--gt-only', action='store_true',
                         help='ImageNet: generate only images with configured ImageNetS annotations')
     parser.add_argument('--limit', type=int, help='Generate the first N images; omit for all images')
+    parser.add_argument('--image-id', '--image-ids', dest='image_ids', nargs='+', metavar='ID',
+                        help='Generate only these images: COCO-style numeric IDs (76211 or 000000076211) or '
+                             'file stems. Combines with --gt-only; --limit then counts within them')
     parser.add_argument('--overwrite', action='store_true', help='Regenerate completed images')
     parser.add_argument('--log-file', type=Path, help='Append log; default: <output.partitions>/<partition-folder-name>.log')
     parser.add_argument('--dry-run', action='store_true', help='Check paths and list work without loading SAM')
@@ -124,6 +127,28 @@ def select_gt_images(data, images):
     return selected
 
 
+def _id_keys(value):
+    """Spellings that name one image: the text itself and, for numbers, the unpadded integer."""
+    text = str(value).strip()
+    return {text, str(int(text))} if text.isdigit() else {text}
+
+
+def select_image_ids(images, wanted):
+    """Keep the images whose ID or file stem matches one of `wanted`, in dataset order; unknown IDs raise."""
+    wanted_keys = {key: requested for requested in wanted for key in _id_keys(requested)}
+    selected, found = [], set()
+    for image in images:
+        keys = _id_keys(image['id']) | _id_keys(Path(str(image['file_name'])).stem)
+        matches = keys & set(wanted_keys)
+        if matches:
+            selected.append(image)
+            found.update(wanted_keys[key] for key in matches)
+    missing = [requested for requested in wanted if requested not in found]
+    if missing:
+        raise ValueError(f'Image ID(s) not in the configured dataset: {", ".join(missing)}')
+    return selected
+
+
 def partition_folder_name(data, args):
     """Describe the dataset/model/region budget/raw-mask target in the path."""
     dataset = re.sub(r'[^A-Za-z0-9-]', '', data.get('name', 'MSCOCO'))
@@ -154,7 +179,7 @@ def partition_folder_name(data, args):
 def generation_settings(args):
     settings = {key: str(value) if isinstance(value, Path) else value
                 for key, value in vars(args).items()
-                if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file', 'gt_only'}}
+                if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file', 'gt_only', 'image_ids'}}
     # Preserve compatibility with metadata written before stage selection existed.
     for key, default in [('save_partitions', ['sam', 'refined']),
                          ('select_count', 400), ('fill_max_distance', 3)]:
@@ -212,6 +237,8 @@ def _run(args, progress_stream):
     images = collect_images(data)
     if getattr(args, 'gt_only', False):
         images = select_gt_images(data, images)
+    if getattr(args, 'image_ids', None):
+        images = select_image_ids(images, args.image_ids)
     if args.limit is not None:
         images = images[:args.limit]
     if not images:

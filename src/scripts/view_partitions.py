@@ -3,6 +3,7 @@
 import argparse
 import copy
 import json
+import sys
 from pathlib import Path
 import yaml
 from config_paths import output_path, partition_path
@@ -190,7 +191,8 @@ def resolve_paths(args, image_index=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', help='Config name or YAML path')
-    parser.add_argument('--image-id', help='COCO numeric ID or ImageNet filename stem')
+    parser.add_argument('--image-id', '--image-ids', dest='image_ids', nargs='+', metavar='ID',
+                        help='One or more COCO numeric IDs or filename stems')
     parser.add_argument('--limit', type=int,
                         help='Preview first N completed images from the config partition folder')
     parser.add_argument('--methods', nargs='+', default=['sam', 'refined'],
@@ -208,6 +210,9 @@ def main():
     parser.add_argument('--show_gt', '--show-gt', action='store_true', help='Include dataset ground truth in the preview')
     parser.add_argument('--gt-class', help='Optional face part, ImageNetS synset/label ID, or foreground')
     args = parser.parse_args()
+    args.image_id = args.image_ids[0] if args.image_ids else None
+    if args.image_ids and len(args.image_ids) > 1 and any([args.image, args.partitions, args.output]):
+        parser.error('several --image-id values cannot be combined with --image, --partitions or --output')
     if not 0 <= args.alpha <= 1:
         parser.error('--alpha must be between 0 and 1')
     if args.limit is not None:
@@ -226,6 +231,22 @@ def main():
                 image, partitions, output = resolve_paths(selected, image_index)
                 render(image, partitions, output, args.alpha, preview_ground_truth(args, image))
                 print(f'Preview: {output}')
+            return
+        if args.image_ids and len(args.image_ids) > 1:
+            failed = []
+            for image_id in args.image_ids:
+                selected = copy.copy(args)
+                selected.image_id = image_id
+                try:
+                    image, partitions, output = resolve_paths(selected)
+                    render(image, partitions, output, args.alpha, preview_ground_truth(args, image))
+                except (OSError, ValueError) as exc:  # One missing image must not stop the others.
+                    failed.append(image_id)
+                    print(f'{image_id}: {exc}', file=sys.stderr)
+                    continue
+                print(f'Preview: {output}')
+            if failed:
+                parser.error(f'no preview for {len(failed)} of {len(args.image_ids)} images: {" ".join(failed)}')
             return
         image, partitions, output = resolve_paths(args)
     except ValueError as exc:

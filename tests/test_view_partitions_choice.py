@@ -47,3 +47,39 @@ def test_paths_and_preview_folder_follow_the_choice(tmp_path):
     _, partitions, output = resolve_paths(args)
     assert partitions[1] == tmp_path / 'partitions/MSCOCO_sam2_large_254_compact-sam_200/000000076211_compact.npy'
     assert output.parent.name == 'MSCOCO_sam2_large_254_compact-sam_200'
+
+
+def make_images(tmp_path, ids, folder='MSCOCO_sam2_large_254_compact-sam_200'):
+    import numpy as np
+    from PIL import Image
+    (tmp_path / 'images').mkdir(exist_ok=True)
+    (tmp_path / 'partitions' / folder).mkdir(parents=True, exist_ok=True)
+    for number in ids:
+        stem = f'{number:012d}'
+        Image.fromarray(np.full((8, 10, 3), 120, dtype=np.uint8)).save(tmp_path / f'images/{stem}.jpg')
+        labels = np.zeros((8, 10), dtype=np.int64)
+        labels[:, 5:] = 1
+        for method in ('sam', 'compact'):
+            np.save(tmp_path / 'partitions' / folder / f'{stem}_{method}.npy', labels)
+
+
+def test_several_image_ids_render_one_preview_each(tmp_path, monkeypatch, capsys):
+    import view_partitions
+    config = write_config(tmp_path)
+    make_images(tmp_path, [76211, 28285])
+    monkeypatch.setattr(sys, 'argv', ['view_partitions.py', '--config', str(config), '--sam', 'sam2',
+                                      '--image-id', '76211', '28285', '--methods', 'sam', 'compact'])
+    view_partitions.main()
+    previews = tmp_path / 'evaluations/previews/MSCOCO_sam2_large_254_compact-sam_200'
+    assert sorted(path.name for path in previews.glob('*.png')) == ['000000028285.png', '000000076211.png']
+
+
+def test_a_missing_image_does_not_stop_the_others(tmp_path, monkeypatch):
+    import view_partitions
+    config = write_config(tmp_path)
+    make_images(tmp_path, [76211])
+    monkeypatch.setattr(sys, 'argv', ['view_partitions.py', '--config', str(config), '--sam', 'sam2',
+                                      '--image-id', '99999', '76211', '--methods', 'sam', 'compact'])
+    with pytest.raises(SystemExit):
+        view_partitions.main()
+    assert (tmp_path / 'evaluations/previews/MSCOCO_sam2_large_254_compact-sam_200/000000076211.png').is_file()

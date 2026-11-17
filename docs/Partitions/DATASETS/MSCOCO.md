@@ -76,11 +76,12 @@ python src/scripts/view_partitions.py \
   --methods sam compact
 ```
 
-- Or preview one image by its COCO ID:
+- Or preview specific images by COCO ID (one or more, padded or not). An image without partitions is reported and skipped, and the others still render:
 
 ```bash
 python src/scripts/view_partitions.py \
   --config MSCOCO_epito \
+  --sam sam2 \
   --image-id 76211 28285 57725 113867 11615 \
   --methods sam compact
 ```

@@ -19,7 +19,7 @@ Read this whole file first. Do the phases in order and stop at each **GATE** unt
 | Detector score | Same as COCO detectors: for a fixed class, **sum of confidences of all detections of that class** (`--class-aggregation sum`, optional `max`). The explained class is the top class on the unmasked tile, fixed per tile. | Keeps results comparable with `OD_DETR` / `OD_yolo`. State in docs that a map explains the class on the tile, not one object. |
 | GT | Polygon masks rasterised from the oriented boxes. Explanation GT = union of all instances of the explained class. Partition-evaluation GT = one mask per instance. | Same semantics as the COCO branch. |
 | XAI methods | `BPT`, `BPT+SAM_c`, `SAM_c+KernelSHAP`, and with `--explain_all` also LIME, Shap-AA. **Gradient methods (LRP, GradCAM, IDG, GradExp, GradShap) raise `UnsupportedMethod` for detectors in `all_methods.py`; keep that behaviour.** | Existing repo rule. |
-| Partition settings | SAM2 tiny, `--max-regions 62`, `--generate_at_least_n_masks 200`, `--save-partitions sam compact`. | 62 + background label 0 = the 63-label cap of the 64-bit signature. 200 matches COCO; aerial tiles hold many small objects. Folder: `DOTA_sam2_tiny_62_compact-sam_200`. |
+| Partition settings | SAM2 tiny, `--max-regions 254`, `--generate_at_least_n_masks 200`, `--save-partitions sam compact`. | 254 + background label 0 = the 255-label cap of four 64-bit signature words (was 62, one word). 200 matches COCO; aerial tiles hold many small objects. Folder: `DOTA_sam2_tiny_254_compact-sam_200`. |
 
 Do **not**: change any existing dataset's behaviour or paths, change default studies, use GT while generating partitions, tune evaluation thresholds to get a better verdict, commit data or weights, or invent results. Report whatever the verdicts and metrics turn out to be.
 
@@ -181,7 +181,7 @@ data:
   name: DOTA
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/DOTA/prepared_1024/val/images
-  mask_dir_final: DOTA_sam2_tiny_62_compact-sam_200
+  mask_dir_final: DOTA_sam2_tiny_254_compact-sam_200
   ground_truth:
     format: dota
     root: /beegfs/home/mrashid/datasets/DOTA/prepared_1024/val/labels
@@ -212,14 +212,14 @@ python src/scripts/generate_dota_partitions.py \
   --config DOTA_epito --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
-  --device cuda --max-regions 62 --generate_at_least_n_masks 200 \
+  --device cuda --max-regions 254 --generate_at_least_n_masks 200 \
   --save-partitions sam compact --limit 2
 
 # SAM-1 (optional, for the SAM1-vs-SAM2 comparison)
 python src/scripts/generate_dota_partitions.py \
   --config DOTA_epito --model sam1 \
   --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" --sam1-variant vit_b \
-  --device cuda --max-regions 62 --generate_at_least_n_masks 200 \
+  --device cuda --max-regions 254 --generate_at_least_n_masks 200 \
   --save-partitions sam compact --limit 2
 ```
 
@@ -447,7 +447,7 @@ Required statements in the docs (be exact, not hedged away):
 ## 13. Acceptance checklist
 
 - [ ] `download_datasets.py --dataset dota --assets all` downloads, pins hashes, and builds tiles; `--split test` is rejected with a clear message.
-- [ ] `generate_dota_partitions.py --config DOTA_epito --dry-run` passes; 2-tile SAM2 run produces `DOTA_sam2_tiny_62_compact-sam_200`.
+- [ ] `generate_dota_partitions.py --config DOTA_epito --dry-run` passes; 2-tile SAM2 run produces `DOTA_sam2_tiny_254_compact-sam_200`.
 - [ ] `view_partitions.py --show-gt` renders GT outlines on tiles.
 - [ ] `evaluate_partitions.py --config DOTA_epito` writes a verdict, with per-class and size-bin diagnosis.
 - [ ] `OD_DOTA.py --limit 1` and `--explain_all --limit 20` run; gradient methods are reported as unsupported, not crashes; no-detection tiles are skipped with a reason.

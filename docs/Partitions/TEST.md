@@ -14,7 +14,7 @@ python src/scripts/generate_coco_partitions.py \
   --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --limit 500
 ```
@@ -28,7 +28,7 @@ python src/scripts/generate_coco_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --limit 500
 ```
@@ -46,5 +46,5 @@ sbatch src/hpc/run_mscoco_large.sbatch
 ```bash
 squeue -u mrashid
 
-tail -f /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_large_62_refined_200.log
+tail -f /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_large_254_refined_200.log
 ```

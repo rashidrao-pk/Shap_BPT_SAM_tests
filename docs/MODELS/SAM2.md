@@ -36,4 +36,4 @@ For the package installation, see [EPITO setup](../Partitions/full/EPITO_SETUP.m
 --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml
 ```
 
-Partition folders are named `<Dataset>_sam2_tiny_62_compact-sam_<masks>`. The checkpoint and config must be the same size.
+Partition folders are named `<Dataset>_sam2_tiny_254_compact-sam_<masks>`. The checkpoint and config must be the same size.

@@ -460,7 +460,7 @@ def main():
                         help="Recompute XAI; existing SAM partitions/trees are still reused")
     parser.add_argument("--limit", type=int, default=2)
     parser.add_argument("--sam", nargs="+", choices=["sam1", "sam2"], default=["sam1", "sam2"])
-    parser.add_argument("--regions", type=int, default=62)
+    parser.add_argument("--regions", type=int, default=254)
     parser.add_argument("--budget", type=int, default=504, help="minimum budget; rounded down to complete permutations")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--seed", type=int, default=42)

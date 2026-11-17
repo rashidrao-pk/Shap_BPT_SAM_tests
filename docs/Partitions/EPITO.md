@@ -28,10 +28,10 @@ python src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito --limit 2 --dry-run
 ```
 
-For the Tiny/62-region/200-mask commands below, the automatically named output folder is:
+For the Tiny/254-region/200-mask commands below, the automatically named output folder is:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_62_refined_200/
+/beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_254_refined_200/
 ```
 
 Your previous `300_boosted_filled` folder is preserved.
@@ -46,7 +46,7 @@ python src/scripts/generate_coco_partitions.py \
   --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --limit 2
 ```
@@ -55,7 +55,7 @@ Images are selected by ascending COCO image ID. SAM loads once for the batch.
 Each completed image produces:
 
 - `<image_id>_sam.npy`: overlapping masks converted to labels, capped to the region budget.
-- `<image_id>_refined.npy`: filled and refined partition map, capped to 62 regions.
+- `<image_id>_refined.npy`: filled and refined partition map, capped to 254 regions.
 - `<image_id>_results.json`: model, settings, counts, and generation timings.
 
 The filenames match the XAI loader. Empty SAM output produces a single-region
@@ -73,7 +73,7 @@ python src/scripts/generate_coco_partitions.py \
   --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" \
   --sam1-variant vit_b \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --limit 2
 ```
@@ -86,7 +86,7 @@ python src/scripts/generate_coco_partitions.py \
   --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --save-partitions sam compact \
   --generate_at_least_n_masks 200
 ```
@@ -96,17 +96,17 @@ mask count, region count, and image time. Run details and per-image counts,
 SAM/refinement timings, total time, and failures are appended to:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_62_refined_200.log
+/beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_254_refined_200.log
 ```
 
 To watch the log from another terminal:
 
 ```bash
-tail -f /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_62_refined_200.log
+tail -f /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_254_refined_200.log
 ```
 
 The default log filename matches the generated partition folder name. You can also pass
-`--log-file /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_62_refined_200.log` explicitly.
+`--log-file /beegfs/home/mrashid/datasets/SAM_BPT/MSCOCO_sam2_tiny_254_refined_200.log` explicitly.
 The log stores counts and timings; partition arrays remain in the output folder.
 
 Completed images with matching settings are skipped. Restart the same command
@@ -114,14 +114,14 @@ to resume. Use `--overwrite` to regenerate outputs.
 
 Folders are named automatically as
 `<dataset>_<sam>_<model-size>_<max-regions>_refined_<mask-target>`.
-For example, Large with 400 masks uses `MSCOCO_sam2_large_62_refined_400`.
+For example, Large with 400 masks uses `MSCOCO_sam2_large_254_refined_400`.
 Without threshold tuning, the suffix is `singlepass`. Existing folders are not
 renamed or moved. Other settings are still checked when resuming.
 
 For XAI, set `data.mask_dir_final` in the config to the generated folder name.
 Generation prints that value in the log (and directly during `--dry-run`);
 it does not modify your config. The checked-in config selects
-`MSCOCO_sam2_tiny_62_refined_200`.
+`MSCOCO_sam2_tiny_254_refined_200`.
 
 ## Choose which partition stages to save
 
@@ -135,7 +135,7 @@ python src/scripts/generate_coco_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --save-partitions sam compact boosted filled boosted_filled refined \
   --limit 500
@@ -191,7 +191,7 @@ python src/scripts/generate_coco_partitions.py \
   --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 400
 ```
 
@@ -202,7 +202,7 @@ attempts. Each image starts from your original thresholds and reuses the loaded
 model. Retries replace the previous masks; they do not accumulate them.
 
 This is a bounded search, so 400 masks are not guaranteed. Final partition maps
-still have at most `--max-regions 62` labels. The log records each attempt;
+still have at most `--max-regions 254` labels. The log records each attempt;
 `*_results.json` includes `mask_tuning_history` and `mask_target_met`.
 
 Changing the model size, region budget, or target automatically selects a

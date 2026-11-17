@@ -30,7 +30,7 @@ def cap_partition_labels(partitions, max_labels=64):
     return partitions
 
 
-def sanitize_partitions(partitions, image_shape, max_labels=63):
+def sanitize_partitions(partitions, image_shape, max_labels=255):
     p = np.asarray(partitions).astype(np.int64, copy=True)
 
     if p.shape != image_shape[:2]:
@@ -171,7 +171,7 @@ def plot_masks_single(mask, title=None, use_new_colormap=True, show_ratios=True,
     plt.subplots_adjust(wspace=0.05, hspace=0.05)
     plt.show()
 
-def cap_partition_labels_local(partitions, max_labels=63):
+def cap_partition_labels_local(partitions, max_labels=255):
     from scipy import ndimage as ndi
 
     partitions = np.asarray(partitions).astype(np.int64)
@@ -192,7 +192,7 @@ def cap_partition_labels_local(partitions, max_labels=63):
     remap = {old: new for new, old in enumerate(unique_ids)}
     return np.vectorize(remap.get)(partitions).astype(np.uint8)
 
-def sanitize_partitions_local(partitions, image_shape, max_labels=63):
+def sanitize_partitions_local(partitions, image_shape, max_labels=255):
     p = np.asarray(partitions).astype(np.int64, copy=True)
     if p.shape != image_shape[:2]:
         raise ValueError(f'Expected partitions shape {image_shape[:2]}, got {p.shape}')

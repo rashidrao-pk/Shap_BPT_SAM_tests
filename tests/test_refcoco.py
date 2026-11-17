@@ -254,7 +254,7 @@ def test_runner_is_registered():
     import xai_leaderboard
     config = yaml.safe_load((ROOT / 'src/configs/RefCOCO_epito.yaml').read_text())
     assert config['data']['name'] == 'RefCOCO' and config['data']['ground_truth']['format'] == 'refcoco'
-    assert config['data']['mask_dir_final'] == 'RefCOCO_sam2_tiny_62_compact-sam_200'
+    assert config['data']['mask_dir_final'] == 'RefCOCO_sam2_tiny_254_compact-sam_200'
     assert common.DEFAULT_CONFIGS['VL_RefCOCO'] == 'RefCOCO_epito'
     assert common.MODEL_NAMES['VL_RefCOCO'] == 'openai/clip-vit-base-patch32'
     assert common.EXPECTED_DATASETS['VL_RefCOCO'] == 'refcoco' and 'VL_RefCOCO' in common.LOCALIZATION_RUNNERS

@@ -29,7 +29,7 @@ python src/scripts/generate_camo_partitions.py \
   --config CAMO_epito \
   --model sam1 --sam1-variant vit_b \
   --checkpoint checkpoints/sam1/sam_vit_b_01ec64.pth \
-  --device cuda --max-regions 62 \
+  --device cuda --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact \
   --limit 1000
@@ -45,7 +45,7 @@ python src/scripts/generate_camo_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact \
   --limit 2

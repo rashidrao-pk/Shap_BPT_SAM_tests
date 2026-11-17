@@ -1,20 +1,20 @@
 """Options of the SAM-guided BPT merge (T1), shared by every runner.
 
-Defaults reproduce the v1 builder exactly (one 64-bit label word, priority * (|L| + 1) ** 2, label 0
-counted). Non-default settings change three things, and only then:
+Defaults: label words follow the partition ('auto': one 64-bit word for labels < 64, up to four for < 256),
+priority * (|L| + 1) ** 2, label 0 counted. On partitions with at most 63 labels this is exactly the v1 builder. Non-default settings change three things, and only then:
   - the run folder gets a suffix, e.g. bg_full_B3000_W2_a4_e1;
   - with --explain_all, the guided method is named e.g. BPT+SAM_c@a4W2-3000 (no '-' inside the tag,
     because method names are split with rsplit('-', 1));
-  - the partition cap rises to 64 * W - 1 labels.
+  - the partition cap is 64 * W - 1 labels (255 for auto, the default).
 """
-DEFAULTS = {'label_words': 1, 'guide_alpha': 2.0, 'guide_eps': 1.0, 'count_unassigned': True}
+DEFAULTS = {'label_words': 'auto', 'guide_alpha': 2.0, 'guide_eps': 1.0, 'count_unassigned': True}
 MAX_WORDS = 4
 
 
 def add_arguments(parser):
-    group = parser.add_argument_group('SAM-guided BPT merge (defaults reproduce v1)')
-    group.add_argument('--label-words', choices=['1', '2', '4', 'auto'], default='1',
-                       help='64-bit words per label set: 1 (labels < 64), 2 (< 128), 4 (< 256), or auto')
+    group = parser.add_argument_group('SAM-guided BPT merge (defaults reproduce v1 on partitions with < 64 labels)')
+    group.add_argument('--label-words', choices=['1', '2', '4', 'auto'], default='auto',
+                       help='64-bit words per label set: 1 (labels < 64), 2 (< 128), 4 (< 256), or auto (default: as many as needed)')
     group.add_argument('--guide-alpha', default='2',
                        help="Penalty exponent: priority * (|L| + eps) ** alpha. 0 = unguided tree; 'hard' = never "
                             'merge across a label until no other merge is left')
@@ -26,7 +26,7 @@ def add_arguments(parser):
 
 def settings(args):
     """Normalised builder keyword arguments from parsed args (or DEFAULTS when the options are absent)."""
-    words = str(getattr(args, 'label_words', '1'))
+    words = str(getattr(args, 'label_words', 'auto'))
     alpha = str(getattr(args, 'guide_alpha', '2'))
     result = {'label_words': 'auto' if words == 'auto' else int(words),
               'guide_alpha': 'hard' if alpha == 'hard' else float(alpha),
@@ -46,12 +46,12 @@ def is_default(args):
 
 
 def tree_kwargs(args):
-    """Keyword arguments for build_bpt_from_image(..., prebuilt_partitions=...); empty for the defaults."""
-    return {} if is_default(args) else settings(args)
+    """Keyword arguments for build_bpt_from_image(..., prebuilt_partitions=...)."""
+    return settings(args)
 
 
 def max_labels(args):
-    """Partition cap matching the label words: 63 by default, 255 for 4 words or auto."""
+    """Partition cap matching the label words: 255 for auto (default) or 4 words, 127 for 2, 63 for 1."""
     words = settings(args)['label_words']
     return 64 * (MAX_WORDS if words == 'auto' else words) - 1
 

@@ -13,7 +13,7 @@
 
 # Usage (from the repository root, after mkdir -p logs):
 #   sbatch --export=ALL,CHAIN_LEFT=10 src/hpc/run_partitions.sbatch src/scripts/generate_coco_partitions.py \
-#       --config MSCOCO_epito --model sam1 --checkpoint ... --max-regions 126 --save-partitions sam compact \
+#       --config MSCOCO_epito --model sam1 --checkpoint ... --save-partitions sam compact   # 254 regions by default \
 #       --generate_at_least_n_masks 200 --device cuda
 # The generators resume per image. Each job queues its follow-up first (at most CHAIN_LEFT more); when the
 # generator finishes every image (exit 0), the follow-up is cancelled. A time-limit kill leaves it queued.

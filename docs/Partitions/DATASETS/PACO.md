@@ -22,7 +22,7 @@ python src/scripts/generate_paco_partitions.py \
   --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" \
   --sam1-variant vit_b \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact \
   --limit 2
@@ -37,7 +37,7 @@ python src/scripts/generate_paco_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact \
   --limit 2
@@ -53,7 +53,7 @@ python src/scripts/generate_paco_partitions.py \
   --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
-  --device cuda --max-regions 62 --generate_at_least_n_masks 50 \
+  --device cuda --max-regions 254 --generate_at_least_n_masks 50 \
   --save-partitions sam compact --limit 1000
 ```
 
@@ -65,8 +65,8 @@ Keep `--save-partitions sam compact`. Saving other stages changes the folder nam
 
 | Model | Folder                              |
 | ----- | ----------------------------------- |
-| SAM-1 | `PACO_sam1_vit_b_62_compact-sam_50` |
-| SAM-2 | `PACO_sam2_tiny_62_compact-sam_50`  |
+| SAM-1 | `PACO_sam1_vit_b_254_compact-sam_50` |
+| SAM-2 | `PACO_sam2_tiny_254_compact-sam_50`  |
 
 The config selects SAM-2. To explain SAM-1 partitions, set `data.mask_dir_final` to the SAM-1 folder.
 

@@ -6,7 +6,7 @@
 Per image, from the saved compact map and its *_results.json:
   sam_masks          raw SAM masks after mask-count tuning
   regions_raw        non-zero labels in the saved compact map
-  regions_after_cap  non-zero labels the explainers see after the 63-label cap
+  regions_after_cap  non-zero labels the explainers see after the 255-label cap
   target_met         whether the mask-count target was reached
   unassigned_share   share of pixels in label 0 (no SAM mask)
   generation_sec     recorded per-image generation time
@@ -65,7 +65,7 @@ def boundary_recall(image_rgb, labels, tolerance=2, sigma=2.0):
 
 def describe(image_rgb, partition, metadata):
     from utils_sam_2 import cap_partition_labels, sanitize_partitions
-    capped = sanitize_partitions(cap_partition_labels(partition, max_labels=63), image_rgb.shape, max_labels=63)
+    capped = sanitize_partitions(cap_partition_labels(partition, max_labels=255), image_rgb.shape, max_labels=255)
     seconds = metadata.get('total_time_sec')
     return {'sam_masks': metadata.get('n_sam_masks'), 'regions_raw': int(np.count_nonzero(np.unique(partition))),
             'regions_after_cap': int(np.count_nonzero(np.unique(capped))), 'target_met': metadata.get('mask_target_met'),

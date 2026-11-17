@@ -22,7 +22,7 @@ python src/scripts/generate_dota_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --save-partitions sam compact \
   --limit 2
@@ -37,7 +37,7 @@ python src/scripts/generate_dota_partitions.py \
   --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" \
   --sam1-variant vit_b \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --save-partitions sam compact \
   --limit 2
@@ -47,14 +47,14 @@ Remove `--limit 2` to process every tile. Repeat the same command to resume: com
 
 Keep `--save-partitions sam compact`. Without it the folder becomes `..._refined-sam_singlepass`, which the config and budget study do not use.
 
-`--generate_at_least_n_masks 200` matches MS-COCO: tiles hold many small objects. Partitions keep at most 62 regions (plus 0 for unassigned pixels), so a tile with more objects than that merges some of them. That is expected and is what the partition evaluation measures.
+`--generate_at_least_n_masks 200` matches MS-COCO: tiles hold many small objects. Partitions keep at most 254 regions (plus 0 for unassigned pixels), so a tile with more objects than that merges some of them. That is expected and is what the partition evaluation measures.
 
 ### Choose the partitions for XAI
 
 | Model | Folder |
 | --- | --- |
-| SAM-1 | `DOTA_sam1_vit_b_62_compact-sam_200` |
-| SAM-2 | `DOTA_sam2_tiny_62_compact-sam_200` |
+| SAM-1 | `DOTA_sam1_vit_b_254_compact-sam_200` |
+| SAM-2 | `DOTA_sam2_tiny_254_compact-sam_200` |
 
 The config selects SAM-2. To explain SAM-1 partitions, set `data.mask_dir_final` to the SAM-1 folder.
 

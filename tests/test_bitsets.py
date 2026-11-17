@@ -57,11 +57,12 @@ def test_labels_that_do_not_fit_are_rejected():
     labels = np.zeros((4, 4), dtype=np.int64)
     labels[0, 0] = 64
     with pytest.raises(ValueError, match='does not fit'):
-        bpt.BinaryPartitionTreeBuilder(image=image, prebuilt_partitions=labels)
+        bpt.BinaryPartitionTreeBuilder(image=image, prebuilt_partitions=labels, label_words=1)
     bpt.BinaryPartitionTreeBuilder(image=image, prebuilt_partitions=labels, label_words=2)
+    assert bpt.BinaryPartitionTreeBuilder(image=image, prebuilt_partitions=labels).label_words == 2  # auto (default)
     labels[0, 0] = 256
     with pytest.raises(ValueError, match='at most 4'):
-        bpt.BinaryPartitionTreeBuilder(image=image, prebuilt_partitions=labels, label_words='auto')
+        bpt.BinaryPartitionTreeBuilder(image=image, prebuilt_partitions=labels)
     labels[0, 0] = -1
     with pytest.raises(ValueError, match='>= 0'):
         bpt.BinaryPartitionTreeBuilder(image=image, prebuilt_partitions=labels)
@@ -144,13 +145,21 @@ def runner_args(*extra):
     return common, common.create_parser('OC_ResNet').parse_args(['--budget', '3000', *extra])
 
 
+def test_default_auto_words_reproduce_v1_on_small_partitions():
+    for index in IMAGES:
+        partition = GOLDEN[f'partition_{index}']
+        assert partition.max() < 64
+        builder = bpt.BinaryPartitionTreeBuilder(image=GOLDEN[f'image_{index}'], prebuilt_partitions=partition)
+        assert builder.label_words == 1
+
+
 def test_default_options_keep_names_folders_and_signatures():
     import argparse
     common, args = runner_args()
     import all_methods
     import guide_options
-    assert guide_options.is_default(args) and guide_options.tree_kwargs(args) == {}
-    assert guide_options.max_labels(args) == 63
+    assert guide_options.is_default(args) and guide_options.tree_kwargs(args) == guide_options.DEFAULTS
+    assert guide_options.DEFAULTS['label_words'] == 'auto' and guide_options.max_labels(args) == 255
     assert common.run_folder(args).endswith('_B3000')
     assert all_methods.method_names(args)[:3] == ['BPT-3000', 'BPT+SAM_c-3000', 'SAM_c+KernelSHAP-3000']
     old = argparse.Namespace(**{key: value for key, value in vars(args).items() if key not in guide_options.DEFAULTS})
@@ -171,7 +180,7 @@ def test_non_default_options_are_named_and_change_the_signature():
     assert 'BPT+SAM_c@a4W2-3000' in names and names[1].rsplit('-', 1) == ['BPT+SAM_c@a4W2', '3000']
     assert common.run_signature('OC_ResNet', args) != common.run_signature('OC_ResNet', default)
     _, hard = runner_args('--guide-alpha', 'hard', '--no-count-unassigned', '--label-words', 'auto')
-    assert guide_options.method_tag(hard) == '@ahardWautou0' and guide_options.max_labels(hard) == 255
+    assert guide_options.method_tag(hard) == '@ahardu0' and guide_options.max_labels(hard) == 255
     assert common.run_folder(hard).endswith('_Wauto_ahard_e1_u0')
 
 

@@ -4,12 +4,12 @@ BPT+SAM_c builds the BPT with a SAM partition as a guide. Each cluster carries t
 
 | Setting | Builder argument | Runner flag | Default (v1) |
 | --- | --- | --- | --- |
-| Label words W (labels < 64·W) | `label_words` = 1, 2, 4 or `'auto'` | `--label-words` | 1 |
+| Label words W (labels < 64·W) | `label_words` = 1, 2, 4 or `'auto'` | `--label-words` | `auto` (v1: 1) |
 | Penalty exponent α | `guide_alpha` ≥ 0, or `'hard'` | `--guide-alpha` | 2 |
 | Penalty offset ε | `guide_eps` > 0 | `--guide-eps` | 1 |
 | Count label 0 (pixels without a SAM mask) in L | `count_unassigned` | `--no-count-unassigned` turns it off | on |
 
-Priority of a merge: **D × (|L| + ε)^α**. The defaults reproduce the v1 builder exactly, (popcount + 1)², which `tests/golden/bpt_trees_v1.npz` checks bit for bit.
+Priority of a merge: **D × (|L| + ε)^α**. With `auto`, W is the smallest number of words that holds the largest label (⌈(max + 1)/64⌉, at most 4). On a partition with labels < 64 that is one word, so the defaults reproduce the v1 builder exactly, (popcount + 1)², which `tests/golden/bpt_trees_v1.npz` checks bit for bit.
 
 - **α = 0:** the penalty is 1, so the tree equals the unguided BPT (Proposition 2(i)).
 - **α = `'hard'`:** the α → ∞ limit, implemented in lexicographic order rather than as a large α, which would overflow. The priority is |L|·10⁶ + log(1 + D), so every merge inside one label happens before any merge across labels. Every 8-connected component of every label then becomes exactly one tree node (Proposition 2(ii)); `shap_bpt.tree_contains_region(tree, mask)` checks this.
@@ -19,7 +19,7 @@ Priority of a merge: **D × (|L| + ε)^α**. The defaults reproduce the v1 build
 
 - **Any integer type works.** The label map is converted to int64 before bits are set. v1 shifted in the map's own type, so a `uint8` map lost every label ≥ 8, and `uint16` every label ≥ 16. The runners were safe, because their loader already returned int64.
 - **Rejected with `ValueError`, never wrapped:** labels ≥ 64·W, negative labels, or a shape that differs from the image. `'auto'` uses ⌈(max label + 1) / 64⌉ words, at most 4 (labels < 256).
-- **The runner's partition cap follows W:** at most 64·W − 1 labels, counting label 0 (63 by default, 127 for W = 2, 255 for W = 4 or `auto`).
+- **The runner's partition cap follows W:** at most 64·W − 1 labels, counting label 0 (255 by default with `auto`; 63 for W = 1, 127 for W = 2).
 
 ## Runner outputs
 
@@ -30,17 +30,19 @@ With non-default settings:
 
 The defaults leave names, folders and resume signatures exactly as before.
 
-## Partitions with more than 62 regions
+## Default: up to 254 regions
 
-The batch generators do not keep SAM's raw masks, so 126- or 254-region partitions need a new SAM run:
+Partition generation keeps up to **254 regions** by default (`--max-regions 254`, plus label 0), and every dataset config points to the `*_254_*` folders, for example `MSCOCO_sam1_vit_b_254_compact-sam_200`. How many regions an image gets depends on how many masks SAM returns; `--generate_at_least_n_masks` asks SAM for more.
+
+The batch generators do not keep SAM's raw masks, so the 254-region partitions need a new SAM run. Long runs can be chained:
 
 ```bash
 sbatch --export=ALL,CHAIN_LEFT=10 src/hpc/run_partitions.sbatch src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito --model sam1 --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" \
-  --sam1-variant vit_b --device cuda --max-regions 126 --generate_at_least_n_masks 200 --save-partitions sam compact
+  --sam1-variant vit_b --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact
 ```
 
-This writes `MSCOCO_sam1_vit_b_126_compact-sam_200`. The audit labels it `SAM1-VB-K126`. Explain from it with `--label-words 2` (126) or `--label-words 4` (254); with the default W = 1 the loader caps it back to 63 labels.
+The explainers need no flag: `--label-words auto` is the default. Older `*_62_*` folders still work and give exactly the v1 trees. The audit labels them `SAM1-VB-K62`; the new ones are plain `SAM1-VB`. Their explanation results stay valid, and switching to the new folders recomputes each image, because each image's completion record stores its partition path.
 
 ## Build time
 

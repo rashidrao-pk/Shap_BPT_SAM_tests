@@ -29,7 +29,7 @@ python src/scripts/generate_imagenet_partitions.py \
   --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --limit 2
 ```
@@ -41,8 +41,8 @@ match. The text tqdm bar shows progress; counts, tuning attempts, and timings go
 to the matching log:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/ImageNet_sam2_tiny_62_refined_200/
-/beegfs/home/mrashid/datasets/SAM_BPT/ImageNet_sam2_tiny_62_refined_200.log
+/beegfs/home/mrashid/datasets/SAM_BPT/ImageNet_sam2_tiny_254_refined_200/
+/beegfs/home/mrashid/datasets/SAM_BPT/ImageNet_sam2_tiny_254_refined_200.log
 ```
 
 For each image, the folder contains:
@@ -55,7 +55,7 @@ ILSVRC2012_val_00000001_results.json
 
 The JSON records the source image, settings, mask/region counts, tuning history,
 and timing. The target of 200 raw masks is a bounded search; final maps have at
-most 62 regions. Omit the tuning flag for a single pass (`_singlepass` suffix).
+most 254 regions. Omit the tuning flag for a single pass (`_singlepass` suffix).
 Use `--overwrite` to regenerate completed images.
 
 For Large, pass both `--checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt"`
@@ -68,7 +68,7 @@ and annotations; ImageNet XAI integration is a separate step.
 ## Preview generated ImageNet partitions
 
 Set `data.mask_dir_final` in `src/configs/ImageNet_epito.yaml` to the folder you
-generated, for example `ImageNet_sam2_large_62_refined_200`.
+generated, for example `ImageNet_sam2_large_254_refined_200`.
 The viewer reads image, partition, and output paths from that config.
 
 Preview the first five completed images:

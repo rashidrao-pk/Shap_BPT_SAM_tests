@@ -62,7 +62,7 @@ Changing `--tile`, `--stride`, `--min-keep` or the sample gives different tiles 
 
 - **Possible leakage.** The detector was trained on DOTAv1 by Ultralytics, whose headline accuracy is measured on the DOTA test server; detectors scored that way are usually trained on train and val. The weights record their training file only as `DOTAv1-ms.yaml`, so whether val was used could not be confirmed. Treat results as a benchmark on familiar data, not on unseen data.
 - **A box is not an outline.** GT is the filled oriented box, which also covers ground around a ship or a plane's wings. IoU and pointing scores are capped by the box shape.
-- **Tiny objects.** Many vehicles and ships cover a few hundred pixels of a 1024² tile. Partitions with at most 62 regions cannot isolate each one; see the partition verdict before drawing conclusions.
+- **Tiny objects.** Many vehicles and ships cover a few hundred pixels of a 1024² tile. Partitions with at most 254 regions may not isolate each one; see the partition verdict before drawing conclusions.
 - **Domain shift.** SAM was trained on natural photographs, not aerial images. How well its partitions fit this domain is exactly what the partition evaluation measures.
 - **Tiles are not independent.** Several tiles come from one source image; `tile_index.csv` lists the source of each. Report the number of source images next to the number of tiles.
 - **Ignored regions** are border-cut objects (under 70% inside) and objects DOTA marks as difficult.

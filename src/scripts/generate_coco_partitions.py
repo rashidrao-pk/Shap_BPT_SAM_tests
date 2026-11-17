@@ -27,7 +27,7 @@ def create_parser(description=__doc__, default_config='MSCOCO_epito'):
     parser.add_argument('--sam2-config', default='configs/sam2.1/sam2.1_hiera_t.yaml')
     parser.add_argument('--sam1-variant', choices=['vit_b', 'vit_l', 'vit_h'], default='vit_b')
     parser.add_argument('--device', choices=['auto', 'cuda', 'cpu', 'mps'], default='cuda')
-    parser.add_argument('--max-regions', type=int, default=62)
+    parser.add_argument('--max-regions', type=int, default=254)
     parser.add_argument('--save-partitions', nargs='+',
                         choices=['sam', 'refined', 'compact', 'boosted', 'filled', 'boosted_filled'],
                         default=['sam', 'refined'], help='Stage label maps to save (default: sam refined)')

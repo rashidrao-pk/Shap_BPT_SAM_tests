@@ -18,7 +18,7 @@ python src/scripts/view_partitions.py \
 This reads the image from `data.image_dir` and partitions from
 `output.partitions / data.mask_dir_final`. Set `mask_dir_final`
 to the dataset you want to inspect (for example,
-`MSCOCO_sam2_large_62_refined_200`). COCO IDs are padded to 12 digits.
+`MSCOCO_sam2_large_254_refined_200`). COCO IDs are padded to 12 digits.
 The preview is saved under `output.evaluations`, in
 `previews/<mask_dir_final>/<image_id>.png`, with a matching statistics JSON.
 

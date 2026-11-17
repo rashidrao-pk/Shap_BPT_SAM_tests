@@ -24,7 +24,7 @@ cd "$PROJECT_DIR"
 
 ```yaml
 data:
-  mask_dir_final: MSCOCO_sam2_tiny_62_refined_200
+  mask_dir_final: MSCOCO_sam2_tiny_254_refined_200
 output:
   partitions: /beegfs/home/mrashid/datasets/SAM_BPT
   explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results

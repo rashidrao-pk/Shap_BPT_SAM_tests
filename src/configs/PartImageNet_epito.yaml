@@ -4,7 +4,7 @@ data:
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/PartImageNet
   annotation_file: /beegfs/home/mrashid/datasets/PartImageNet/PartImageNet/annotations/val/val.json
-  mask_dir_final: PartImageNet_sam2_tiny_62_compact-sam_50
+  mask_dir_final: PartImageNet_sam2_tiny_254_compact-sam_50
   ground_truth:
     format: partimagenet
     root: /beegfs/home/mrashid/datasets/PartImageNet

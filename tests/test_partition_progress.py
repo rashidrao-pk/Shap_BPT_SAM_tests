@@ -70,13 +70,13 @@ class PartitionProgressTest(unittest.TestCase):
             (images / 'camourflage_00001.jpg').touch()
             (images / 'camourflage_00002.jpg').touch()
             (images / 'not_image.txt').touch()
-            variant = root / 'masks/CAMO_sam2_tiny_62_refined_50'
+            variant = root / 'masks/CAMO_sam2_tiny_254_refined_50'
             variant.mkdir(parents=True)
             for suffix in ['sam.npy', 'refined.npy']:
                 (variant / f'camourflage_00001_{suffix}').touch()
             (variant / 'camourflage_00001_results.json').write_text('{}')
             data = {'name': 'CAMO', 'input_format': 'directory', 'image_dir': str(images),
-                    'masks_path': str(root), 'mask_dir': 'masks', 'mask_dir_final': 'CAMO_sam2_large_62_refined_50'}
+                    'masks_path': str(root), 'mask_dir': 'masks', 'mask_dir_final': 'CAMO_sam2_large_254_refined_50'}
             config = root / 'config.yaml'
             config.write_text(yaml.safe_dump({'data': data}))
             rows = check_dataset(str(config))
@@ -113,7 +113,7 @@ class NewDatasetProgressTest(unittest.TestCase):
             self.assertEqual(source_ids({'name': 'BUSI', 'image_dir': str(images.parent)}, 1000),
                              {'benign (1)', 'benign (2)'})
             base = root / 'partitions'
-            folder = base / 'BUSI_sam2_tiny_62_compact-refined-sam_50'
+            folder = base / 'BUSI_sam2_tiny_254_compact-refined-sam_50'
             folder.mkdir(parents=True)
             (folder / 'benign (1)_compact.npy').write_bytes(b'map')
             (folder / 'benign (1)_results.json').write_text(json.dumps({
@@ -208,7 +208,7 @@ runpy.run_path(script, run_name='__main__')
             for image_id in [*ids[-2:], 'ILSVRC2012_val_99999999']:
                 (gt / (image_id + '.png')).touch()
             base = root / 'partitions'
-            name = 'ImageNet_sam2_tiny_62_compact-sam_100'
+            name = 'ImageNet_sam2_tiny_254_compact-sam_100'
             folder = base / name
             folder.mkdir(parents=True)
             for image_id in ids[-2:]:
@@ -277,7 +277,7 @@ runpy.run_path(script, run_name='__main__')
             images.mkdir(parents=True)
             (images / 'benign (1).png').touch()
             base = root / 'partitions'
-            names = ['BUSI_sam1_vit_b_62_compact-sam_50', 'BUSI_sam2_tiny_62_compact-sam_50']
+            names = ['BUSI_sam1_vit_b_254_compact-sam_50', 'BUSI_sam2_tiny_254_compact-sam_50']
             for name in names:
                 folder = base / name
                 folder.mkdir(parents=True)
@@ -306,9 +306,9 @@ runpy.run_path(script, run_name='__main__')
 
 def test_time_summary_groups_by_model_dataset_and_total():
     import check_partition_progress as cpp
-    rows = [{'dataset': 'BUSI', 'folder': '/r/BUSI_sam2_large_62', 'subset_timed_images': 2, 'subset_generation_seconds': 20.},
-            {'dataset': 'BUSI', 'folder': '/r/BUSI_sam1_vit_b_62', 'subset_timed_images': 2, 'subset_generation_seconds': 10.},
-            {'dataset': 'CAMO', 'folder': '/r/CAMO_sam2_tiny_62', 'subset_timed_images': 1, 'subset_generation_seconds': 30.}]
+    rows = [{'dataset': 'BUSI', 'folder': '/r/BUSI_sam2_large_254', 'subset_timed_images': 2, 'subset_generation_seconds': 20.},
+            {'dataset': 'BUSI', 'folder': '/r/BUSI_sam1_vit_b_254', 'subset_timed_images': 2, 'subset_generation_seconds': 10.},
+            {'dataset': 'CAMO', 'folder': '/r/CAMO_sam2_tiny_254', 'subset_timed_images': 1, 'subset_generation_seconds': 30.}]
     summary = cpp.time_summary(rows)
     assert list(summary['by_model']) == ['SAM1-VB', 'SAM2-T', 'SAM2-L']
     assert summary['by_model']['SAM2-L']['seconds_per_image'] == 10.

@@ -93,7 +93,7 @@ intervals. It does not copy the upstream empty-interval indexing issue.
 
 ## Guided-merge settings (BPT+SAM_c)
 
-`--label-words {1,2,4,auto}`, `--guide-alpha` (a number ≥ 0, or `hard`), `--guide-eps` and `--no-count-unassigned` change how SAM_c guides the BPT merge. The defaults reproduce the original builder exactly. Non-default settings rename the guided method (for example `BPT+SAM_c@a4W2-3000`), add a folder suffix (`_W2_a4_e1`) and are recorded under `guide` in the method status. See [label bitsets](../Partitions/SAM/BITSETS.md).
+`--label-words {1,2,4,auto}`, `--guide-alpha` (a number ≥ 0, or `hard`), `--guide-eps` and `--no-count-unassigned` change how SAM_c guides the BPT merge. `--label-words` defaults to `auto` (as many words as the partition needs, up to 254 regions); on partitions with fewer than 64 labels the defaults reproduce the original builder exactly. Non-default settings rename the guided method (for example `BPT+SAM_c@a4W2-3000`), add a folder suffix (`_W2_a4_e1`) and are recorded under `guide` in the method status. See [label bitsets](../Partitions/SAM/BITSETS.md).
 
 ## Architecture support
 

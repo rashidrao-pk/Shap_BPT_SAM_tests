@@ -13,7 +13,7 @@ python src/scripts/generate_imagenet_partitions.py \
   --model sam1 \
   --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 100 \
   --save-partitions sam compact \
   --gt-only \
@@ -28,7 +28,7 @@ python src/scripts/generate_imagenet_partitions.py \
   --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 100 \
   --save-partitions sam compact \
   --gt-only \

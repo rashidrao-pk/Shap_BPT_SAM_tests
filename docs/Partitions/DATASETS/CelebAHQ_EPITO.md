@@ -31,7 +31,7 @@ python src/scripts/generate_celebahq_partitions.py \
   --config CelebAHQ_epito \
   --model sam1 --sam1-variant vit_b \
   --checkpoint checkpoints/sam1/sam_vit_b_01ec64.pth \
-  --device cuda --max-regions 62 \
+  --device cuda --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact \
   --limit 2
@@ -47,7 +47,7 @@ python src/scripts/generate_celebahq_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
   --device cuda \
-  --max-regions 62 \
+  --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact \
   --limit 2
@@ -57,20 +57,20 @@ Remove `--limit 2` for the full dataset. Resume with the same command; completed
 images with matching settings are skipped. For the SAM2 command above, outputs and log are:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_tiny_62_compact-sam_50/
-/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_tiny_62_compact-sam_50.log
+/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_tiny_254_compact-sam_50/
+/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_tiny_254_compact-sam_50.log
 ```
 
 The terminal shows text tqdm; the log records mask counts, saved stage names,
 label counts, and timing. Each image has a `*_results.json` with exact saved paths.
 
 Select only the stages you need with `--save-partitions`. Without that option,
-only `sam` and `refined` are saved. These two stages are capped to 62 labels;
+only `sam` and `refined` are saved. These two stages are capped to 254 labels;
 notebook stages retain their original behavior. The raw mask target of 50 is
 a bounded threshold search, not a guarantee. See [stage details](../EPITO.md#choose-which-partition-stages-to-save).
 
 For Tiny, use `sam2.1_hiera_tiny.pt` with `sam2.1_hiera_t.yaml`, and set
-`data.mask_dir_final` to `CelebAHQ_sam2_tiny_62_compact-sam_50` before previewing.
+`data.mask_dir_final` to `CelebAHQ_sam2_tiny_254_compact-sam_50` before previewing.
 
 ## Preview saved partitions
 
@@ -84,7 +84,7 @@ python src/scripts/view_partitions.py \
 For one image, replace `--limit 5` with `--image-id 0` (or another actual filename
 stem). Use only stages that were saved. Previews and statistics JSON files are
 written under `output.evaluations` in
-`previews/CelebAHQ_sam2_tiny_62_compact-sam_50/`. No GPU is needed for viewing.
+`previews/CelebAHQ_sam2_tiny_254_compact-sam_50/`. No GPU is needed for viewing.
 
 Generated labels are regions, not semantic face-part names. For attribute
 explanations, use [OC_CelebA](../../XAI/DATASETS/CELEBA.md) after selecting the generated

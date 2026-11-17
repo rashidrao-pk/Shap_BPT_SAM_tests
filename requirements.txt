@@ -2,4 +2,5 @@ PyYAML
 Cython
 pycocotools
 ultralytics --no-deps
+tabulate
 # shap

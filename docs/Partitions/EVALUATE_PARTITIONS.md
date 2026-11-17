@@ -99,7 +99,7 @@ python src/scripts/partition_descriptors.py --all-sam --paper-dir results/paper/
 | Column | Meaning |
 | --- | --- |
 | `sam_masks`, `target_met` | Raw SAM masks after tuning, and whether the mask-count target was reached |
-| `regions_raw`, `regions_after_cap` | Labels in the saved map, and labels the explainers see after the 63-label cap |
+| `regions_raw`, `regions_after_cap` | Labels in the saved map, and labels the explainers see after the 255-label cap |
 | `unassigned_share` | Share of pixels in label 0 (no SAM mask) |
 | `generation_sec` | Recorded generation time |
 | `lab_variance` | Within-region colour variance in CIELAB (lower = more homogeneous regions) |

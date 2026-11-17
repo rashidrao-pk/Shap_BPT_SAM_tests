@@ -26,4 +26,4 @@ For the package installation, see [EPITO setup](../Partitions/full/EPITO_SETUP.m
 --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth"
 ```
 
-Partition folders are named `<Dataset>_sam1_vit_b_62_compact-sam_<masks>`.
+Partition folders are named `<Dataset>_sam1_vit_b_254_compact-sam_<masks>`.

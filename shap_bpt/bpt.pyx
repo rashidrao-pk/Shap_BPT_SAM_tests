@@ -306,11 +306,13 @@ cdef class BinaryPartitionTreeBuilder:
                  use_randomization=0.0,
                  prebuilt_partitions=None,
                  *,
-                 label_words=1,
+                 label_words='auto',
                  guide_alpha=2.0,
                  guide_eps=1.0,
                  count_unassigned=True):
-        """Defaults reproduce the v1 builder exactly: one 64-bit word, priority * (|L| + 1) ** 2."""
+        """Defaults: as many 64-bit words as the labels need (one, as in v1, for labels < 64), priority * (|L| + 1) ** 2.
+
+        With labels < 64 the defaults reproduce the v1 builder exactly."""
         self.sig = NULL
         self.LW = 0
         self.min_base_priority = INFINITY

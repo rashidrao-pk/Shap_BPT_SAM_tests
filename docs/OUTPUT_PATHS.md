@@ -4,7 +4,7 @@ Each dataset config has three independent output roots:
 
 ```yaml
 data:
-  mask_dir_final: MSCOCO_sam2_large_62_refined_200
+  mask_dir_final: MSCOCO_sam2_large_254_refined_200
 output:
   partitions: /beegfs/home/mrashid/datasets/SAM_BPT
   explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results
@@ -26,10 +26,10 @@ the applicable root.
 For black background and budget 500, OD_yolo uses:
 
 ```text
-<output.partitions>/MSCOCO_sam2_large_62_refined_200/
+<output.partitions>/MSCOCO_sam2_large_254_refined_200/
 <output.explanations>/OD_yolo/MSCOCO_sam2_large_62_refined_200/bg_full_B500/139/
 <output.evaluations>/OD_yolo/MSCOCO_sam2_large_62_refined_200/bg_full_B500/xai_results_report.html
-<output.evaluations>/previews/MSCOCO_sam2_large_62_refined_200/000000000139.png
+<output.evaluations>/previews/MSCOCO_sam2_large_254_refined_200/000000000139.png
 ```
 
 The explanation-side CSV remains a resume cache; a copy is published to the

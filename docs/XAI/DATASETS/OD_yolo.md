@@ -23,7 +23,7 @@ In `src/configs/MSCOCO_epito.yaml`, check image/annotation paths and set:
 
 ```yaml
 data:
-  mask_dir_final: MSCOCO_sam2_large_62_refined_200
+  mask_dir_final: MSCOCO_sam2_large_254_refined_200
 output:
   partitions: /beegfs/home/mrashid/datasets/SAM_BPT
   explanations: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/outputs/results

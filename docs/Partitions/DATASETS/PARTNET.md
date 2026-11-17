@@ -14,7 +14,7 @@ python src/scripts/generate_partimagenet_partitions.py \
   --model sam1 \
   --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" \
   --sam1-variant vit_b \
-  --device cuda --max-regions 62 --generate_at_least_n_masks 50 \
+  --device cuda --max-regions 254 --generate_at_least_n_masks 50 \
   --save-partitions sam compact --limit 2
 ```
 
@@ -28,7 +28,7 @@ python src/scripts/generate_partimagenet_partitions.py \
   --config PartImageNet_epito --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_tiny.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_t.yaml \
-  --device cuda --max-regions 62 --generate_at_least_n_masks 50 \
+  --device cuda --max-regions 254 --generate_at_least_n_masks 50 \
   --save-partitions sam compact --limit 2
 ```
 
@@ -41,13 +41,13 @@ python src/scripts/generate_partimagenet_partitions.py \
   --config PartImageNet_epito --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
-  --device cuda --max-regions 62 --generate_at_least_n_masks 50 \
+  --device cuda --max-regions 254 --generate_at_least_n_masks 50 \
   --save-partitions sam compact --limit 1000
 ```
 
 Remove `--limit 2` for the entire configured split. The generator reads only images listed in `data.annotation_file`; masks are not used to generate partitions. Text progress, logs, and resume follow the existing dataset generators.
 
-Set `data.mask_dir_final` to the output folder printed by the generator. This example produces `PartImageNet_sam2_tiny_62_compact-sam_50`.
+Set `data.mask_dir_final` to the output folder printed by the generator. This example produces `PartImageNet_sam2_tiny_254_compact-sam_50`.
 
 For SAM1, replace the model/checkpoint options with:
 

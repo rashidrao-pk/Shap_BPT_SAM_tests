@@ -26,7 +26,7 @@ def parse_args():
     p.add_argument("--model", choices=["sam1", "sam2"], default="sam2")
     p.add_argument("--image", required=True, type=Path)
     p.add_argument("--device", choices=["auto", "cpu", "mps", "cuda"], default="auto")
-    p.add_argument("--max-regions", type=int, default=62)
+    p.add_argument("--max-regions", type=int, default=254)
     p.add_argument("--strategy", choices=["refined", "raw_overwrite", "compact"], default="refined")
     p.add_argument("--output-dir", type=Path, default=Path("results/partitions/sam2"))
     p.add_argument("--checkpoint", type=Path, default=None)

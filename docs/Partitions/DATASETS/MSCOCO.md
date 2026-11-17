@@ -101,6 +101,8 @@ python src/scripts/view_partitions.py \
 python src/scripts/view_partitions.py --config MSCOCO_epito --image-id 76211 --methods sam compact --sam sam2
 ```
 
+The lower-left panel shows every ground-truth object of the image: one colour per object on black, with its class name, and the total count in the title. Objects are painted largest first, so small ones stay visible. Datasets without ground truth show the original there instead. `--no-gt-panel` restores the old layout.
+
 Previews are saved under `previews/<partition folder>/`, so SAM-1 and SAM-2 previews of the same image do not overwrite each other.
 
 ## Progress

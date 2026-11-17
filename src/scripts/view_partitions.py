@@ -17,7 +17,8 @@ from skimage.segmentation import mark_boundaries
 from partition_colors import colorize, count_title, region_count
 
 
-def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None):
+def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None, objects=None):
+    """`objects`: (label map, names) of every GT object, drawn under the original instead of a second copy of it."""
     image = np.asarray(Image.open(image_path).convert('RGB'))
     paths = [Path(path) for path in partition_paths]
     if not paths:
@@ -26,8 +27,15 @@ def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None):
     fig, axes = plt.subplots(2, columns, squeeze=False, figsize=(4 * columns, 7))
     axes[0, 0].imshow(image)
     axes[0, 0].set_title('Original')
-    axes[1, 0].imshow(image)
-    axes[1, 0].set_title('Original')
+    if objects is not None and objects[1]:
+        from partition_quality_plots import label_objects
+        object_map, names = objects
+        axes[1, 0].imshow(colorize(object_map), interpolation='nearest')  # Background black, one colour per object.
+        label_objects(axes[1, 0], object_map, names)
+        axes[1, 0].set_title(f"Ground truth\n{len(names)} object{'s' if len(names) != 1 else ''}")
+    else:
+        axes[1, 0].imshow(image)
+        axes[1, 0].set_title('Original' if objects is None else 'Original (no GT objects)')
     statistics = []
     try:
         maps = []
@@ -87,6 +95,32 @@ def preview_ground_truth(args, image):
     with Image.open(image) as source:
         shape = (source.height, source.width, 3)
     return load_ground_truth(config, image, shape, gt_class=args.gt_class)
+
+
+def preview_objects(args, image):
+    """Every GT object of the image as (label map, names), largest painted first so small objects stay visible.
+
+    None when the panel is turned off or the dataset has no usable GT; ([], []) when the image has no objects.
+    """
+    if not args.config or getattr(args, 'no_gt_panel', False):
+        return None
+    _, config = load_view_config(args.config)
+    with Image.open(image) as source:
+        shape = (source.height, source.width)
+    try:
+        from evaluate_partitions import gt_objects
+        found = [(str(name), mask) for name, mask, _ in gt_objects(config, Path(image), shape)]
+    except (KeyError, OSError, ValueError, TypeError) as error:  # No GT configured for this dataset.
+        print(f'No ground-truth panel for {Path(image).stem}: {type(error).__name__}: {error}', file=sys.stderr)
+        return None
+    found.sort(key=lambda item: -int(item[1].sum()))
+    object_map = np.zeros(shape, dtype=np.int64)
+    for number, (_, mask) in enumerate(found, 1):
+        object_map[mask] = number
+    present = [number for number in range(1, len(found) + 1) if (object_map == number).any()]
+    relabel = np.zeros(len(found) + 1, dtype=np.int64)
+    relabel[present] = np.arange(1, len(present) + 1)
+    return relabel[object_map], [found[number - 1][0] for number in present]
 
 
 def load_view_config(config_name, sam=None, partition_folder=None):
@@ -209,6 +243,8 @@ def main():
     parser.add_argument('--alpha', type=float, default=0.45)
     parser.add_argument('--show_gt', '--show-gt', action='store_true', help='Include dataset ground truth in the preview')
     parser.add_argument('--gt-class', help='Optional face part, ImageNetS synset/label ID, or foreground')
+    parser.add_argument('--no-gt-panel', action='store_true',
+                        help='Show the original twice instead of the GT objects in the lower-left panel')
     args = parser.parse_args()
     args.image_id = args.image_ids[0] if args.image_ids else None
     if args.image_ids and len(args.image_ids) > 1 and any([args.image, args.partitions, args.output]):
@@ -229,7 +265,7 @@ def main():
                 selected = copy.copy(args)
                 selected.image_id = image_id
                 image, partitions, output = resolve_paths(selected, image_index)
-                render(image, partitions, output, args.alpha, preview_ground_truth(args, image))
+                render(image, partitions, output, args.alpha, preview_ground_truth(args, image), preview_objects(args, image))
                 print(f'Preview: {output}')
             return
         if args.image_ids and len(args.image_ids) > 1:
@@ -239,7 +275,7 @@ def main():
                 selected.image_id = image_id
                 try:
                     image, partitions, output = resolve_paths(selected)
-                    render(image, partitions, output, args.alpha, preview_ground_truth(args, image))
+                    render(image, partitions, output, args.alpha, preview_ground_truth(args, image), preview_objects(args, image))
                 except (OSError, ValueError) as exc:  # One missing image must not stop the others.
                     failed.append(image_id)
                     print(f'{image_id}: {exc}', file=sys.stderr)
@@ -251,7 +287,7 @@ def main():
         image, partitions, output = resolve_paths(args)
     except ValueError as exc:
         parser.error(str(exc))
-    print(json.dumps(render(image, partitions, output, args.alpha, preview_ground_truth(args, image)), indent=2))
+    print(json.dumps(render(image, partitions, output, args.alpha, preview_ground_truth(args, image), preview_objects(args, image)), indent=2))
     print(f'Preview: {output}')
 
 

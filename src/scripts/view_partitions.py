@@ -13,6 +13,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from skimage.segmentation import mark_boundaries
+from partition_colors import colorize
 
 
 def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None):
@@ -32,9 +33,8 @@ def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None):
             labels = np.load(path, allow_pickle=False)
             if labels.ndim != 2 or labels.shape != image.shape[:2] or not np.issubdtype(labels.dtype, np.integer):
                 raise ValueError(f'{path}: expected integer labels of shape {image.shape[:2]}')
-            unique, inverse, counts = np.unique(labels, return_inverse=True, return_counts=True)
-            colors = plt.colormaps['turbo'](np.linspace(0.05, 0.95, len(unique)))[:, :3]
-            colored = colors[inverse.reshape(labels.shape)]
+            unique, counts = np.unique(labels, return_counts=True)
+            colored = colorize(labels)  # Label 0 (no SAM mask) is black.
             axes[0, column].imshow(colored)
             axes[0, column].set_title(f'{path.stem}\n{len(unique)} labels', fontsize=9)
             overlay = (1 - alpha) * (image / 255.) + alpha * colored

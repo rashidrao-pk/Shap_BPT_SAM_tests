@@ -17,6 +17,7 @@ from budget_selection import DEFAULT_CRITERIA, compare_maps, passes, select_budg
 from config_paths import output_path, resolve_path
 from auc_export import auc_columns
 from yolo_io import YOLO_INPUT_VERSION, ultralytics_input
+import guide_options
 
 RUNNERS = ['OC_ResNet', 'OC_VGG', 'OC_ViT', 'COD_ViT', 'OD_DETR', 'OD_yolo',
            'OC_CelebA', 'OC_BUSI', 'OC_PartImageNet', 'OC_FunnyBirds', 'OC_PACO',
@@ -407,7 +408,7 @@ def run(args, adapter=None):
         study['yolo_input_version'] = YOLO_INPUT_VERSION  # Pilots made with swapped channels are not reused.
     identity = {key: value for key, value in study.items() if key not in {'state'}}
     for key in ['resume', 'dry_run', 'verbose_level', 'torch_threads', 'fail_fast', 'stop_after_images',
-                'reuse_study', 'progress_every_image']:
+                'reuse_study', 'progress_every_image', *(guide_options.DEFAULTS if guide_options.is_default(args) else [])]:
         identity['settings'].pop(key, None)
     signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     study['signature'] = signature
@@ -452,7 +453,8 @@ def run(args, adapter=None):
     for record in runtime.tqdm(run_records, desc='Budget pilot', ascii=True):
         image_id = record['image_id']; image_folder = folder/image_id; image_folder.mkdir(exist_ok=True)
         image = np.asarray(Image.open(record['image_path']).convert('RGB'))
-        _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id, 'compact')
+        _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id, 'compact',
+                                                             max_labels=guide_options.max_labels(args))
         replacements = common.backgrounds(image, args.bg_type)
         base_predict = common.make_masked_predictor(adapter, image, replacements, args.model_batch_size)
         counters = {'masks': 0, 'backgrounds': len(replacements)}
@@ -466,7 +468,7 @@ def run(args, adapter=None):
             raise ValueError('Target class outside classifier output range')
         explainer = runtime.shap_bpt.Explainer(predict, image, num_explained_classes=None, explained_class_ids=[target], verbose=False)
         tree_started = time.perf_counter()
-        trees = {method: runtime.shap_bpt.build_bpt_from_image(image, **({'prebuilt_partitions': labels} if method == 'BPT+SAM_c' else {}))
+        trees = {method: runtime.shap_bpt.build_bpt_from_image(image, **({'prebuilt_partitions': labels, **guide_options.tree_kwargs(args)} if method == 'BPT+SAM_c' else {}))
                  for method in args.methods if method != 'SAM_c+KernelSHAP'}
         tree_seconds = time.perf_counter()-tree_started
         prediction = {'image_id': image_id, 'target': target, 'class_name': adapter.class_names[target],

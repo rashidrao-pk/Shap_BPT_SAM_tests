@@ -317,9 +317,11 @@ def evaluate_folder(name, config, folder, args):
     summary.update(dataset=Path(name).stem.removesuffix('_epito'), segmenter=sam_label(folder.name))
     if rows and args.plots and summary['verdict'] in {USE, CAUTION, SKIP}:
         from partition_quality_plots import plot_examples
-        cases = {title: case_maps(config, paths[image_id], files[image_id], combine) for title, image_id in example_ids(rows).items()}
+        cases = {title: {**case_maps(config, paths[image_id], files[image_id], combine), 'image_id': image_id}
+                 for title, image_id in example_ids(rows).items()}
         plot_examples(cases, label, args.output_dir / 'examples')
-        worst = {f"Worst {number}\n{item['image_id']}": case_maps(config, paths[item['image_id']], files[item['image_id']], combine)
+        worst = {f"Worst {number}": {**case_maps(config, paths[item['image_id']], files[item['image_id']], combine),
+                                     'image_id': item['image_id']}
                  for number, item in enumerate(image_table(rows)[:args.worst], 1)}
         plot_examples(worst, label, args.output_dir / 'worst')
     return summary, rows

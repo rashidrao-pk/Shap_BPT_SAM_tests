@@ -91,6 +91,10 @@ input gradients by those slopes and interval widths. The implementation handles
 constant-score paths, partial batches, and preserves positions of empty sampling
 intervals. It does not copy the upstream empty-interval indexing issue.
 
+## Guided-merge settings (BPT+SAM_c)
+
+`--label-words {1,2,4,auto}`, `--guide-alpha` (a number ≥ 0, or `hard`), `--guide-eps` and `--no-count-unassigned` change how SAM_c guides the BPT merge. The defaults reproduce the original builder exactly. Non-default settings rename the guided method (for example `BPT+SAM_c@a4W2-3000`), add a folder suffix (`_W2_a4_e1`) and are recorded under `guide` in the method status. See [label bitsets](../Partitions/SAM/BITSETS.md).
+
 ## Architecture support
 
 - **OC_CelebA:** all comparison methods with the E5 CelebModel checkpoint; raw attribute

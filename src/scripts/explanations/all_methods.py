@@ -81,8 +81,14 @@ def validate(args):
                           f'(missing: {", ".join(missing)})')
 
 
+def partition_methods(args):
+    """BPT, the guided BPT (tagged when its merge settings differ from v1, e.g. BPT+SAM_c@a4W2), KernelSHAP."""
+    import guide_options
+    return ['BPT', f'BPT+SAM_c{guide_options.method_tag(args)}', 'SAM_c+KernelSHAP']
+
+
 def method_names(args):
-    return ([f'{method}-{budget}' for method in ['BPT', 'BPT+SAM_c', 'SAM_c+KernelSHAP']
+    return ([f'{method}-{budget}' for method in partition_methods(args)
              for budget in partition_budgets(args)] +
             [f'LIME-{budget}' for budget in dict.fromkeys(args.lime_budgets)] +
             [f'Shap-AA-{args.aa_budget}', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'])
@@ -90,7 +96,7 @@ def method_names(args):
 
 def grid_methods(args):
     budget = max(partition_budgets(args))
-    return [f'{method}-{budget}' for method in ['BPT', 'BPT+SAM_c', 'SAM_c+KernelSHAP']]
+    return [f'{method}-{budget}' for method in partition_methods(args)]
 
 
 def lime_segment_count(args, dataset_name):
@@ -102,7 +108,10 @@ def lime_segment_count(args, dataset_name):
 def comparison_signature(args):
     import hashlib
     import json
+    import guide_options
     ignored = {'limit', 'image_ids', 'dry_run', 'resume', 'verbose', 'verbose_level', 'verbose_k', 'fail_fast'}
+    if guide_options.is_default(args):
+        ignored |= set(guide_options.DEFAULTS)  # v1 merge: completion markers from before these options stay valid.
     values = {key: value for key, value in vars(args).items() if key not in ignored}
     return hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()
 
@@ -451,7 +460,7 @@ def compute_extra(runtime, args, adapter, image, replacements, explainer, tree, 
         started = time.perf_counter()
         info = {'status': 'complete'}
         try:
-            if name.startswith(('BPT-', 'BPT+SAM_c-', 'SAM_c+KernelSHAP-', 'Shap-AA-')):
+            if name.startswith(('BPT-', 'BPT+SAM_c-', 'BPT+SAM_c@', 'SAM_c+KernelSHAP-', 'Shap-AA-')):
                 method, budget = name.rsplit('-', 1)
                 budget = int(budget)
                 if method == 'SAM_c+KernelSHAP':
@@ -465,12 +474,15 @@ def compute_extra(runtime, args, adapter, image, replacements, explainer, tree, 
                             batch_size=args.kernel_shap_batch_size or args.eval_batch_size,
                             seed=args.explanation_seed)
                 else:
-                    if method == 'BPT+SAM_c':
+                    if method.split('@')[0] == 'BPT+SAM_c':
+                        import guide_options
                         if labels is None:
                             raise ValueError('BPT+SAM_c requires saved SAM_c labels')
                         if sam_tree is None:
-                            sam_tree = runtime.shap_bpt.build_bpt_from_image(image, prebuilt_partitions=labels)
+                            sam_tree = runtime.shap_bpt.build_bpt_from_image(image, prebuilt_partitions=labels,
+                                                                             **guide_options.tree_kwargs(args))
                         selected_tree = sam_tree
+                        info['guide'] = guide_options.settings(args)
                     elif method == 'BPT':
                         if tree is None:
                             tree = runtime.shap_bpt.build_bpt_from_image(image)

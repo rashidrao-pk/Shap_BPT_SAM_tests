@@ -49,7 +49,7 @@ Saved in `results/evaluations/partition_quality/`:
 | `iou_thresholds`                            | Share of objects at IoU 0.5, 0.75, and 0.9                                                | Table 4.10           |
 | `examples/<dataset>.png`                    | Highest, middle, and lowest IoU images: GT, partition, optimal subsets, and masks → GT    | Figures 4.10 to 4.12 |
 
-Plots are saved as PNG and SVG, except the examples, which are PNG. Datasets with too few images for a verdict are left out of the plots but stay in the tables.
+Plots are saved as PNG and SVG, except the examples, which are PNG. In `examples/` and `worst/`, each row names its image under the row title, and the partition panel shows label 0 (pixels no SAM mask covers) in black and every region in its own colour. `view_partitions.py` uses the same colours. Datasets with too few images for a verdict are left out of the plots but stay in the tables.
 
 ## Verdicts
 

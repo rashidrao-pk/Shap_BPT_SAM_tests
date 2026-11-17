@@ -34,6 +34,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 import yaml
 from config_paths import output_path, partition_path, evaluation_path
 from yolo_io import YOLO_INPUT_VERSION, ultralytics_input  # Ultralytics expects BGR arrays
+import guide_options
 
 
 def load_runtime_dependencies():
@@ -785,7 +786,7 @@ def should_skip_image(path_results: Path, auc_table_rows: list[dict], image_no: 
     if getattr(args, 'explain_all', False):
         from all_methods import method_names
         methods = [name for name in method_names(args)
-                   if name.startswith(('BPT-', 'BPT+SAM_c-', 'SAM_c+KernelSHAP-', 'LIME-', 'Shap-AA-'))]
+                   if name.startswith(('BPT-', 'BPT+SAM_c-', 'BPT+SAM_c@', 'SAM_c+KernelSHAP-', 'LIME-', 'Shap-AA-'))]
     return image_rows_are_complete(auc_table_rows, image_no, methods) and image_outputs_are_complete(path_results_img, image_no, methods, args)
 
 
@@ -1545,7 +1546,7 @@ def prepare_inputs(project_root, config, args):
         output_root = output_path(config, "explanations", project_root)
         output_root = output_root / "OD_yolo" / data["mask_dir_final"]
     auc_folder = f"_auc_{args.auc_bg_type}" if args.auc_bg_type not in {None, args.bg_type} else ""
-    output_root = output_root / f"bg_{args.bg_type}{auc_folder}_B{args.max_evals}"
+    output_root = output_root / f"bg_{args.bg_type}{auc_folder}_B{args.max_evals}{guide_options.folder_suffix(args)}"
     return {"partition_dir": partition_dir, "image_dir": image_dir,
             "annotation_file": annotation_path, "image_ids": ids,
             "methods": methods, "method_labels": {method: METHOD_LABELS[method] for method in methods},
@@ -1797,21 +1798,23 @@ def run(args):
                     comparison_tree = bptree
                     from experiment_common import bpt_partition_labels
                     _, sam_labels = uts2.load_refine_partitions(
-                        input_data["image_to_explain"], str(masks_base_path), image_id, partition_type="compact")
+                        input_data["image_to_explain"], str(masks_base_path), image_id, partition_type="compact",
+                        max_labels=guide_options.max_labels(args))
                     bpt_labels = bpt_partition_labels(
                         bptree, len(np.unique(sam_labels)), input_data["image_to_explain"].shape[:2])
                 else:
                     timing_start = time.time()
                     partition_type = partition_type_for_method(method)
                     partitions[method], partition_capped[method] = uts2.load_refine_partitions(
-                        input_data["image_to_explain"], str(masks_base_path), image_id, partition_type=partition_type
-                    )
+                        input_data["image_to_explain"], str(masks_base_path), image_id, partition_type=partition_type,
+                        max_labels=guide_options.max_labels(args))
                     first_iteration_breakdown["load_partitions"] += time.time() - timing_start
                     if method == "SAM_c_kernelshap":
                         bptree = None
                     else:
                         timing_start = time.time()
-                        bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"], prebuilt_partitions=partition_capped[method])
+                        bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"], prebuilt_partitions=partition_capped[method],
+                                                               **guide_options.tree_kwargs(args))
                         first_iteration_breakdown["build_bpt"] += time.time() - timing_start
 
                 start = time.time()
@@ -1872,7 +1875,8 @@ def run(args):
                 scoring_adapter = SimpleNamespace(predict_batch=lambda images: predict_yolo_batch(
                     model, images, num_classes=yolo_class_count(model), aggregate=args.class_aggregation))
                 _, sam_labels = uts2.load_refine_partitions(
-                    input_data['image_to_explain'], str(masks_base_path), image_id, partition_type='compact')
+                    input_data['image_to_explain'], str(masks_base_path), image_id, partition_type='compact',
+                    max_labels=guide_options.max_labels(args))
                 partition_capped['SAM_c'] = sam_labels
                 if comparison_tree is None:
                     comparison_tree = shap_bpt.build_bpt_from_image(input_data['image_to_explain'])
@@ -2111,6 +2115,7 @@ def parse_args():
     parser.set_defaults(compute_auc=True, save_plots=True, save_heatmaps=True, build_html=True, budget_suffix=True, resume=True)
     from all_methods import add_arguments
     add_arguments(parser)
+    guide_options.add_arguments(parser)
     return parser.parse_args()
 
 

@@ -20,6 +20,7 @@ from budget_selection import DEFAULT_CRITERIA
 from config_paths import output_path, resolve_path
 import experiment_common as common
 from yolo_io import YOLO_INPUT_VERSION
+import guide_options
 
 DEFAULT_BUDGETS = [20, 50, 100, 500, 1000, 2000]
 DEFAULT_IMAGES = 5
@@ -327,7 +328,8 @@ def write_timing(runtime, folder, results, run_timing, scope):
 def explain_image(runtime, args, adapter, record, inputs, folder, signature, progress=''):
     image_id = record['image_id']
     image = np.asarray(Image.open(record['image_path']).convert('RGB'))
-    _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id, 'compact')
+    _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id, 'compact',
+                                                         max_labels=guide_options.max_labels(args))
     replacements = common.backgrounds(image, args.bg_type)
     masked_predict = common.make_masked_predictor(adapter, image, replacements, args.model_batch_size)
     counters = {'masks': 0, 'backgrounds': len(replacements)}
@@ -345,7 +347,7 @@ def explain_image(runtime, args, adapter, record, inputs, folder, signature, pro
         if method != 'SAM_c+KernelSHAP':
             tree_started = time.perf_counter()
             trees[method] = runtime.shap_bpt.build_bpt_from_image(
-                image, **({'prebuilt_partitions': labels} if method == 'BPT+SAM_c' else {}))
+                image, **({'prebuilt_partitions': labels, **guide_options.tree_kwargs(args)} if method == 'BPT+SAM_c' else {}))
             tree_sec[method] = time.perf_counter() - tree_started
     shared = {'image_id': image_id, 'target': target, 'class_name': adapter.class_names[target],
               'f_S': float(explainer.base_nuN[0]), 'f_0': float(explainer.base_nu0[0])}
@@ -419,6 +421,8 @@ def run(args, adapter=None):
     identity = {'runner': args.runner, 'model': args.model, 'checkpoint': str(args.checkpoint), 'seed': args.seed,
                 'background': args.bg_type, 'auc_points': args.auc_num_samples, 'target': args.target_class,
                 'aggregation': args.class_aggregation, 'partitions': inputs['partition_dir'].name}
+    if not guide_options.is_default(args):
+        identity['guide'] = guide_options.settings(args)  # Absent for v1 defaults, so old caches stay valid.
     if args.runner == 'OD_yolo':
         # Maps cached with swapped YOLO channels (version 1) get a different signature and are recomputed.
         identity['yolo_input_version'] = YOLO_INPUT_VERSION

@@ -13,7 +13,7 @@ import random as random
 import numpy as np
 cimport numpy as cnp
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
-from libc.math cimport sqrt, M_PI, log
+from libc.math cimport sqrt, M_PI, log, log1p, INFINITY
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
 # ctypedef unsigned char uint8_t
@@ -36,6 +36,18 @@ cdef inline int popcount64(uint64_t x):
     x = (x & <uint64_t>0x3333333333333333) + ((x >> 2) & <uint64_t>0x3333333333333333)
     x = (x + (x >> 4)) & <uint64_t>0x0F0F0F0F0F0F0F0F
     return <int>((x * <uint64_t>0x0101010101010101) >> 56)
+
+cdef inline void set_label_bit(uint64_t* sig, size_t cluster, int words, cnp.int64_t label):
+    # Cast to uint64 before shifting: a shift in the label map's own dtype would drop high labels.
+    sig[cluster * words + <size_t>(label >> 6)] |= (<uint64_t>1) << (label & 63)
+
+
+def label_bit_position(label):
+    """(word, bit) of a partition label in a cluster signature."""
+    label = int(label)
+    if label < 0:
+        raise ValueError('labels must be >= 0')
+    return label >> 6, label & 63
 
 ######################################################################################################
 # Heap with reverse indexing, which can alter the weight of the nodes dynamically
@@ -234,7 +246,6 @@ cdef struct cluster_descr:
     uint32_t area
     uint32_t perimeter
     cluster_t root
-    uint64_t mask_bits
     int adjnext
 ctypedef cluster_descr cluster_descr_t
 
@@ -277,18 +288,65 @@ cdef class BinaryPartitionTreeBuilder:
     # Adjacency heap for fast merge
     cdef reverse_heap_t heap
     
-    #TODO: ADDED PREBUILD PARTITION
+    # SAM guidance: each cluster carries the set of partition labels it contains, as LW 64-bit words.
     cdef object prebuilt_partitions
+    cdef uint64_t* sig            # N * LW words; NULL without a partition
+    cdef int LW                   # label words: labels 0 .. 64*LW-1 are allowed
+    cdef double guide_alpha       # penalty exponent: priority *= (|L| + eps) ** alpha
+    cdef double guide_eps
+    cdef bint guide_hard          # alpha -> infinity: merge by |L| first, BPT score second
+    cdef bint count_unassigned    # False: label 0 is not counted in |L|
+    cdef public double min_base_priority  # delta: smallest unguided merge score seen
+    cdef public double max_base_priority  # Delta: largest unguided merge score seen
 
-    #TODO: ADDED INIT PREBUILD PARTITION
     def __init__(self, image, 
                  use_8ways=True, 
                  use_v0_rule=False,
                 #  xxuse_sqrt_area=False, 
                  use_randomization=0.0,
-                 prebuilt_partitions=None):
-
-        self.prebuilt_partitions = prebuilt_partitions 
+                 prebuilt_partitions=None,
+                 *,
+                 label_words=1,
+                 guide_alpha=2.0,
+                 guide_eps=1.0,
+                 count_unassigned=True):
+        """Defaults reproduce the v1 builder exactly: one 64-bit word, priority * (|L| + 1) ** 2."""
+        self.sig = NULL
+        self.LW = 0
+        self.min_base_priority = INFINITY
+        self.max_base_priority = 0.0
+        self.count_unassigned = bool(count_unassigned)
+        if isinstance(guide_alpha, str):
+            if guide_alpha != 'hard':
+                raise ValueError(f"guide_alpha must be a number >= 0 or 'hard', got {guide_alpha!r}")
+            self.guide_hard, self.guide_alpha = True, 0.0
+        else:
+            if not guide_alpha >= 0:
+                raise ValueError(f'guide_alpha must be >= 0, got {guide_alpha!r}')
+            self.guide_hard, self.guide_alpha = False, float(guide_alpha)
+        if not guide_eps > 0:
+            raise ValueError(f'guide_eps must be > 0, got {guide_eps!r}')
+        self.guide_eps = float(guide_eps)
+        self.prebuilt_partitions = None
+        if prebuilt_partitions is not None:
+            labels = np.ascontiguousarray(prebuilt_partitions, dtype=np.int64)
+            if labels.shape != tuple(image.shape[:2]):
+                raise ValueError(f'prebuilt_partitions shape {labels.shape} does not match image {tuple(image.shape[:2])}')
+            if labels.size and labels.min() < 0:
+                raise ValueError('prebuilt_partitions labels must be >= 0')
+            top = int(labels.max()) if labels.size else 0
+            if label_words == 'auto':
+                words = max(1, -(-(top + 1) // 64))
+                if words > 4:
+                    raise ValueError(f'label {top} needs {words} words; at most 4 (labels < 256) are supported')
+            elif label_words in (1, 2, 4):
+                words = int(label_words)
+            else:
+                raise ValueError(f"label_words must be 1, 2, 4 or 'auto', got {label_words!r}")
+            if top >= 64 * words:
+                raise ValueError(f'label {top} does not fit in {words} word(s) (labels < {64 * words}); '
+                                 'raise label_words or cap the partition')
+            self.prebuilt_partitions, self.LW = labels, words
         
         self.use_8ways = use_8ways
         self.use_v0_rule = use_v0_rule
@@ -328,16 +386,22 @@ cdef class BinaryPartitionTreeBuilder:
             self.clst[i].area = 1
             self.clst[i].perimeter = 4 
             self.clst[i].adjnext = -1
-            self.clst[i].mask_bits = 0
         self.TC = self.U
         
         cdef cluster_t c0
-        #TODO: check prebuilt_partitions
+        cdef size_t k
+        cdef cnp.int64_t[:, ::1] label_view
         if self.prebuilt_partitions is not None:
+            self.sig = <uint64_t*> PyMem_Malloc(self.N * self.LW * sizeof(uint64_t))
+            if self.sig == NULL:
+                raise MemoryError('label bitsets')
+            for k in range(<size_t>self.N * self.LW):
+                self.sig[k] = 0
+            label_view = self.prebuilt_partitions
             for x0 in range(<size_t>self.W):
                 for y0 in range(<size_t>self.H):
                     c0 = <cluster_t>(y0*self.W + x0)
-                    self.clst[c0].mask_bits = 1 << self.prebuilt_partitions[y0, x0]
+                    set_label_bit(self.sig, c0, self.LW, label_view[y0, x0])
 
         # allocate non-unitary cluster branching descriptors
         self.branches = <cluster_t[2]*> PyMem_Malloc((self.N - self.U) * sizeof(cluster_t[2]))
@@ -391,6 +455,7 @@ cdef class BinaryPartitionTreeBuilder:
         PyMem_Free(self.clst) ;      self.clst = NULL
         PyMem_Free(self.branches) ;  self.branches = NULL
         PyMem_Free(self.adjs) ;      self.adjs = NULL
+        PyMem_Free(self.sig) ;       self.sig = NULL
         reverse_heap_deallocate(&self.heap)
 
 
@@ -520,8 +585,11 @@ cdef class BinaryPartitionTreeBuilder:
                                     2 * self.adjs[merged_adj].edge_length)
         self.clst[cAB].adjnext = -1
 
-        #TODO: MERGE
-        self.clst[cAB].mask_bits = (self.clst[cA].mask_bits | self.clst[cB].mask_bits)
+        # The merged cluster contains the labels of both parts.
+        cdef int w
+        if self.sig != NULL:
+            for w in range(self.LW):
+                self.sig[<size_t>cAB * self.LW + w] = self.sig[<size_t>cA * self.LW + w] | self.sig[<size_t>cB * self.LW + w]
 
         # make cAB the root of both cA and cB
         assert self.clst[cA].root==cA and self.clst[cB].root==cB # cA and cB are root nodes
@@ -628,25 +696,20 @@ cdef class BinaryPartitionTreeBuilder:
         cdef int cl0 = self.adjs[a].cl[0]
         cdef int cl1 = self.adjs[a].cl[1]
 
-        #TODO: IoU
-        cdef double partition_score
-        cdef uint64_t mask0 
-        cdef uint64_t mask1 
-        cdef int inter_count
-        cdef int union_count
-        if self.prebuilt_partitions is not None:
-            
-            mask0 = self.clst[cl0].mask_bits
-            mask1 = self.clst[cl1].mask_bits
-
-            inter_count = popcount64(mask0 & mask1) + 1
-            union_count = popcount64(mask0 | mask1) + 1
-            # partition_score = 1.0 - <double>inter_count / <double>union_count
-            # USE union only as partition_score instead of IoU
-            partition_score = <double>union_count
-            partition_score = partition_score**2
-        else:
-            partition_score = 1.0
+        # |L|: number of distinct partition labels in the merged cluster.
+        cdef double partition_score = 1.0
+        cdef int union_count = 0
+        cdef int w
+        cdef uint64_t merged_bits
+        if self.sig != NULL:
+            for w in range(self.LW):
+                merged_bits = self.sig[<size_t>cl0 * self.LW + w] | self.sig[<size_t>cl1 * self.LW + w]
+                if w == 0 and not self.count_unassigned:
+                    merged_bits &= ~(<uint64_t>1)  # label 0 (unassigned) is not a SAM region
+                union_count += popcount64(merged_bits)
+            if not self.guide_hard:
+                # v1 used (popcount + 1) ** 2, i.e. guide_eps = 1 and guide_alpha = 2.
+                partition_score = (<double>union_count + self.guide_eps) ** self.guide_alpha
 
         # Base quantities
         cdef double area_01 = self.clst[cl0].area + self.clst[cl1].area
@@ -806,12 +869,32 @@ cdef class BinaryPartitionTreeBuilder:
         if self.use_randomization != 0.0:
             score *= 1.0 + self.use_randomization * (random.random() - 0.5)
 
-        #TODO:IoU
-        if self.prebuilt_partitions is not None:
+        # delta and Delta over every evaluated adjacency (unguided score).
+        if score < self.min_base_priority:
+            self.min_base_priority = score
+        if score > self.max_base_priority:
+            self.max_base_priority = score
+
+        if self.sig != NULL:
+            if self.guide_hard:
+                # alpha -> infinity, lexicographically: fewer labels always first, BPT score breaks ties.
+                assert log1p(score) < 1e6
+                return union_count * 1e6 + log1p(score)
             score *= partition_score
 
         return score
 
+
+    def cluster_signature(self, cluster_t cl):
+        """The label bitset of a cluster, as LW Python ints (word 0 holds labels 0-63)."""
+        if self.sig == NULL:
+            return ()
+        assert cl < self.N
+        return tuple(int(self.sig[<size_t>cl * self.LW + w]) for w in range(self.LW))
+
+    @property
+    def label_words(self):
+        return self.LW
 
     def get_cluster_of_xy(self, x, y):
         cdef cluster_t cl = y*self.W + x

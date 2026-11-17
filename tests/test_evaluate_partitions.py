@@ -269,3 +269,9 @@ def test_paper_table_has_one_labelled_row_per_segmenter(tmp_path, monkeypatch):
     table = list(csv.DictReader((tmp_path / 'partition_quality.csv').open()))
     assert [(row['dataset'], row['segmenter']) for row in table] == [('BUSI', 'SAM2-L'), ('BUSI', 'SAM2-T')]
     assert '--all-sam' in (tmp_path / 'README.md').read_text()
+
+
+def test_labels_name_a_region_cap_other_than_62():
+    assert ep.sam_label('MSCOCO_sam1_vit_b_126_compact-sam_200') == 'SAM1-VB-K126'
+    assert ep.sam_label('BUSI_sam2_large_254_compact-sam_50') == 'SAM2-L-K254'
+    assert ep.sam_label('MSCOCO_sam1_vit_b_62_compact-sam_200') == 'SAM1-VB'

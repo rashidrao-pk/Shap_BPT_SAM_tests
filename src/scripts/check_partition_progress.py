@@ -80,7 +80,16 @@ SAM_SIZES = {'tiny': 'T', 'small': 'S', 'base_plus': 'B+', 'large': 'L'}
 
 
 def sam_label(folder_name):
-    """SAM model and size from a partition folder name, e.g. sam1_vit_b -> SAM1-VB, sam2_large -> SAM2-L."""
+    """SAM model and size from a partition folder name, e.g. sam1_vit_b -> SAM1-VB, sam2_large -> SAM2-L.
+
+    A region cap other than the usual 62 is appended, e.g. MSCOCO_sam1_vit_b_126_compact-sam_200 -> SAM1-VB-K126.
+    """
+    label = _sam_model(folder_name)
+    cap = next((part for part in folder_name.split('_') if part.isdigit()), None)
+    return f'{label}-K{cap}' if cap not in (None, '62') and label != folder_name else label
+
+
+def _sam_model(folder_name):
     parts = folder_name.split('_')
     if 'sam1' in parts:
         size = parts[parts.index('sam1') + 2:parts.index('sam1') + 3]

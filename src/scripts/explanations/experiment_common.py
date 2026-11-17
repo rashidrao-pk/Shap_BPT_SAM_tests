@@ -19,6 +19,7 @@ for directory in [ROOT, ROOT / 'src/scripts']:
 
 import numpy as np
 from config_paths import load_path_config, output_path, partition_path, resolve_path, evaluation_path
+import guide_options
 from model_adapters import load_adapter
 from auc_export import auc_columns, enrich_auc_rows
 
@@ -118,6 +119,8 @@ def create_parser(kind, auc_background=True, road=True):
     parser.add_argument('--torch-threads', type=int, help='Optional CPU intra-op thread limit')
     from all_methods import add_arguments
     add_arguments(parser)
+    import guide_options
+    guide_options.add_arguments(parser)
     return parser
 
 
@@ -328,7 +331,8 @@ def auc_background(args):
 
 def run_folder(args):
     auc = auc_background(args)
-    return f"bg_{args.bg_type}{f'_auc_{auc}' if auc else ''}_B{args.max_evals}"
+    import guide_options
+    return f"bg_{args.bg_type}{f'_auc_{auc}' if auc else ''}_B{args.max_evals}{guide_options.folder_suffix(args)}"
 
 
 def auc_scoring(adapter, image, args, target, predict, f_s, f_0):
@@ -438,6 +442,9 @@ def run_signature(kind, args, config=None):
             settings.pop(option, None)
     if auc_background(args) is None:
         settings.pop('auc_bg_type', None)  # Preserve signatures from before this option existed.
+    if guide_options.is_default(args):
+        for option in guide_options.DEFAULTS:  # v1 merge: keep signatures from before these options existed.
+            settings.pop(option, None)
     if settings.get('gt_class') is None:
         settings.pop('gt_class', None)
     if args.show_gt and config and config['data'].get('ground_truth'):
@@ -704,7 +711,8 @@ def run(kind, args, adapter=None):
             with Image.open(record['image_path']) as source:
                 image = np.asarray(source.convert('RGB'))
             _, labels = runtime.partitions.load_refine_partitions(
-                image, str(inputs['partition_dir']), record.get('partition_id', image_id), 'compact')
+                image, str(inputs['partition_dir']), record.get('partition_id', image_id), 'compact',
+                max_labels=guide_options.max_labels(args))
             if hasattr(adapter, 'set_record'):
                 adapter.set_record(record)  # The referring expression this record explains.
             replacements = backgrounds(image, args.bg_type)
@@ -771,7 +779,8 @@ def run(kind, args, adapter=None):
                                   predict, labels, target, n_samples=args.kernel_shap_samples or args.max_evals,
                                   batch_size=args.kernel_shap_batch_size or args.eval_batch_size, seed=0))
                 else:
-                    tree = (runtime.shap_bpt.build_bpt_from_image(image, prebuilt_partitions=labels)
+                    tree = (runtime.shap_bpt.build_bpt_from_image(image, prebuilt_partitions=labels,
+                                                                  **guide_options.tree_kwargs(args))
                             if method == 'SAM_c' else runtime.shap_bpt.build_bpt_from_image(image))
                     if method == 'BPT':
                         bpt_tree = tree

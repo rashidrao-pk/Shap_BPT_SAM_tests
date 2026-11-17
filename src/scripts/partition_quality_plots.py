@@ -5,6 +5,7 @@ from matplotlib.colors import ListedColormap
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 import numpy as np
+from partition_colors import colorize
 
 from partition_diagnosis import CAUSES, SIZES
 
@@ -183,11 +184,11 @@ def plot_examples(cases, label, folder):
         labels = {'vmin': 0, 'vmax': objects, 'cmap': colors, 'interpolation': 'nearest'}
         row[0].imshow(case['image'])
         row[1].imshow(case['gt'], **labels)
-        row[2].imshow(case['partition'], cmap='turbo', interpolation='nearest')
+        row[2].imshow(colorize(case['partition']), interpolation='nearest')  # Label 0 (no SAM mask) is black.
         row[3].imshow(case['subsets'], **labels)
         row[4].imshow(outcome_map(case['gt'], case['closest']), cmap=OUTCOME_COLORS, vmin=0, vmax=3,
                       interpolation='nearest')
-        names = [title, f"Ground truth\n{case['objects']} object{'s' if case['objects'] != 1 else ''}", f"Partition\n{case['cells']} cells",
+        names = [f"{title}\n{case['image_id']}" if case.get('image_id') else title, f"Ground truth\n{case['objects']} object{'s' if case['objects'] != 1 else ''}", f"Partition\n{case['cells']} cells",
                  f"Optimal subsets\nMean IoU {case['mean_iou']:.3f}", f"Masks → GT\nMean IoU {case['closest_iou']:.3f}"]
         for ax, name in zip(row, names):
             ax.set_title(name, fontsize=11)

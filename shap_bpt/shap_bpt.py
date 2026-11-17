@@ -335,6 +335,23 @@ def build_bpt_from_image(image, use_lab=True, use_torch=False, **kwargs):
     del bpt_builder
     return bptree
 
+def tree_contains_region(tree, mask):
+    """True when one node of the BPT holds exactly the pixels of `mask` (a boolean H x W array).
+
+    A node's pixels are a contiguous range of tree.pixels, so prefix sums over the mask answer this for every
+    node at once. A single pixel is always a leaf, so it is always contained; an empty mask never is.
+    """
+    mask = np.asarray(mask, dtype=bool)
+    if mask.shape != (tree.height, tree.width):
+        raise ValueError(f'mask shape {mask.shape} does not match the tree ({tree.height}, {tree.width})')
+    total = int(mask.sum())
+    if total <= 1:
+        return total == 1
+    pixels = tree.pixels.cpu().numpy() if hasattr(tree.pixels, 'cpu') else np.asarray(tree.pixels)
+    inside = np.concatenate([[0], np.cumsum(mask.ravel()[pixels.astype(np.int64)])])
+    start, end = np.asarray(tree.cl_start, dtype=np.int64), np.asarray(tree.cl_end, dtype=np.int64)
+    return bool(np.any(((inside[end] - inside[start]) == total) & ((end - start) == total)))
+
 ######################################################################################################
 # A non-symmetric, disjoint, hierarchical partition of a Binary Partition Tree node
 ######################################################################################################

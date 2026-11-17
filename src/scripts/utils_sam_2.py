@@ -26,7 +26,7 @@ def cap_partition_labels(partitions, max_labels=64):
     # Remap labels to contiguous 0..K-1
     unique_ids = np.unique(partitions)
     remap = {old: new for new, old in enumerate(unique_ids)}
-    partitions = np.vectorize(remap.get)(partitions).astype(np.uint8)
+    partitions = np.vectorize(remap.get)(partitions).astype(np.uint16)  # uint8 would wrap above 255 labels
 
     return partitions
 
@@ -89,7 +89,9 @@ def load_partition_array(path, image_shape):
     return partitions.astype(np.uint16)
 
 
-def load_refine_partitions(image_to_explain, masks_base_path, image_id, partition_type='sam', verbose=False):
+def load_refine_partitions(image_to_explain, masks_base_path, image_id, partition_type='sam', verbose=False,
+                           max_labels=63):
+    """max_labels: 63 for one 64-bit label word (default); 64 * W - 1 for W words."""
     if verbose:
         print(f"Loading partitions for image_id: {image_id}, partition_type: {partition_type}")
 
@@ -100,8 +102,8 @@ def load_refine_partitions(image_to_explain, masks_base_path, image_id, partitio
     partitions_s = load_partition_array(partition_path, image_to_explain.shape)
 
     # prepare_partitions(partitions, image_shape, max_labels=63)
-    partition_capped_s = cap_partition_labels(partitions_s, max_labels=63)
-    partition_capped_s = sanitize_partitions(partition_capped_s, image_to_explain.shape, max_labels=63)
+    partition_capped_s = cap_partition_labels(partitions_s, max_labels=max_labels)
+    partition_capped_s = sanitize_partitions(partition_capped_s, image_to_explain.shape, max_labels=max_labels)
 
     return partitions_s, partition_capped_s
 

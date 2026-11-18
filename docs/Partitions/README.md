@@ -3,6 +3,7 @@
 - [Shared output path configuration](../OUTPUT_PATHS.md)
 - [Check progress for all datasets](PROGRESS.md)
 - [Notebook pipeline, viewing, and image tests](NOTEBOOK_PIPELINE.md)
+- [Animate BPT versus SAM-guided BPT](BPT_ANIMATIONS.md)
 
 - [EPITO: MS-COCO batches](EPITO.md)
 - [EPITO: ImageNet batches](ImageNet_EPITO.md)

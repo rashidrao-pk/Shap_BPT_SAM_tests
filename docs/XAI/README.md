@@ -17,6 +17,18 @@ python src/scripts/explanations/OD_yolo.py --config MSCOCO_epito --sam sam2 --co
 python src/scripts/explanations/OC_KvasirSEG.py --config KvasirSEG_epito --sam medsam --explain_all --limit 5
 ```
 
+**Timing per step.** Every image folder gets `<id>_timing.json`, showing where that image's time went:
+- **`by_kind_seconds`:** GPU, CPU and disk time.
+- **`steps`:** every step with its total time and its own time. Methods include their model calls, e.g. `method:BPT-1000/yolo.predict/inference (GPU)`, and the CPU work of building the masked images (`compose_masked_images`).
+- **`slowest_own_time`:** the steps that cost the most on their own.
+- **`counters`:** coalitions, model images and model calls.
+
+For YOLO, Ultralytics' own preprocess (CPU), inference (GPU) and NMS (CPU) times are used. For the other models, `model.predict_batch` includes the adapter's preprocessing. To summarise a whole run, with hints on what to try:
+
+```bash
+python src/scripts/explanations/timing_report.py results/explanations/OD_yolo/MSCOCO_sam2_large_254_compact-sam_200_split/bg_full_B1000
+```
+
 All runners default to **`--bg-type full`**, averaging black, gray, white, blurred and noise replacements. New results use `bg_full_B<budget>` folders.
 
 AUC and the other faithfulness metrics use the same background as the explanation. To evaluate with a different one, add `--auc-bg-type`, for example `--bg-type full --auc-bg-type black`. `f_S` and `f_0` are then measured with that background, and results go to a separate `bg_full_auc_black_B<budget>` folder. The budget studies do not accept this option.

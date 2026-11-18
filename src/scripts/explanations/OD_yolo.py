@@ -35,6 +35,7 @@ import yaml
 from config_paths import output_path, partition_path, evaluation_path
 from yolo_io import YOLO_INPUT_VERSION, ultralytics_input  # Ultralytics expects BGR arrays
 import guide_options
+import xai_timing
 
 
 def load_runtime_dependencies():
@@ -497,8 +498,20 @@ def yolo_result_to_scores(result, num_classes: int, aggregate: str = "sum"):
 
 def predict_yolo(model: YOLO, x, num_classes: int | None = None, verbose: bool = False, aggregate: str = "sum"):
     num_classes = yolo_class_count(model) if num_classes is None else num_classes
-    result = model.predict(source=ultralytics_input(x), verbose=verbose)[0]  # RGB arrays -> BGR
+    with xai_timing.current().step("yolo.predict", "mixed"):
+        result = model.predict(source=ultralytics_input(x), verbose=verbose)[0]  # RGB arrays -> BGR
+        record_yolo_speed([result])
     return yolo_result_to_scores(result, num_classes=num_classes, aggregate=aggregate)
+
+
+def record_yolo_speed(results):
+    """Ultralytics' own per-image times (ms): letterbox/to-tensor, network forward, NMS."""
+    timer = xai_timing.current()
+    timer.count("model_images", len(results))
+    timer.count("model_calls")
+    for part, kind, label in [("preprocess", "cpu", "preprocess (CPU)"), ("inference", "gpu", "inference (GPU)"),
+                              ("postprocess", "cpu", "postprocess NMS (CPU)")]:
+        timer.add(label, sum((getattr(r, "speed", None) or {}).get(part) or 0.0 for r in results) / 1000, kind)
 
 
 def predict_yolo_batch(model: YOLO, images, num_classes: int | None = None, verbose: bool = False, aggregate: str = "sum"):
@@ -506,17 +519,24 @@ def predict_yolo_batch(model: YOLO, images, num_classes: int | None = None, verb
     images = list(images)
     if not images:
         return np.empty((0, num_classes))
-    results = model.predict(source=ultralytics_input(images), verbose=verbose, batch=len(images))  # RGB -> BGR
-    return np.stack(
-        [yolo_result_to_scores(result, num_classes=num_classes, aggregate=aggregate) for result in results],
-        axis=0,
-    )
+    timer = xai_timing.current()
+    with timer.step("yolo.predict", "mixed"):
+        results = model.predict(source=ultralytics_input(images), verbose=verbose, batch=len(images))  # RGB -> BGR
+        record_yolo_speed(results)
+    with timer.step("yolo.scores", "cpu"):
+        return np.stack(
+            [yolo_result_to_scores(result, num_classes=num_classes, aggregate=aggregate) for result in results],
+            axis=0,
+        )
 
 
 def make_predict_yolo_masked(model: YOLO, image_to_explain, background_image_set, aggregate: str = "sum"):
     num_classes = yolo_class_count(model)
 
     def predict_yolo_masked(masks, verbose: bool = False):
+        timer = xai_timing.current()
+        timer.begin("compose_masked_images", "cpu")
+        timer.count("coalitions", len(masks))
         masked_images = []
         mask_indexes = []
         for mask_index, mask in enumerate(masks):
@@ -528,6 +548,7 @@ def make_predict_yolo_masked(model: YOLO, image_to_explain, background_image_set
                 masked_image = np.where(mask3, image_to_explain, repl)
                 masked_images.append(masked_image)
                 mask_indexes.append(mask_index)
+        timer.end()
 
         batch_preds = predict_yolo_batch(model, masked_images, num_classes=num_classes, verbose=verbose, aggregate=aggregate)
         preds = np.zeros((len(masks), batch_preds.shape[1]))
@@ -1709,6 +1730,7 @@ def run(args):
         if resource_logging:
             reset_iteration_resource_counters(device)
         image_no = int(image_id)
+        timer = xai_timing.start(image_id)
         image_was_skipped = False
         try:
             if should_skip_image(path_results, auc_table_rows, image_no, METHOD_ORDER, args):
@@ -1722,6 +1744,7 @@ def run(args):
                 print("=" * 100)
                 print(f"Image: {image_id}")
             timing_start = time.time()
+            timer.begin("load_image_target_baselines", "mixed")
             input_data = load_image_to_explain(
                 image_id,
                 image_dir,
@@ -1732,12 +1755,16 @@ def run(args):
                 aggregate=args.class_aggregation,
             )
             first_iteration_breakdown["load_image_and_target"] += time.time() - timing_start
+            timer.end()
             fixed_category = input_data["fixed_category"]
             timing_start = time.time()
             has_segmentation = image_has_segmentation(coco, image_no)
             first_iteration_breakdown["segmentation_lookup"] += time.time() - timing_start
             timing_start = time.time()
+            timer.begin("target_prediction", "mixed")
             results = model.predict(ultralytics_input(input_data["image_to_explain"]), verbose=False)
+            record_yolo_speed(results)
+            timer.end()
             first_iteration_breakdown["yolo_predict"] += time.time() - timing_start
             top_k_classes = utx.get_top_k_classes(results, model.names, k=top_classes_n)
             path_results_img = path_results / str(image_no)
@@ -1745,6 +1772,7 @@ def run(args):
             if getattr(args, 'explain_all', False):
                 (path_results_img / f'{image_no}_all_complete.json').unlink(missing_ok=True)
 
+            timer.begin("explainer_init_f_S_f_0", "mixed")
             predict_masked = make_predict_yolo_masked(
                 model,
                 input_data["image_to_explain"],
@@ -1758,6 +1786,7 @@ def run(args):
                 verbose=args.verbose_level == "high",
             )
             predicted_cls = int(explainer.output_indexes[0])
+            timer.end()
             f_S = float(explainer.base_nuN[0])
             f_0 = float(explainer.base_nu0[0])
             auc_predict, auc_f_S, auc_f_0 = predict_masked, f_S, f_0
@@ -1770,13 +1799,16 @@ def run(args):
                 auc_f_S, auc_f_0 = (float(score) for score in auc_predict(np.stack([keep_all, ~keep_all]))[:, predicted_cls])
             input_data["explained_class"] = class_names[predicted_cls]
             if args.show_gt:
+                timer.begin("ground_truth", "io")
                 ground_truth = load_class_ground_truth(
                     coco, image_no, input_data['explained_class'], input_data['image_to_explain'].shape)
                 summary = save_ground_truth(ground_truth, input_data['image_to_explain'], path_results_img, image_no)
                 input_data['ground_truth'] = {**ground_truth, **summary}
+                timer.end()
             input_data["f_S"] = f_S
             input_data["f_0"] = f_0
             timing_start = time.time()
+            timer.begin("save_predictions", "io")
             utx.save_yolo_predictions(
                 results,
                 input_data,
@@ -1786,11 +1818,13 @@ def run(args):
                 output_json=path_results_img / f"{image_no}_predictions.json",
             )
             first_iteration_breakdown["save_predictions"] += time.time() - timing_start
+            timer.end()
 
             partitions, partition_capped, shap_values, auc_records = {}, {}, {}, []
             comparison_tree, bpt_labels = None, None
             timing_start = time.time()
-            partition_results = uts2.load_json_partitions(str(masks_base_path), image_id, verbose=False)
+            with timer.step("load_partition_metadata", "io"):
+                partition_results = uts2.load_json_partitions(str(masks_base_path), image_id, verbose=False)
             first_iteration_breakdown["load_partition_json"] += time.time() - timing_start
             methods_iter = tqdm(
                 [] if args.explain_all else METHOD_ORDER,
@@ -1804,7 +1838,8 @@ def run(args):
                 if method_progress:
                     methods_iter.set_postfix_str(method)
                 if method == "BPT":
-                    bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"])
+                    with timer.step("build_bpt", "cpu"):
+                        bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"])
                     comparison_tree = bptree
                     from experiment_common import bpt_partition_labels
                     _, sam_labels = uts2.load_refine_partitions(
@@ -1815,20 +1850,24 @@ def run(args):
                         bptree, len(np.unique(sam_labels)), input_data["image_to_explain"].shape[:2])
                 else:
                     timing_start = time.time()
+                    timer.begin("load_partitions", "io")
                     partition_type = inputs.get("compact_stage") or partition_type_for_method(method)
                     partitions[method], partition_capped[method] = uts2.load_refine_partitions(
                         input_data["image_to_explain"], str(masks_base_path), image_id, partition_type=partition_type,
                         max_labels=guide_options.max_labels(args))
                     first_iteration_breakdown["load_partitions"] += time.time() - timing_start
+                    timer.end()
                     if method == "SAM_c_kernelshap":
                         bptree = None
                     else:
                         timing_start = time.time()
-                        bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"], prebuilt_partitions=partition_capped[method],
-                                                               **guide_options.tree_kwargs(args))
+                        with timer.step("build_bpt_guided", "cpu"):
+                            bptree = shap_bpt.build_bpt_from_image(input_data["image_to_explain"], prebuilt_partitions=partition_capped[method],
+                                                                   **guide_options.tree_kwargs(args))
                         first_iteration_breakdown["build_bpt"] += time.time() - timing_start
 
                 start = time.time()
+                timer.begin(f"method:{method}", "mixed")
                 if method == "SAM_c_kernelshap":
                     shap_values[method] = utx.kernel_shap_partition_regions(
                         predict_masked,
@@ -1846,6 +1885,7 @@ def run(args):
                         batch_size=args.eval_batch_size,
                     )
                 time_exp = time.time() - start
+                timer.end()
                 first_iteration_breakdown["explanation"] += time_exp
                 first_iteration_method_times[method] = time_exp
                 if method_progress:
@@ -1855,6 +1895,7 @@ def run(args):
 
                 if args.save_plots and args.save_heatmaps:
                     timing_start = time.time()
+                    timer.begin("plots.single_maps", "cpu")
                     utx.plot_single_attributions(
                         shap_values[method],
                         str(path_results_img),
@@ -1864,6 +1905,7 @@ def run(args):
                         destroy_fig=True,
                     )
                     first_iteration_breakdown["single_attribution_plots"] += time.time() - timing_start
+                    timer.end()
 
                 partition_time_col = PARTITION_TIME_BY_METHOD.get(method)
                 auc_records.append(
@@ -1885,18 +1927,22 @@ def run(args):
                 comparison_args.model_batch_size = args.eval_batch_size
                 scoring_adapter = SimpleNamespace(predict_batch=lambda images: predict_yolo_batch(
                     model, images, num_classes=yolo_class_count(model), aggregate=args.class_aggregation))
-                _, sam_labels = uts2.load_refine_partitions(
-                    input_data['image_to_explain'], str(masks_base_path), image_id,
-                    partition_type=inputs.get("compact_stage", "compact"),
-                    max_labels=guide_options.max_labels(args))
+                with timer.step("load_partitions", "io"):
+                    _, sam_labels = uts2.load_refine_partitions(
+                        input_data['image_to_explain'], str(masks_base_path), image_id,
+                        partition_type=inputs.get("compact_stage", "compact"),
+                        max_labels=guide_options.max_labels(args))
                 partition_capped['SAM_c'] = sam_labels
                 if comparison_tree is None:
-                    comparison_tree = shap_bpt.build_bpt_from_image(input_data['image_to_explain'])
-                bpt_labels = bpt_partition_labels(comparison_tree, len(np.unique(sam_labels)),
-                                                 input_data['image_to_explain'].shape[:2])
-                comparison_explainer = shap_bpt.Explainer(
-                    predict_masked, input_data['image_to_explain'], num_explained_classes=None,
-                    explained_class_ids=[predicted_cls], verbose=False)
+                    with timer.step("build_bpt", "cpu"):
+                        comparison_tree = shap_bpt.build_bpt_from_image(input_data['image_to_explain'])
+                with timer.step("bpt_labels_for_plots", "cpu"):
+                    bpt_labels = bpt_partition_labels(comparison_tree, len(np.unique(sam_labels)),
+                                                     input_data['image_to_explain'].shape[:2])
+                with timer.step("explainer_init_f_S_f_0", "mixed"):
+                    comparison_explainer = shap_bpt.Explainer(
+                        predict_masked, input_data['image_to_explain'], num_explained_classes=None,
+                        explained_class_ids=[predicted_cls], verbose=False)
                 for method, values, info, elapsed in compute_extra(
                         SimpleNamespace(shap_bpt=shap_bpt, utx=utx), comparison_args, scoring_adapter, input_data['image_to_explain'],
                         input_data['background_image_set'], comparison_explainer, comparison_tree, predicted_cls,
@@ -1909,18 +1955,22 @@ def run(args):
                     auc_records.append({'label': method, 'shap_values': values[0],
                                         'time_partition': None, 'time_exp': elapsed})
                     if args.save_plots and args.save_heatmaps:
-                        utx.plot_single_attributions(values, str(path_results_img), f'{method}_{image_no}.png',
-                                                     save_plot=True, destroy_fig=True, notebook_style=True)
-                for method, values in shap_values.items():
-                    result = best_iou(values[0], input_data.get('ground_truth'))
-                    if result:
-                        result.pop('mask')
-                        comparison_status[method].update(result)
-                write_json(path_results_img / f'{image_no}_method_status.json', comparison_status)
-                np.savez_compressed(path_results_img / f'{image_no}_attributions.npz', **shap_values)
+                        with timer.step("plots.single_maps", "cpu"):
+                            utx.plot_single_attributions(values, str(path_results_img), f'{method}_{image_no}.png',
+                                                         save_plot=True, destroy_fig=True, notebook_style=True)
+                with timer.step("best_iou_vs_gt", "cpu"):
+                    for method, values in shap_values.items():
+                        result = best_iou(values[0], input_data.get('ground_truth'))
+                        if result:
+                            result.pop('mask')
+                            comparison_status[method].update(result)
+                with timer.step("save_attributions", "io"):
+                    write_json(path_results_img / f'{image_no}_method_status.json', comparison_status)
+                    np.savez_compressed(path_results_img / f'{image_no}_attributions.npz', **shap_values)
             auc_results = []
             if args.compute_auc:
                 timing_start = time.time()
+                timer.begin("auc_metrics", "mixed")
                 auc_results = utx.compute_auc_results(
                     auc_records,
                     auc_predict,
@@ -1933,8 +1983,10 @@ def run(args):
                     verbose=args.verbose_level == "high",
                 )
                 first_iteration_breakdown["auc_compute"] += time.time() - timing_start
+                timer.end()
                 if args.save_plots and not args.heatmaps_only:
                     timing_start = time.time()
+                    timer.begin("plots.auc_curves", "cpu")
                     utx.plot_auc_results(
                         auc_results,
                         str(path_results_img),
@@ -1950,6 +2002,8 @@ def run(args):
                         destroy_figs=True,
                     )
                     first_iteration_breakdown["auc_plot"] += time.time() - timing_start
+                    timer.end()
+                timer.begin("save_metrics_tables", "io")
                 image_auc_rows = utx.auc_results_to_rows(
                     auc_results,
                     image_no=image_no,
@@ -1963,11 +2017,13 @@ def run(args):
                 auc_table_rows.extend(image_auc_rows)
                 current_run_path, current_auc_df = save_current_auc_table(auc_table_rows, path_results)
                 current_auc_df.to_csv(path_evaluations / current_run_path.name, index=False)
+                timer.end()
                 if resource_logging and (iteration_index == 1 or (args.verbose_k > 0 and iteration_index % args.verbose_k == 0)):
                     n_saved_images = current_auc_df["image_no"].nunique() if "image_no" in current_auc_df.columns else "unknown"
                     tqdm.write(f"Current-run AUC saved: {current_run_path} ({n_saved_images} images)")
 
             if args.save_plots and not args.heatmaps_only:
+                timer.begin("plots.grids", "cpu")
                 from types import SimpleNamespace
                 from experiment_common import explanation_grid
                 from all_methods import grid_methods
@@ -1985,6 +2041,7 @@ def run(args):
                     comparison_plot(SimpleNamespace(plt=plt), input_data['image_to_explain'],
                                     shap_values, prediction, path_results_img / f'{image_no}_all_methods.png',
                                     input_data.get('ground_truth'), comparison_status)
+                timer.end()
 
             if getattr(args, 'explain_all', False):
                 from all_methods import comparison_signature
@@ -1996,6 +2053,12 @@ def run(args):
                 write_json(path_results_img / f'{image_no}_all_complete.json',
                            {'signature': comparison_signature(args), 'artifacts': artifacts})
 
+            timer.write(path_results_img / f'{image_no}_timing.json', extra={
+                **xai_timing.device_info(), 'runner': 'OD_yolo', 'budget': args.max_evals,
+                'eval_batch_size': args.eval_batch_size, 'auc_batch_size': args.auc_batch_size,
+                'auc_num_samples': args.auc_num_samples if args.compute_auc else None,
+                'background_replacements': len(input_data['background_image_set']),
+                'methods': list(shap_values), 'image_shape': list(input_data['image_to_explain'].shape)})
             image_timings.append({'image_id': image_id,
                                   'total_time_sec': time.perf_counter() - image_started,
                                   'explanation_time_sec': sum(float(row['time_exp']) for row in auc_records),
@@ -2008,6 +2071,7 @@ def run(args):
             if args.fail_fast:
                 raise
         finally:
+            xai_timing.stop()
             iteration_duration = time.time() - iteration_start
             iteration_durations.append(iteration_duration)
             should_print_resources = (

@@ -373,6 +373,19 @@ def backgrounds(image, mode):
     return [make(name) for name in ['black', 'gray', 'white', 'blurred', 'noise']] if mode == 'full' else [make(mode)]
 
 
+def timed_predict_batch(adapter):
+    """adapter.predict_batch, recorded as a model step in the image's timing file."""
+    import xai_timing
+
+    def predict_batch(images):
+        timer = xai_timing.current()
+        timer.count('model_images', len(images))
+        timer.count('model_calls')
+        with timer.step('model.predict_batch (incl. preprocessing)', 'gpu'):
+            return adapter.predict_batch(images)
+    return predict_batch
+
+
 def make_masked_predictor(adapter, image, replacements, batch_size):
     def predict(masks):
         masks = np.asarray(masks, dtype=bool)
@@ -380,11 +393,18 @@ def make_masked_predictor(adapter, image, replacements, batch_size):
             raise ValueError(f'Expected [N,{image.shape[0]},{image.shape[1]}] masks, got {masks.shape}')
         predictions = []
         step = max(1, batch_size // len(replacements))
+        import xai_timing
+        timer = xai_timing.current()
+        timer.count('coalitions', len(masks))
         for start in range(0, len(masks), step):
             chunk = masks[start:start + step]
-            images = [np.where(mask[..., None], image, background)
-                      for mask in chunk for background in replacements]
-            scores = np.asarray(adapter.predict_batch(images), dtype=float)
+            with timer.step('compose_masked_images', 'cpu'):
+                images = [np.where(mask[..., None], image, background)
+                          for mask in chunk for background in replacements]
+            timer.count('model_images', len(images))
+            timer.count('model_calls')
+            with timer.step('model.predict_batch (incl. preprocessing)', 'gpu'):
+                scores = np.asarray(adapter.predict_batch(images), dtype=float)
             if scores.shape != (len(images), len(adapter.class_names)) or not np.isfinite(scores).all():
                 raise ValueError('Model returned invalid class scores')
             predictions.append(scores.reshape(len(chunk), len(replacements), -1).mean(axis=1))
@@ -725,16 +745,22 @@ def run(kind, args, adapter=None):
             marker.unlink()
         try:
             started = time.perf_counter()
+            import xai_timing
+            timer = xai_timing.start(image_id)
+            timer.begin('load_image_and_partitions', 'io')
             with Image.open(record['image_path']) as source:
                 image = np.asarray(source.convert('RGB'))
             _, labels = runtime.partitions.load_refine_partitions(
                 image, str(inputs['partition_dir']), record.get('partition_id', image_id),
                 inputs.get('compact_stage', 'compact'),
                 max_labels=guide_options.max_labels(args))
+            timer.end()
             if hasattr(adapter, 'set_record'):
                 adapter.set_record(record)  # The referring expression this record explains.
-            replacements = backgrounds(image, args.bg_type)
+            with timer.step('backgrounds', 'cpu'):
+                replacements = backgrounds(image, args.bg_type)
             predict = make_masked_predictor(adapter, image, replacements, args.model_batch_size)
+            timer.begin('target_and_f_S_f_0', 'mixed')
             full = predict(np.ones((1, *image.shape[:2]), dtype=bool))[0]
             if kind == 'OC_CelebA' and args.target_class is None:
                 attribute = args.attribute or 'Brown_Hair'
@@ -748,6 +774,7 @@ def run(kind, args, adapter=None):
                     write_json(folder / f'{image_id}_skipped.json', {'image_id': image_id, 'reason': reason})
                     skipped.append({'image_id': image_id, 'reason': reason})
                     print(f'{image_id}: skipped, {reason}', flush=True)
+                    xai_timing.stop()
                     continue
                 target = int(np.argmax(full)) if args.target_class is None else args.target_class
             if target < 0 or target >= len(adapter.class_names):
@@ -756,6 +783,8 @@ def run(kind, args, adapter=None):
                                                   explained_class_ids=[target], verbose=args.verbose_level == 'high')
             f_s, f_0 = float(explainer.base_nuN[0]), float(explainer.base_nu0[0])
             auc_predict, auc_f_s, auc_f_0 = auc_scoring(adapter, image, args, target, predict, f_s, f_0)
+            timer.end()
+            timer.begin('detections_for_record', 'mixed')
             prediction = {'image_id': image_id, 'source_image': str(record['image_path']),
                           'fixed_category': adapter.class_names[target], 'explained_class': adapter.class_names[target],
                           'predicted_class_id': target, 'f_S': f_s, 'f_0': f_0,
@@ -766,7 +795,9 @@ def run(kind, args, adapter=None):
                 prediction.update({key: record[key] for key in ['expression', 'ann_id', 'ref_id', 'sent_id', 'category']})
                 prediction.update(score=args.score, image_expressions=record['image_expressions'])
                 prediction['image_stem'] = record['partition_id']
+            timer.end()
             ground_truth = None
+            timer.begin('ground_truth_and_predictions_json', 'io')
             if args.show_gt:
                 from ground_truth import load_ground_truth, save_ground_truth
                 gt_class = ((args.gt_class or prediction['explained_class']) if kind in DETECTOR_RUNNERS else
@@ -780,6 +811,7 @@ def run(kind, args, adapter=None):
                     print(f"{image_id} GT: {ground_truth['class_name']}; {ground_truth['status']}; "
                           f"foreground pixels={ground_truth['foreground_pixels']}", flush=True)
             write_json(folder / f'{image_id}_predictions.json', prediction)
+            timer.end()
             attributions, image_rows, auc_results = {}, [], []
             bpt_labels = None
             bpt_tree = None
@@ -787,10 +819,13 @@ def run(kind, args, adapter=None):
             if args.explain_all:
                 if args.verbose_level != 'low':
                     print(f'{image_id}: building BPT tree', flush=True)
-                bpt_tree = runtime.shap_bpt.build_bpt_from_image(image)
-                bpt_labels = bpt_partition_labels(bpt_tree, len(np.unique(labels)), image.shape[:2])
+                with timer.step('build_bpt', 'cpu'):
+                    bpt_tree = runtime.shap_bpt.build_bpt_from_image(image)
+                with timer.step('bpt_labels_for_plots', 'cpu'):
+                    bpt_labels = bpt_partition_labels(bpt_tree, len(np.unique(labels)), image.shape[:2])
             for method in ([] if args.explain_all else METHODS):
                 start = time.perf_counter()
+                timer.begin(f'method:{method}', 'mixed')
                 if method == 'SAM_c_kernelshap':
                     values = (np.full((1, *labels.shape), f_s - f_0) if len(np.unique(labels)) == 1 else
                               runtime.utx.kernel_shap_partition_regions(
@@ -805,6 +840,7 @@ def run(kind, args, adapter=None):
                         bpt_labels = bpt_partition_labels(tree, len(np.unique(labels)), image.shape[:2])
                     values = explainer.explain_instance(args.max_evals, bpt=tree, method='BPT', batch_size=args.eval_batch_size)
                 elapsed = time.perf_counter() - start
+                timer.end()
                 values = np.asarray(values, dtype=float)
                 if values.shape != (1, *image.shape[:2]) or not np.isfinite(values).all():
                     raise ValueError(f'{method}: invalid attribution map {values.shape}')
@@ -814,15 +850,17 @@ def run(kind, args, adapter=None):
                        'fixed_category': prediction['explained_class'], 'f_S': f_s, 'f_0': f_0,
                        'time_exp': elapsed, 'time_eval': 0.0}
                 if args.compute_auc:
-                    result = evaluate(runtime, method, values, auc_predict, target, auc_f_s, auc_f_0, args, elapsed)
+                    with timer.step('auc_metrics', 'mixed'):
+                        result = evaluate(runtime, method, values, auc_predict, target, auc_f_s, auc_f_0, args, elapsed)
                     auc_results.append(result)
                     row.update(auc_columns(result))
                     row.update({key: value for key, value in result.items()
                                 if isinstance(value, (int, float, np.number))})
                 image_rows.append(row)
                 if args.save_plots and args.save_heatmaps:
-                    runtime.utx.plot_single_attributions(values, str(folder), f'{method}_{image_id}.png',
-                                                        save_plot=True, destroy_fig=True, notebook_style=True)
+                    with timer.step('plots.single_maps', 'cpu'):
+                        runtime.utx.plot_single_attributions(values, str(folder), f'{method}_{image_id}.png',
+                                                            save_plot=True, destroy_fig=True, notebook_style=True)
             if args.explain_all:
                 from all_methods import compute_extra
                 for method, values, info, elapsed in compute_extra(
@@ -837,16 +875,19 @@ def run(kind, args, adapter=None):
                            'fixed_category': prediction['explained_class'], 'f_S': f_s, 'f_0': f_0,
                            'time_exp': elapsed, 'time_eval': 0.0}
                     if args.compute_auc:
-                        result = evaluate(runtime, method, values, auc_predict, target, auc_f_s, auc_f_0, args, elapsed)
+                        with timer.step('auc_metrics', 'mixed'):
+                            result = evaluate(runtime, method, values, auc_predict, target, auc_f_s, auc_f_0, args, elapsed)
                         auc_results.append(result)
                         row.update(auc_columns(result))
                         row.update({key: value for key, value in result.items()
                                     if isinstance(value, (int, float, np.number))})
                     image_rows.append(row)
                     if args.save_plots and args.save_heatmaps:
-                        runtime.utx.plot_single_attributions(values, str(folder), f'{method}_{image_id}.png',
-                                                            save_plot=True, destroy_fig=True, notebook_style=True)
+                        with timer.step('plots.single_maps', 'cpu'):
+                            runtime.utx.plot_single_attributions(values, str(folder), f'{method}_{image_id}.png',
+                                                                save_plot=True, destroy_fig=True, notebook_style=True)
                 from all_methods import best_iou
+                timer.begin('best_iou_and_status', 'cpu')
                 for method, values in attributions.items():
                     result = best_iou(values[0], ground_truth)
                     if result:
@@ -854,6 +895,7 @@ def run(kind, args, adapter=None):
                         statuses[method].update(result)
                         next(row for row in image_rows if row['method'] == method).update(result)
                 write_json(folder / f'{image_id}_method_status.json', statuses)
+                timer.end()
             if kind in LOCALIZATION_RUNNERS and ground_truth is not None:
                 from src.medical.evaluation import pointing_accuracy
                 from all_methods import best_iou
@@ -872,16 +914,20 @@ def run(kind, args, adapter=None):
                     print(f'{image_id}: ROAD for {len(attributions)} maps', flush=True)
                 road_path = folder / f'{image_id}_road.json'
                 road_path.unlink(missing_ok=True)  # The maps are new, so earlier ROAD scores no longer apply.
-                scores = score_maps(adapter.predict_batch, image, {name: values[0] for name, values in attributions.items()},
+                timer.begin('road_metrics', 'mixed')
+                scores = score_maps(timed_predict_batch(adapter), image, {name: values[0] for name, values in attributions.items()},
                                     target, image_id, road_config, road_path,
                                     verbose=args.verbose_level == 'high')
+                timer.end()
                 for row in [*image_rows, *auc_results]:
                     method = row.get('method', row.get('label'))
                     if method in scores:
                         row.update(road_columns(scores[method]))
-            np.savez_compressed(folder / f'{image_id}_attributions.npz', **attributions)
-            write_json(folder / f'{image_id}_metrics.json', auc_results if args.compute_auc else image_rows)
+            with timer.step('save_attributions_and_metrics', 'io'):
+                np.savez_compressed(folder / f'{image_id}_attributions.npz', **attributions)
+                write_json(folder / f'{image_id}_metrics.json', auc_results if args.compute_auc else image_rows)
             if args.save_plots:
+                timer.begin('plots.grids_and_curves', 'cpu')
                 from all_methods import grid_methods
                 explanation_grid(runtime, image, labels, attributions, prediction,
                                  folder / f'{image_id}_xai_results.png', ground_truth, bpt_labels, auc_results,
@@ -895,6 +941,7 @@ def run(kind, args, adapter=None):
                                                  image_no=image_id, destroy_figs=True)
                     runtime.utx.plot_faithfulness_curves(auc_results, str(folder), save_plot=True,
                                                        image_no=image_id, destroy_figs=True)
+                timer.end()
             artifacts = [f'{image_id}_predictions.json', f'{image_id}_attributions.npz', f'{image_id}_metrics.json']
             if args.explain_all:
                 artifacts += [f'{image_id}_method_status.json']
@@ -914,6 +961,13 @@ def run(kind, args, adapter=None):
             manifest = {'signature': signature, 'input_stamp': input_stamp(record), 'artifacts': artifacts,
                         'rows': image_rows, 'prediction': prediction, 'total_time_sec': image_timing['total_time_sec'],
                         'timing': image_timing}
+            timer.write(folder / f'{image_id}_timing.json', extra={
+                **xai_timing.device_info(), 'runner': kind, 'budget': args.max_evals,
+                'model_batch_size': args.model_batch_size, 'eval_batch_size': args.eval_batch_size,
+                'auc_num_samples': args.auc_num_samples if args.compute_auc else None,
+                'background_replacements': len(replacements), 'methods': list(attributions),
+                'image_shape': list(image.shape)})
+            xai_timing.stop()
             write_json(marker, manifest)  # Completion marker is always written last.
             image_timings.append(image_timing)
             rows.extend(image_rows)
@@ -921,6 +975,8 @@ def run(kind, args, adapter=None):
             runtime.pd.DataFrame(rows).to_csv(run_dir / 'auc_results_all_images_current_run.csv', index=False)
             runtime.pd.DataFrame(rows).to_csv(evaluations / 'auc_results_all_images_current_run.csv', index=False)
         except Exception:
+            import xai_timing
+            xai_timing.stop()
             failure = {'image_id': image_id, 'traceback': traceback.format_exc()}
             failures.append(failure)
             print(failure['traceback'], file=sys.stderr)

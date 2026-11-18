@@ -481,6 +481,10 @@ def compute_extra(runtime, args, adapter, image, replacements, explainer, tree, 
         if show_progress:
             print(f'Method {index}/{len(names)}: {name} starting', flush=True)
         started = time.perf_counter()
+        import xai_timing
+        timer = xai_timing.current()
+        # Gradient methods run their forward/backward passes on the device inside this step.
+        timer.begin(f'method:{name}', 'gpu' if name in {'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'} else 'mixed')
         info = {'status': 'complete'}
         try:
             if name.startswith(('BPT-', 'BPT+SAM_c-', 'BPT+SAM_c@', 'SAM_c+KernelSHAP-', 'Shap-AA-')):
@@ -502,8 +506,9 @@ def compute_extra(runtime, args, adapter, image, replacements, explainer, tree, 
                         if labels is None:
                             raise ValueError('BPT+SAM_c requires saved SAM_c labels')
                         if sam_tree is None:
-                            sam_tree = runtime.shap_bpt.build_bpt_from_image(image, prebuilt_partitions=labels,
-                                                                             **guide_options.tree_kwargs(args))
+                            with timer.step('build_bpt_guided', 'cpu'):
+                                sam_tree = runtime.shap_bpt.build_bpt_from_image(image, prebuilt_partitions=labels,
+                                                                                 **guide_options.tree_kwargs(args))
                         selected_tree = sam_tree
                         info['guide'] = guide_options.settings(args)
                     elif method == 'BPT':
@@ -559,6 +564,7 @@ def compute_extra(runtime, args, adapter, image, replacements, explainer, tree, 
             values = None
             info = {'status': 'unsupported', 'reason': str(error)}
         elapsed = time.perf_counter()-started
+        timer.end()
         if show_progress:
             print(f"Method {index}/{len(names)}: {name} {info['status']} ({elapsed:.1f}s)", flush=True)
         yield name, values, info, elapsed

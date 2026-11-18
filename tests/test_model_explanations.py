@@ -211,6 +211,14 @@ class ModelExplanationTest(unittest.TestCase):
             self.assertEqual(set(values.files), set(common.METHODS))
             for method in common.METHODS:
                 self.assertEqual(values[method].shape, (1, 16, 20))
+            timing_file = json.loads((folder / f'{image_id}_timing.json').read_text())
+            steps = {step['step']: step for step in timing_file['steps']}
+            self.assertIn('method:BPT', steps)
+            self.assertIn('method:BPT/model.predict_batch (incl. preprocessing)', steps)
+            self.assertIn('method:BPT/compose_masked_images', steps)
+            self.assertAlmostEqual(sum(timing_file['by_kind_seconds'].values()), timing_file['total_seconds'], delta=.05)
+            self.assertGreater(timing_file['counters']['model_images'], 0)
+            self.assertEqual(timing_file['runner'], 'OC_ResNet')
             self.assertTrue((result['evaluation_dir'] / 'method_summary.csv').is_file())
             for name in ['winner.md', 'leaderboard.csv', 'metric_winners.csv', 'method_boxplots.png', 'method_ranks.png']:
                 self.assertTrue((result['evaluation_dir'] / name).is_file(), name)

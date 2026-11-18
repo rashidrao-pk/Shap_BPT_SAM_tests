@@ -34,7 +34,7 @@ python src/scripts/generate_imagenet_partitions.py \
   --generate_at_least_n_masks 100 \
   --save-partitions sam compact --compact-strategy greedy split \
   --gt-only \
-  --limit 1000
+  --limit 5
 ```
 
 ## Preview the first five completed images:

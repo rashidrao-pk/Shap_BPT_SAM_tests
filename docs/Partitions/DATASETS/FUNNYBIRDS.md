@@ -27,7 +27,7 @@ python src/scripts/generate_funnybirds_partitions.py \
   --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact --compact-strategy greedy split \
-  --limit 2
+  --limit 5
 ```
 
 ### SAM-2
@@ -42,7 +42,7 @@ python src/scripts/generate_funnybirds_partitions.py \
   --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact --compact-strategy greedy split \
-  --limit 2
+  --limit 5
 ```
 
 Remove `--limit 2` to process all 500 test images. Repeat the same command to resume: completed images are skipped.
@@ -65,7 +65,7 @@ python src/scripts/view_partitions.py \
   --config FunnyBirds_epito \
   --limit 5 \
   --sam sam2 \
-  --methods sam compact_greedy compact_split
+  --methods sam compact_greedy compact_split \
   --show-gt
 ```
 

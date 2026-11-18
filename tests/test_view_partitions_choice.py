@@ -165,3 +165,14 @@ def test_every_config_names_its_own_folders_for_each_model():
             if key.startswith('mask_dir_final_'):
                 assert folder.startswith(f'{prefix}_{key.removeprefix("mask_dir_final_")}_'), f'{path.name}: {key}'
                 assert folder.endswith(f'_{target}'), f'{path.name}: {key} has another mask target'
+
+
+def test_missing_folder_lists_existing_ones_with_the_option(tmp_path):
+    from view_partitions import discover_image_ids
+    config = write_config(tmp_path)  # mask_dir_final is the SAM-1 folder, which was never generated
+    (tmp_path / 'partitions/MSCOCO_sam2_large_254_compact-sam_200').mkdir(parents=True)
+    (tmp_path / 'partitions/MSCOCO_sam1_vit_b_62_compact-sam_200').mkdir()
+    with pytest.raises(ValueError) as error:
+        discover_image_ids(str(config), ['sam'], 5)
+    assert 'MSCOCO_sam2_large_254_compact-sam_200 (--sam sam2)' in str(error.value)
+    assert '(--partition-folder MSCOCO_sam1_vit_b_62_compact-sam_200)' in str(error.value)

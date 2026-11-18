@@ -34,7 +34,7 @@ python src/scripts/generate_camo_partitions.py \
   --device cuda --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact --compact-strategy greedy split \
-  --limit 1000
+  --limit 5
 ```
 
 ## SAM2 - tiny
@@ -50,7 +50,7 @@ python src/scripts/generate_camo_partitions.py \
   --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact --compact-strategy greedy split \
-  --limit 2
+  --limit 5
 ```
 
 ## Preview
@@ -59,7 +59,7 @@ python src/scripts/generate_camo_partitions.py \
 python src/scripts/view_partitions.py \
   --config CAMO_epito \
   --sam sam2 \
-  --limit 2 \
+  --limit 5 \
   --methods sam compact_greedy compact_split
 ```
 

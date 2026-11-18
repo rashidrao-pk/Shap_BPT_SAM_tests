@@ -36,7 +36,7 @@ python src/scripts/generate_celebahq_partitions.py \
   --device cuda --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact --compact-strategy greedy split \
-  --limit 2
+  --limit 5
 ```
 
 ## SAM2.1 Large
@@ -52,7 +52,7 @@ python src/scripts/generate_celebahq_partitions.py \
   --max-regions 254 \
   --generate_at_least_n_masks 50 \
   --save-partitions sam compact --compact-strategy greedy split \
-  --limit 2
+  --limit 5
 ```
 
 Remove `--limit 2` for the full dataset. Resume with the same command; completed

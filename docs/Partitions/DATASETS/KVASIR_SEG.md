@@ -56,15 +56,16 @@ Keep `--save-partitions sam compact`. Saving other stages changes the folder nam
 | SAM-1 | `KvasirSEG_sam1_vit_b_254_compact-sam_50` |
 | SAM-2 | `KvasirSEG_sam2_large_254_compact-sam_50` |
 
-The config selects SAM-2. To explain SAM-1 partitions, set `data.mask_dir_final` to the SAM-1 folder.
+The config selects **SAM-1** (`data.mask_dir_final`), unlike most datasets. To explain SAM-2 partitions, set `data.mask_dir_final` to the SAM-2 folder. For previews, `--sam sam1` or `--sam sam2` picks the folder; without it, the viewer uses the SAM-1 folder.
 
 ## Preview the first five completed images
 
 ```bash
 python src/scripts/view_partitions.py \
   --config KvasirSEG_epito \
+  --sam sam2 \
   --limit 5 \
-  --methods sam compact \
+  --methods sam compact_greedy compact_split \
   --show-gt
 ```
 

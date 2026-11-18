@@ -174,12 +174,26 @@ def partition_choice(args):
     return {'sam': getattr(args, 'sam', None), 'partition_folder': getattr(args, 'partition_folder', None)}
 
 
+def folder_hint(folder, data):
+    """Which folders of this dataset exist, and the --sam / --partition-folder option that selects each."""
+    import re
+    prefix = re.split(r'_(?:sam1|sam2|medsam|medicosam)_', folder.name)[0]
+    existing = sorted(path.name for path in folder.parent.glob(f'{prefix}_*') if path.is_dir()) \
+        if folder.parent.is_dir() else []
+    if not existing:
+        return f'. No {prefix}_* partition folders exist yet; generate them first'
+    by_key = {value: key.removeprefix('mask_dir_final_') for key, value in data.items()
+              if key.startswith('mask_dir_final_') and isinstance(value, str)}
+    options = [f'--sam {by_key[name]}' if name in by_key else f'--partition-folder {name}' for name in existing]
+    return '. Existing folders: ' + '; '.join(f'{name} ({option})' for name, option in zip(existing, options))
+
+
 def discover_image_ids(config_name, methods, limit, allowed_ids=None, **choice):
     root, config = load_view_config(config_name, **choice)
     data = config['data']
     folder = partition_path(config, root)
     if not folder.is_dir():
-        raise ValueError(f'Partition folder not found: {folder}; check data.mask_dir_final')
+        raise ValueError(f'Partition folder not found: {folder}{folder_hint(folder, data)}')
     image_ids = []
     for metadata in sorted(folder.glob('*_results.json')):
         image_id = metadata.name.removesuffix('_results.json')

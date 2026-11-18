@@ -27,7 +27,7 @@ python src/scripts/generate_dota_partitions.py \
   --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --save-partitions sam compact --compact-strategy greedy split \
-  --limit 2
+  --limit 5
 ```
 
 ### SAM-1 (optional, to compare with SAM-2)
@@ -42,7 +42,7 @@ python src/scripts/generate_dota_partitions.py \
   --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --save-partitions sam compact --compact-strategy greedy split \
-  --limit 2
+  --limit 5
 ```
 
 Remove `--limit 2` to process every tile. Repeat the same command to resume: completed tiles are skipped.

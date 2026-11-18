@@ -34,10 +34,10 @@ It reads the CPU type and GPU, then chooses the environment:
 | x86_64 | H200, L40S, V100S, T4, L4 | `pt_312_sam_x86` |
 
 It then does the following:
-- builds the x86 environment with `setup_x86_env.sh` the first time it is missing;
+- builds the x86 environment with `setup_x86_env.sh` the first time it is missing (own torch 2.7.1 for CUDA 12.6, pinned; Section 7);
 - activates the environment, exports `PROJECT_DIR` and `SAM2_DIR`, and unsets `PYTHONPATH`;
 - compiles the BPT extension if this CPU type has none;
-- prints the check: GPU, CUDA calculation, extension, and the SAM imports.
+- prints the check: GPU, CUDA calculation, extension, and the SAM imports. On a GPU node it fails if torch cannot use the GPU.
 
 In later sessions, the same `source` line only activates and checks. `--setup` reruns the x86 installation, for example after requirements change. Use `source`, not `bash`, so the environment stays active in your shell.
 
@@ -208,7 +208,7 @@ tail -f logs/partitions_<jobid>.out
 
 ## 6. Second choice: the L40S node (x86_64)
 
-The L40S node has an Intel CPU, so nothing compiled for aarch64 runs there. It needs its own environment, the same `/beegfs/home/mrashid/pt_312_sam_x86` as the H200 node. Build it once as in Section 7, either on the H200 node or inside an L40S allocation:
+The L40S node has an Intel CPU, so nothing compiled for aarch64 runs there. It needs its own environment, the same `/beegfs/home/mrashid/pt_312_sam_x86` as the H200 node. Build it once as in Section 7, on any x86 GPU node:
 
 ```bash
 srun -p cascadelake --gres=gpu:l40:1 --cpus-per-task=16 --mem=64G --time=06:00:00 --pty bash
@@ -219,62 +219,25 @@ The repository can stay shared. The compiled extension is named per architecture
 
 ## 7. The H200 node (`llm` partition, x86_64)
 
-The H200 node has the heaviest GPUs: 2 × H200 with 141 GB each. It is **x86_64**. With `pt_312_sam`, torch loads from the node's own `/opt/pytorch-v2.7.1`, but NumPy fails with `No module named 'numpy.core._multiarray_umath'`. That is the ARM NumPy of the EPITO environment. The node needs its own environment. Build it once. Start a session, **wait for the `mrashid@llm-h200` prompt**, then run the script:
+The H200 node has the heaviest GPUs: 2 × H200 with 141 GB each. It is **x86_64**, like the L40S, V100S, T4 and L4 nodes. None of them can run the ARM environment `pt_312_sam`: NumPy fails with `No module named 'numpy.core._multiarray_umath'`. They share one x86 environment, `/beegfs/home/mrashid/pt_312_sam_x86`, built once on any x86 GPU node.
+
+Start a session, **wait for the node's prompt**, then run:
 
 ```bash
-srun -p llm --gres=gpu:h200:1 --cpus-per-task=16 --mem=64G --time=02:00:00 --pty bash
-# ... wait for the prompt on llm-h200, then:
 cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
-bash src/hpc/setup_x86_env.sh
+source src/hpc/node_env.sh            # first time: builds the environment with setup_x86_env.sh
+source src/hpc/node_env.sh --setup    # rebuild / repair an existing environment
 ```
 
-Lines pasted while `srun` is still waiting do not reach the new shell, so paste nothing before the prompt appears. The script stops early on a non-x86 node or when `/opt/pytorch-v2.7.1` is missing, and it can be rerun. It runs the same steps as the manual commands below, followed by the check:
+Lines pasted while `srun` is still waiting do not reach the new shell.
 
-```bash
-srun -p llm --gres=gpu:h200:1 --cpus-per-task=16 --mem=64G --time=02:00:00 --pty bash
-uname -m                                   # x86_64
-deactivate 2>/dev/null; unset PYTHONPATH
-export PROJECT_DIR=/beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
-export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
-export SAM_ENV=/beegfs/home/mrashid/pt_312_sam_x86
-OPT_TORCH=/opt/pytorch-v2.7.1/lib/python3.12/site-packages
+**The x86 environment has its own PyTorch:** official torch 2.7.1 + torchvision 0.22.1 for CUDA 12.6, the same torch version as EPITO.
+- **Why not the node's `/opt` PyTorch:** it was not protected from pip. A dependency, most likely `timm` or `transformers` asking for torchvision, pulled the newest torch (2.15+cu132) into the environment, which needs CUDA 13.2. The nodes' driver supports CUDA 12.9 at most, so torch ran without the GPU ("NVIDIA driver on your system is too old", "CUDA not available").
+- **Pinned versions:** the script writes `torch-constraints.txt` into the environment and passes it to every later `pip install`, so nothing can replace torch again.
+- **Repair:** `--setup` swaps a wrong torch for the pinned one and removes the old `opt_pytorch.pth`.
+- **Supported GPUs:** CUDA 12.6 wheels run on V100 (sm_70), T4, L4, L40S and H200 with this driver.
 
-# 1. Environment that sees the node's PyTorch, even when PYTHONPATH is unset (as in the sbatch files)
-python3.12 -m venv "$SAM_ENV"
-source "$SAM_ENV/bin/activate"
-echo "$OPT_TORCH" > "$SAM_ENV/lib/python3.12/site-packages/opt_pytorch.pth"
-python -m pip install --upgrade pip setuptools wheel Cython
-
-# 2. Packages, built for x86_64. Never pip-install torch or torchvision: they come from /opt.
-python -m pip install -r "$PROJECT_DIR/requirements-xai-all.txt"
-python -m pip install PyYAML pycocotools scipy pandas pillow tabulate matplotlib transformers timm
-python -m pip install --no-deps ultralytics
-python -m pip install --no-deps git+https://github.com/facebookresearch/segment-anything.git
-python -m pip install hydra-core iopath tqdm
-SAM2_BUILD_CUDA=0 python -m pip install --no-deps -e "$SAM2_DIR"
-
-# 3. ShapBPT: builds bpt.cpython-312-x86_64-linux-gnu.so next to EPITO's aarch64 file
-cd "$PROJECT_DIR"
-python -m pip install --no-deps -e .
-```
-
-`--no-deps` stops pip from replacing the node's torch with a generic wheel. Then check:
-
-```bash
-python - <<'PY'
-import numpy, torch, torchvision, shap_bpt
-from shap_bpt import bpt
-print("numpy", numpy.__version__, "torch", torch.__version__, torch.__file__)
-print("GPU:", torch.cuda.get_device_name(0), "x", torch.cuda.device_count())
-print("CUDA calculation:", (torch.ones(4, device="cuda") + 1).cpu())
-print("BPT extension:", bpt.__file__)
-PY
-```
-
-It is ready when the GPU shows as an H200, the calculation prints `tensor([2., 2., 2., 2.])`, and the extension file ends in `x86_64-linux-gnu.so`. Then run the SAM check from Section 3. Keep this environment's `source` line, instead of `pt_312_sam`, for later sessions on this node.
-
-- **`pip` cannot reach the internet:** run the `pip install` lines on the login node (`mercurio-login`) with the same environment active, provided `uname -m` there is also `x86_64`. Keep the last line (`pip install -e .`, which compiles the extension) and the check on the H200 node.
-- **`pip check` complains about torch versions:** leave it. The `/opt` build is the one that matches the node's driver.
+The environment is ready when the check prints the GPU, `CUDA calculation: [2.0, 2.0, 2.0, 2.0]`, and an extension file ending in `x86_64-linux-gnu.so`. If `pip` cannot reach the internet on a compute node, run `bash src/hpc/setup_x86_env.sh` there anyway: it stops at the first download, and the downloads can then be done on `mercurio-login` (also x86_64) with the environment active.
 
 Submit jobs with this environment:
 
@@ -286,7 +249,7 @@ sbatch $H200 --export=ALL,SAM_ENV=/beegfs/home/mrashid/pt_312_sam_x86,CHAIN_LEFT
   --generate_at_least_n_masks 200 --save-partitions sam compact
 ```
 
-The same `pt_312_sam_x86` environment also serves the L40S node (Section 6), which is x86_64 too. That works if `/opt/pytorch-v2.7.1` exists there as well; check with `ls /opt` on that node. The partition name suggests the node is meant for LLM jobs. If others are waiting, prefer `gracehopper`.
+The same `pt_312_sam_x86` environment also serves the L40S, V100S, T4 and L4 nodes, which are x86_64 too; it no longer depends on what each node has in `/opt`. The partition name suggests the node is meant for LLM jobs. If others are waiting, prefer `gracehopper`.
 
 ## Results are comparable across GPUs
 

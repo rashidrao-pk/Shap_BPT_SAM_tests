@@ -60,22 +60,34 @@ _node_env_main() {
   # shellcheck disable=SC1091
   source "$env/bin/activate"
   cd "$PROJECT_DIR" || return 1
+  echo "Activated $(command -v python)"
 
+  echo 'Importing torch (the first import on a node can take a minute) ...'
+  if ! python -c 'import torch' 2>/dev/null; then
+    echo "torch does not import with $env on $host." >&2
+    python -c 'import torch' 2>&1 | tail -3 >&2
+    return 1
+  fi
+
+  echo 'Checking the BPT extension ...'
   if ! python -c 'from shap_bpt import bpt' 2>/dev/null; then
     echo 'BPT extension missing for this CPU type; compiling it ...'
     python setup.py build_ext --inplace >/dev/null || { echo 'Compiling the BPT extension failed' >&2; return 1; }
   fi
 
-  SAM_CHECK=$sam python - <<'PY' || { echo "The check failed; see the message above. Try: source src/hpc/node_env.sh --setup" >&2; return 1; }
+  echo 'Checking GPU and SAM packages ...'
+  SAM_CHECK=$sam NODE_GPU=$gpu python - <<'PY' || { echo "The check failed; see the message above. Try: source src/hpc/node_env.sh --setup" >&2; return 1; }
 import os, numpy, torch
 from shap_bpt import bpt
-print("numpy", numpy.__version__, "| torch", torch.__version__, "| CUDA", torch.version.cuda)
+print("numpy", numpy.__version__, "| torch", torch.__version__, "| CUDA", torch.version.cuda, "|", os.path.dirname(torch.__file__))
 if torch.cuda.is_available():
     names = [torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())]
     print("GPU:", ", ".join(names), "| capability", torch.cuda.get_device_capability(0))
     print("CUDA calculation:", (torch.ones(4, device="cuda") + 1).cpu().tolist())
 else:
     print("CUDA not available (CPU only)")
+    if os.environ.get("NODE_GPU"):
+        raise SystemExit(f"This node has a GPU ({os.environ['NODE_GPU']}) but torch {torch.__version__} cannot use it.")
 print("BPT extension:", os.path.basename(bpt.__file__))
 import segment_anything, sam2
 print("SAM-1 and SAM-2 packages import OK")

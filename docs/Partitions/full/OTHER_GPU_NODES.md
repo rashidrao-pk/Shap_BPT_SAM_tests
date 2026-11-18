@@ -8,6 +8,8 @@ This guide sets up both and runs the usual commands there. [EPITO_SETUP.md](EPIT
 
 ## 0. Quick way: two scripts
 
+**Simplest:** `bash src/hpc/gpu.sh v100` (or `a100`, `h100`, `h200`, `best`, ...) requests the GPU and opens a shell with the environment already set up; see [GPU.md](GPU.md). The two scripts below are what it uses.
+
 **On the login node**, see which GPU is free, heaviest first (H200 → GH200 → A100 → L40S → V100S → L4 → T4):
 
 ```bash
@@ -216,6 +218,30 @@ uname -m                                        # x86_64
 ```
 
 The repository can stay shared. The compiled extension is named per architecture (`bpt.cpython-312-x86_64-linux-gnu.so` next to `bpt.cpython-312-aarch64-linux-gnu.so`), so building it here does not break EPITO. Submit jobs with `-p cascadelake --gres=gpu:l40:1 --export=ALL,SAM_ENV=/beegfs/home/mrashid/pt_312_sam_x86`.
+
+### The V100S nodes (also `cascadelake`, x86_64)
+
+`cascadelake-V100S-01` and `-02` have 2 × V100S (32 GB) each. They are often free when every heavier GPU is taken. The GPU type in `--gres` selects them inside the shared partition:
+
+```bash
+srun -p cascadelake --gres=gpu:v100:1 --cpus-per-task=16 --mem=64G --time=06:00:00 --pty bash
+# after the prompt (mrashid@cascadelake-V100S-0x):
+cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests && source src/hpc/node_env.sh
+```
+
+Add `--nodelist=cascadelake-V100S-01` (or `-02`) to force one node. Check whether they are free with `sinfo -p cascadelake -o "%25N %10T %30G"`.
+
+For batch jobs, use the x86 environment:
+
+```bash
+V100="-p cascadelake --gres=gpu:v100:1 --cpus-per-task=16 --mem=64G"
+sbatch $V100 --export=ALL,SAM_ENV=/beegfs/home/mrashid/pt_312_sam_x86,CHAIN_LEFT=10 src/hpc/run_partitions.sbatch ...
+```
+
+Things to know about the V100S:
+- **Tested:** SAM-1, SAM-2 Large, MedSAM and MedicoSAM all load and run here (2026-11-18).
+- **Speed:** SAM-2.1 Large took about 20 s per MS-COCO image, slower than an A100, so a 6-hour job covers fewer images.
+- **No bf16:** the V100 lacks native bf16, but nothing in this repository uses it.
 
 ## 7. The H200 node (`llm` partition, x86_64)
 

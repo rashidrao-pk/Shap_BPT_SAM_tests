@@ -64,6 +64,24 @@ All 8 tests should pass, none skipped. The last two load the real weights and mu
 - **`load_state_dict` reports missing or unexpected keys:** the file is not a SAM ViT-B checkpoint. Check the download.
 - **The MedicoSAM loader falls back to a full pickle load:** this happens when the file is a training checkpoint holding more than the weights. `segmenter.state_dict.full_pickle` in the metadata records it.
 
+**If the real-model tests fail**, find out where with the diagnostic. It compares the two models with SAM-1 ViT-B, which segments the synthetic disk with IoU 0.998:
+
+```bash
+python src/scripts/diagnose_medical_segmenters.py --device cuda
+python src/scripts/diagnose_medical_segmenters.py --device cuda \
+  --image "/beegfs/home/mrashid/datasets/BUSI/benign/benign (1).png" \
+  --mask "/beegfs/home/mrashid/datasets/BUSI/benign/benign (1)_mask.png"
+```
+
+For each model it reports:
+- a direct prompt on the target (one box, plus one point except for MedSAM) with no filtering;
+- the automatic generator with filters off and at the default thresholds;
+- the spread of predicted IoU and stability.
+
+How to read it:
+- **Good direct prompt, but the automatic run loses the target:** the filters are the problem (for MedSAM, likely its untrained IoU head).
+- **Bad direct prompt:** the problem lies in the model, its preprocessing or the test image.
+
 ## 3. Generate partitions
 
 The settings match the existing SAM runs on these datasets: up to 254 regions, a mask target of 50, and the `sam` and `compact` stages. The commands run in the EPITO session; for long runs, use the chained sbatch job below.

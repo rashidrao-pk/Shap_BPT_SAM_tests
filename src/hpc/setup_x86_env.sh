@@ -41,7 +41,7 @@ python -m pip freeze | grep -E '^(torch|torchvision|triton|nvidia-[^=]+)==' > "$
 PIP=(python -m pip install -c "$CONSTRAINTS")
 
 "${PIP[@]}" -r "$PROJECT_DIR/requirements-xai-all.txt"
-"${PIP[@]}" PyYAML pycocotools scipy pandas pillow tabulate matplotlib transformers timm
+"${PIP[@]}" PyYAML pycocotools scipy pandas pillow tabulate matplotlib transformers timm pytest
 "${PIP[@]}" --no-deps ultralytics
 "${PIP[@]}" --no-deps git+https://github.com/facebookresearch/segment-anything.git
 "${PIP[@]}" hydra-core iopath tqdm

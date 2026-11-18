@@ -45,6 +45,20 @@ python src/scripts/generate_kvasirseg_partitions.py \
   --limit 2
 ```
 
+## MedSAM
+
+```bash
+python src/scripts/generate_kvasirseg_partitions.py \
+  --config KvasirSEG_epito \
+  --model medsam \
+  --device cuda \
+  --max-regions 254 \
+  --generate_at_least_n_masks 50 \
+  --save-partitions sam compact --compact-strategy greedy split \
+  --limit 2
+
+```
+
 Remove `--limit 2` to process all 1,000 images. Repeat the same command to resume: completed images are skipped.
 
 Keep `--save-partitions sam compact`. Saving other stages changes the folder name, so it would no longer match the config or the budget study.
@@ -67,6 +81,11 @@ python src/scripts/view_partitions.py \
   --limit 5 \
   --methods sam compact_greedy compact_split \
   --show-gt
+```
+
+```bash
+python src/scripts/view_partitions.py --config KvasirSEG_epito --sam medsam --limit 2 \
+  --methods sam compact_greedy compact_split --show-gt
 ```
 
 - Or preview one image by its filename stem:
@@ -101,5 +120,5 @@ python src/scripts/generate_kvasirseg_partitions.py --config KvasirSEG_epito --m
   --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --compact-strategy greedy split --limit 1000
 python src/scripts/generate_kvasirseg_partitions.py --config KvasirSEG_epito --model medicosam --device cuda \
   --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --compact-strategy greedy split --limit 1000
-python src/scripts/view_partitions.py --config KvasirSEG_epito --sam medsam --limit 5 --methods sam compact
+python src/scripts/view_partitions.py --config KvasirSEG_epito --sam medsam --limit 5 --methods sam compact_greedy compact_split
 ```

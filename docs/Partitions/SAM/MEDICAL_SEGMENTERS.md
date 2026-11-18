@@ -118,8 +118,8 @@ sbatch --export=ALL,CHAIN_LEFT=5 src/hpc/run_partitions.sbatch src/scripts/gener
 The three medical configs know the new folders (`data.mask_dir_final_medsam`, `data.mask_dir_final_medicosam`), so the viewer selects them with `--sam`:
 
 ```bash
-python src/scripts/view_partitions.py --config BUSI_epito --sam medsam --limit 5 --methods sam compact
-python src/scripts/view_partitions.py --config BUSI_epito --sam medicosam --limit 5 --methods sam compact
+python src/scripts/view_partitions.py --config BUSI_epito --sam medsam --limit 5 --methods sam compact_greedy compact_split
+python src/scripts/view_partitions.py --config BUSI_epito --sam medicosam --limit 5 --methods sam compact_greedy compact_split
 ```
 
 Side by side with SAM, scored against the lesion masks:

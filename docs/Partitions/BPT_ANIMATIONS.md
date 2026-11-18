@@ -38,4 +38,6 @@ Outputs go under:
 
 Alongside each GIF, `.png` shows the first frame and `.json` records input paths, dimensions, guide parameters, region counts and tree construction times. Saved partitions are never modified. Colours help track regions; they do not indicate semantic classes or attribution values. Borders remain visible and ticks are hidden.
 
+Open `bpt_animations/index.html` to view all generated animations together in a browser.
+
 Adjust playback with `--frames 64 --fps 6 --start-regions 128`. The default uses full-resolution inputs. For a faster preview, add `--max-side 384`; this resizes the image and labels **before building both trees**, so it creates different trees and records the resized dimensions. Guide options such as `--guide-alpha` and `--label-words` match the XAI runners. Repeating a command replaces its rendered GIF, PNG and JSON.

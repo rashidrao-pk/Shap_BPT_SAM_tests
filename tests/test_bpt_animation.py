@@ -1,5 +1,6 @@
 """Animation cuts must be nested cuts of the actual explanation trees."""
 import sys
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -53,3 +54,26 @@ def test_gif_contains_distinct_frames_and_static_preview(tmp_path):
         gif.seek(gif.n_frames - 1)
         assert not np.array_equal(first, np.asarray(gif.convert('RGB')))
     assert output.with_suffix('.png').is_file()
+
+
+def test_cli_reads_configured_split_stage_and_writes_metadata_and_gallery(tmp_path):
+    images = tmp_path / 'images'
+    folder = tmp_path / 'partitions' / 'demo_sam2'
+    images.mkdir()
+    folder.mkdir(parents=True)
+    Image.fromarray(np.random.default_rng(4).integers(0, 256, (12, 16, 3), dtype=np.uint8)).save(images / '000001.jpg')
+    np.save(folder / '000001_compact_split.npy', np.indices((12, 16))[1].astype(np.int32) // 4)
+    config = tmp_path / 'demo.yaml'
+    config.write_text(f'data:\n  name: MS_COCO\n  image_dir: {images}\n  mask_dir_final: demo_sam2\n'
+                      f'  compact_strategy: split\noutput:\n  partitions: {tmp_path / "partitions"}\n'
+                      f'  evaluations: {tmp_path / "evaluations"}\n')
+    outputs = animation.main(['--config', str(config), '--image-id', '1', '--frames', '3', '--dpi', '30',
+                              '--start-regions', '8', '--max-side', '8'])
+    assert len(outputs) == 1
+    metadata = json.loads(Path(outputs[0]).with_suffix('.json').read_text())
+    assert metadata['original_shape'] == [12, 16]
+    assert metadata['animated_shape'] == [6, 8]
+    assert metadata['partition_file'].endswith('_compact_split.npy')
+    assert metadata['region_counts'][-1] == 1
+    assert metadata['guide_settings']['guide_alpha'] == 2.
+    assert (tmp_path / 'evaluations/bpt_animations/index.html').is_file()

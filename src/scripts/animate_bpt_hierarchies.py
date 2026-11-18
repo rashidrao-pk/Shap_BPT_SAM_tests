@@ -164,6 +164,32 @@ def parser():
     return result
 
 
+def write_gallery(root, failures=()):
+    """Local HTML gallery for the generated GIFs; no server needed."""
+    from html import escape
+    from urllib.parse import quote
+    root = Path(root)
+    cards = []
+    for path in sorted(root.rglob('*.gif')):
+        relative = path.relative_to(root)
+        title = f'{relative.parts[0]} · {path.stem}'
+        link = quote(relative.as_posix())
+        cards.append(f'<section><h2>{escape(title)}</h2><a href="{link}">'
+                     f'<img src="{link}" alt="{escape(title)}" loading="lazy"></a></section>')
+    issues = ''.join(f'<li>{escape(value)}</li>' for value in failures)
+    html = ('<!doctype html><html lang="en"><meta charset="utf-8">'
+            '<title>BPT versus SAM-guided BPT</title><style>'
+            'body{font:16px system-ui;max-width:1500px;margin:30px auto;padding:0 18px;background:#f4f5f7;color:#18202a}'
+            'section{background:white;padding:16px;margin:24px 0;border:1px solid #ccd1da;border-radius:8px}'
+            'img{width:100%;height:auto}h2{font-size:18px}</style>'
+            '<h1>BPT versus SAM-guided BPT</h1><p>Input | SAM guidance | BPT | SAM-guided BPT. '
+            'Fine to coarse at matching region counts. Intermediate merges are omitted. '
+            'Click an animation to open it separately.</p>' + ''.join(cards)
+            + (f'<h2>Unavailable inputs</h2><ul>{issues}</ul>' if issues else '') + '</html>')
+    root.mkdir(parents=True, exist_ok=True)
+    (root / 'index.html').write_text(html)
+
+
 def main(argv=None):
     from config_paths import load_path_config, output_path, partition_path
     from evaluate_partitions import image_paths
@@ -206,6 +232,9 @@ def main(argv=None):
             failures.append(f'{name}: {type(error).__name__}: {error}')
             print(f'FAILED {failures[-1]}', flush=True)
     print(f'Animations completed: {len(outputs)}; failures: {len(failures)}', flush=True)
+    for root in {Path(output).parents[3] for output in outputs}:
+        write_gallery(root, failures)
+        print(f'Gallery: {root / "index.html"}', flush=True)
     if failures:
         raise SystemExit(1)
     return outputs

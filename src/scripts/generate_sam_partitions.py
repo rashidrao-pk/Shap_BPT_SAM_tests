@@ -527,6 +527,11 @@ def main():
     refinement_seconds = time.perf_counter() - t0
     unique, counts = np.unique(partitions, return_counts=True)
     basename = f"{stem}_{args.model}_{args.strategy}_{args.max_regions}"
+    if args.strategy == "compact":
+        compact_suffix = args.compact_strategy
+        if args.compact_strategy == "mso":
+            compact_suffix = f"mso_{args.mso_alpha:g}"
+        basename = f"{basename}_{compact_suffix}"
     np.save(out / f"{basename}.npy", partitions)
     save_plot(image, partitions, out / f"{basename}.png", args.strategy)
     metadata = {

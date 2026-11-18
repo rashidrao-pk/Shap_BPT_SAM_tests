@@ -172,13 +172,20 @@ def partition_folder_name(data, args):
         if variant is None:
             raise ValueError('Cannot determine SAM2 model size from checkpoint/config')
     target = getattr(args, 'generate_at_least_n_masks', None)
-    stages = "-".join(sorted(set(args.save_partitions)))
-
-    return (
+    stages = "-".join(sorted(set(getattr(args, 'save_partitions', ['sam', 'refined']))))
+    folder = (
         f'{dataset}_{args.model}_{variant}_'
         f'{args.max_regions}_{stages}_'
         f'{target if target is not None else "singlepass"}'
     )
+    if 'compact' in getattr(args, 'save_partitions', []):
+        compact_strategy = getattr(args, 'compact_strategy', 'greedy')
+        compact_suffix = compact_strategy
+        if compact_strategy == 'mso':
+            alpha = getattr(args, 'mso_alpha', 0.5)
+            compact_suffix = f'mso_{alpha:g}'
+        folder = f'{folder}_{compact_suffix}'
+    return folder
 
 def generation_settings(args):
     settings = {key: str(value) if isinstance(value, Path) else value

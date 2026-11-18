@@ -174,6 +174,25 @@ class CocoExportTest(unittest.TestCase):
         self.assertEqual(greedy.compact_strategy, 'greedy')
         self.assertEqual(greedy.mso_alpha, 0.5)
 
+    def test_compact_strategy_is_at_end_of_folder_name(self):
+        base = argparse.Namespace(
+            model='sam2',
+            checkpoint=Path('sam2.1_hiera_tiny.pt'),
+            sam2_config='configs/sam2.1/sam2.1_hiera_l.yaml',
+            max_regions=62,
+            generate_at_least_n_masks=200,
+            save_partitions=['sam', 'compact'],
+            compact_strategy='greedy',
+            mso_alpha=0.5,
+        )
+        self.assertTrue(batch.partition_folder_name(
+            {'name': 'MS_COCO'}, base).endswith('_greedy'))
+
+        base.compact_strategy = 'mso'
+        base.mso_alpha = 0.7
+        folder = batch.partition_folder_name({'name': 'MS_COCO'}, base)
+        self.assertTrue(folder.endswith('_mso_0.7'))
+
     def test_empty_masks(self):
         masks = np.zeros((0, 5, 6), dtype=bool)
         labels = batch.sam.refined_partitions(masks, 1, 3)

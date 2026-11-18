@@ -83,7 +83,7 @@ def sam_label(folder_name):
     """SAM model and size from a partition folder name, e.g. sam1_vit_b -> SAM1-VB, sam2_large -> SAM2-L.
 
     A region cap other than the usual 254 is appended, e.g. MSCOCO_sam1_vit_b_62_compact-sam_200 -> SAM1-VB-K62.
-    The default compact strategy (`_greedy`) adds nothing; MSO adds its alpha, e.g. ..._200_mso_0.5 -> SAM2-L-MSO0.5.
+    The default compact strategy (`_greedy`) adds nothing; MSO adds its alpha, e.g. ..._200_mso_0.5 -> SAM2-L-MSO0.5; split gives SAM2-L-SPLIT.
     """
     label = _sam_model(folder_name)
     if label == folder_name:
@@ -92,6 +92,9 @@ def sam_label(folder_name):
     if cap not in (None, '254'):
         label = f'{label}-K{cap}'
     mso = re.search(r'_mso_([0-9.eE+-]+)$', folder_name)
+    split = re.search(r'_split(?:_(\d+))?$', folder_name)
+    if split:
+        return f"{label}-SPLIT{split.group(1) or ''}"
     return f'{label}-MSO{mso.group(1)}' if mso else label
 
 

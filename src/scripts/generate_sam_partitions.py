@@ -29,9 +29,10 @@ def parse_args():
     p.add_argument("--max-regions", type=int, default=254)
     p.add_argument("--strategy", choices=["refined", "raw_overwrite", "compact"], default="refined")
 
-    p.add_argument('--compact-strategy', choices=['greedy', 'mso'], default='greedy',
+    p.add_argument('--compact-strategy', choices=['greedy', 'mso', 'split'], default='greedy',
     help='Mask selection strategy for compact partitions: '
-         'greedy (original) or mso (Multi-Objective Selection).')
+         'greedy (original), mso (Multi-Objective Selection) or split (also keeps masks nested '
+         'inside chosen ones; min gain = --min-region-pixels).')
 
     p.add_argument('--mso-alpha', type=float, default=0.5,
         help='Exponent applied to unpicked area in the MSO selection strategy.')
@@ -437,7 +438,84 @@ def select_masks_by_unpicked_area(masks, predicted_ious, n_masks_to_select, stra
 
     return masks[selected_indices]
 
-def compact_partitions(masks, predicted_ious, max_regions, strategy='greedy', alpha=0.5):
+def _bounding_boxes(masks):
+    rows, columns = masks.any(axis=2), masks.any(axis=1)
+    boxes = np.zeros((len(masks), 4), dtype=np.int64)
+    for index in range(len(masks)):
+        ys, xs = np.flatnonzero(rows[index]), np.flatnonzero(columns[index])
+        if ys.size:
+            boxes[index] = ys[0], ys[-1] + 1, xs[0], xs[-1] + 1
+    return boxes
+
+
+def select_masks_by_split_gain(masks, predicted_ious, n_masks_to_select, min_gain=64):
+    """Pick the masks that change the painted partition the most; score = split gain x predicted IoU.
+
+    The partition is painted as raw_overwrite paints it: smaller masks on top of larger ones, so a mask takes
+    the pixels that are unassigned or owned by a larger mask. Its split gain counts, for every current region
+    it takes pixels from, the smaller side of the split (pixels taken vs pixels left), and every unassigned
+    pixel it covers. Unlike the unpicked-area strategies, a window inside an already chosen facade gains its
+    own area, while a mask that only repeats an existing region gains 0. Selection stops after
+    n_masks_to_select masks or when no mask gains at least min_gain pixels.
+    """
+    masks = np.asarray(masks, dtype=bool)
+    predicted_ious = np.asarray(predicted_ious, dtype=np.float32)
+    if masks.ndim != 3 or predicted_ious.shape != (len(masks),):
+        raise ValueError("Expected masks (N, H, W) and one predicted IoU per mask")
+    if n_masks_to_select < 1:
+        raise ValueError("n_masks_to_select must be >= 1")
+    count = len(masks)
+    if count == 0:
+        return masks.copy()
+    areas = masks.reshape(count, -1).sum(axis=1)
+    boxes = _bounding_boxes(masks)
+    labels = np.zeros(masks.shape[1:], dtype=np.int64)            # 0 unassigned, k + 1 = owned by mask k
+    owner_area = np.full(masks.shape[1:], np.iinfo(np.int64).max)  # area of the owning mask
+    region_size = np.zeros(count + 1, dtype=np.int64)
+    region_size[0] = labels.size
+    gain = np.zeros(count, dtype=np.int64)
+    stale = areas > 0
+    available = areas > 0
+    selected = []
+
+    def crop(box):
+        return slice(box[0], box[1]), slice(box[2], box[3])
+
+    while len(selected) < min(n_masks_to_select, count):
+        for index in np.flatnonzero(stale & available):
+            window = crop(boxes[index])
+            taken = masks[index][window] & (owner_area[window] > areas[index])
+            overlap = np.bincount(labels[window][taken], minlength=count + 1)
+            rest = region_size - overlap
+            gain[index] = overlap[0] + int(np.minimum(overlap[1:], rest[1:]).sum())
+        stale[:] = False
+        score = np.where(available, gain * predicted_ious, -1.0)
+        best = int(np.argmax(score))
+        if not available[best] or gain[best] < min_gain:
+            break
+        window = crop(boxes[best])
+        taken = masks[best][window] & (owner_area[window] > areas[best])
+        touched = np.unique(labels[window][taken])
+        region_size -= np.bincount(labels[window][taken], minlength=count + 1)
+        labels[window][taken] = best + 1
+        owner_area[window][taken] = areas[best]
+        region_size[best + 1] += int(taken.sum())
+        selected.append(best)
+        available[best] = False
+        # Gains change for masks that overlap the new region or a region it shrank.
+        changed = np.isin(labels, np.append(touched[touched > 0], best + 1))
+        ys, xs = np.flatnonzero(changed.any(axis=1)), np.flatnonzero(changed.any(axis=0))
+        if ys.size:
+            y0, y1, x0, x1 = ys[0], ys[-1] + 1, xs[0], xs[-1] + 1
+            near = (boxes[:, 0] < y1) & (boxes[:, 1] > y0) & (boxes[:, 2] < x1) & (boxes[:, 3] > x0)
+            stale[near & available] = [bool((masks[j] & changed).any()) for j in np.flatnonzero(near & available)]
+    return masks[selected]
+
+
+def compact_partitions(masks, predicted_ious, max_regions, strategy='greedy', alpha=0.5, min_gain=64):
+    if strategy == 'split':
+        selected_masks = select_masks_by_split_gain(masks, predicted_ious, max_regions, min_gain=min_gain)
+        return raw_overwrite(selected_masks).astype(np.uint16)
     selected_masks = select_masks_by_unpicked_area(
         masks,
         predicted_ious,
@@ -520,7 +598,8 @@ def main():
         partitions = refined_partitions(masks, args.min_region_pixels, args.max_regions)
     elif args.strategy == "compact":
         
-        partitions = compact_partitions(masks, predicted_ious, args.max_regions, strategy=args.compact_strategy, alpha=args.mso_alpha)
+        partitions = compact_partitions(masks, predicted_ious, args.max_regions, strategy=args.compact_strategy,
+                                        alpha=args.mso_alpha, min_gain=args.min_region_pixels)
     else:
         partitions = raw_overwrite(masks)
         partitions = enforce_region_budget(partitions, args.max_regions).astype(np.uint16)

@@ -322,3 +322,4 @@ def test_sam_label_names_the_compact_strategy():
     assert sam_label('MSCOCO_sam2_large_254_compact-sam_200') == 'SAM2-L'
     assert sam_label('MSCOCO_sam2_large_254_compact-sam_200_mso_0.5') == 'SAM2-L-MSO0.5'
     assert sam_label('MSCOCO_sam1_vit_b_62_compact-sam_200_mso_0.7') == 'SAM1-VB-K62-MSO0.7'
+    assert sam_label('MSCOCO_sam2_large_254_compact-sam_200_split') == 'SAM2-L-SPLIT'

@@ -47,6 +47,9 @@ def folder_label(folder):
         return f'MSO α={found.group(1)}'
     if folder.endswith('_greedy'):
         return 'Greedy'
+    found = re.search(r'_split(?:_(\d+))?$', folder)
+    if found:
+        return f'Split (gain ≥{found.group(1)} px)' if found.group(1) else 'Split'
     return folder
 
 

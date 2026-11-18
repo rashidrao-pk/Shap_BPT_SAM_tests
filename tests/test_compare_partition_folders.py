@@ -19,6 +19,8 @@ def test_labels_come_from_the_folder_suffix():
     assert compare.folder_label(MSO) == 'MSO α=0.5'
     assert compare.folder_label('MSCOCO_mso_0.25') == 'MSO α=0.25'
     assert compare.folder_label('custom') == 'custom'
+    assert compare.folder_label('MSCOCO_x_200_split') == 'Split'
+    assert compare.folder_label('MSCOCO_x_200_split_200') == 'Split (gain ≥200 px)'
 
 
 def make_dataset(tmp_path):

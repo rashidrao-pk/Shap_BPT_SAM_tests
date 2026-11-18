@@ -33,8 +33,9 @@ def create_parser(description=__doc__, default_config='MSCOCO_epito'):
                         default=['sam', 'refined'], help='Stage label maps to save (default: sam refined)')
     parser.add_argument('--select-count', type=int, default=400,
                         help='Maximum greedy-selected masks for notebook stages')
-    parser.add_argument('--compact-strategy', choices=['greedy', 'mso'], default='greedy',
-                        help='Mask selection strategy for the compact stage')
+    parser.add_argument('--compact-strategy', choices=['greedy', 'mso', 'split'], default='greedy',
+                        help='Mask selection for the compact stage: greedy and mso count uncovered pixels; '
+                             'split counts how much a mask splits the partition, so nested masks are kept')
     parser.add_argument('--mso-alpha', type=float, default=0.5,
                         help='Exponent applied to unpicked area in the MSO strategy')
     parser.add_argument('--fill-max-distance', type=float, default=3,
@@ -184,6 +185,8 @@ def partition_folder_name(data, args):
         if compact_strategy == 'mso':
             alpha = getattr(args, 'mso_alpha', 0.5)
             compact_suffix = f'mso_{alpha:g}'
+        elif compact_strategy == 'split' and getattr(args, 'min_region_pixels', 64) != 64:
+            compact_suffix = f'split_{args.min_region_pixels}'  # Minimum split gain in pixels.
         folder = f'{folder}_{compact_suffix}'
     return folder
 
@@ -205,7 +208,8 @@ def same_settings(previous, current):
         settings = dict(settings or {})
         if settings.get('compact_strategy', 'greedy') == 'greedy':
             settings.pop('compact_strategy', None)
-            settings.pop('mso_alpha', None)  # Unused by greedy.
+        if settings.get('compact_strategy') != 'mso':
+            settings.pop('mso_alpha', None)  # Only MSO uses alpha.
         return settings
     return normalized(previous) == normalized(current)
 
@@ -239,8 +243,8 @@ def _run(args, progress_stream):
         raise ValueError('select-count must be positive and fill-max-distance nonnegative')
     compact_strategy = getattr(args, 'compact_strategy', 'greedy')
     mso_alpha = getattr(args, 'mso_alpha', 0.5)
-    if compact_strategy not in {'greedy', 'mso'}:
-        raise ValueError("compact-strategy must be 'greedy' or 'mso'")
+    if compact_strategy not in {'greedy', 'mso', 'split'}:
+        raise ValueError("compact-strategy must be 'greedy', 'mso' or 'split'")
     if compact_strategy == 'mso' and not 0 < mso_alpha < 1:
         raise ValueError('mso-alpha must be between 0 and 1')
     mask_target = getattr(args, 'generate_at_least_n_masks', None)
@@ -351,7 +355,8 @@ def _run(args, progress_stream):
                 predicted_ious,
                 args.max_regions,
                 strategy=getattr(args, 'compact_strategy', 'greedy'),
-                alpha=getattr(args, 'mso_alpha', 0.5)
+                alpha=getattr(args, 'mso_alpha', 0.5),
+                min_gain=args.min_region_pixels
             )
 
         # Le altre strategie continuano a usare la pipeline notebook

@@ -76,6 +76,33 @@ COCO IDs work padded or not (`76211` = `000000076211`); other datasets use the f
 
 `data.mask_dir_final` selects the folder used by XAI. `MSCOCO_epito` currently selects SAM-1.
 
+**Folder suffix (since 2026-11-18).** When the `compact` stage is saved, the folder name ends with the compact strategy: `_greedy` (the default) or `_mso_<α>`. Every config points to the `_greedy` folders.
+- **Same algorithm as before:** greedy is the selection the compact stage always used. Old 254-region folders without the suffix therefore hold greedy partitions, and renaming them keeps them.
+- **Resuming in a renamed folder:** it works, because stamps written before the flag existed count as greedy.
+- **The 62-region folders:** they keep their old names.
+
+Rename once on the login node. A folder that already has a `_greedy` twin, for example from a test run, is merged into it without overwriting files:
+
+```bash
+cd /beegfs/home/mrashid/datasets/SAM_BPT
+for d in *_254_*compact*; do
+  [[ -d $d && $d != *_greedy && $d != *_mso_* && $d != *.log ]] || continue
+  if [[ -d ${d}_greedy ]]; then
+    find "$d" -maxdepth 1 -type f -exec mv -n -t "${d}_greedy" {} +
+    rmdir "$d" 2>/dev/null && echo "$d merged into ${d}_greedy" || echo "kept $d: files also in ${d}_greedy (see mv messages)"
+  else
+    mv "$d" "${d}_greedy" && echo "$d -> ${d}_greedy"
+  fi
+done
+```
+
+Run it first with `echo` in front of `mv` and `find` to see what it would do. If it reports `kept`, some image appears in both folders. The `_greedy` copy is kept, and the files listed by `mv: not replacing` stay in the old folder. When both used the same settings (same folder name apart from the suffix), the old folder can be removed:
+
+```bash
+ls MSCOCO_sam2_large_254_compact-sam_200      # only the clashing files should remain
+rm -r MSCOCO_sam2_large_254_compact-sam_200
+```
+
 ## Preview the first five completed images
 
 ```bash
@@ -113,8 +140,17 @@ Previews are saved under `previews/<partition folder>/`, so SAM-1 and SAM-2 prev
 | --- | --- | --- |
 | `greedy` (default) | uncovered pixels × predicted IoU | `_greedy` |
 | `mso` | uncovered pixels<sup>α</sup> × predicted IoU, with `--mso-alpha` α in (0, 1), default 0.5 | `_mso_<α>` |
+| `split` | split gain × predicted IoU (see below); stops when no mask gains `--min-region-pixels` (default 64) | `_split` (`_split_<N>` for another minimum) |
 
 With α < 1, MSO favours smaller masks more than greedy does, so it usually picks more, smaller regions. Each setting writes to its own folder, so the runs do not overwrite each other.
+
+**Why greedy and MSO can end with very few regions.** Both count only *uncovered* pixels and stop once every pixel is covered. SAM often returns one mask for a whole facade, wall or table. Once that mask is picked, every window, door or object inside it adds no uncovered pixel. Its score becomes 0 and selection stops. An image with 212 SAM masks can then end with 13 compact regions, and MSO cannot change this, because it only reorders the picks.
+
+**`split` fixes this.** The partition is painted as before, smaller masks on top of larger ones. The **split gain** of a mask counts:
+- every unassigned pixel it covers;
+- for every region it cuts, the smaller of the two parts (pixels it takes vs pixels left).
+
+A window inside the facade therefore gains its own area. A mask that only repeats an existing region gains nothing and is skipped. Selection stops at `--max-regions` or when no mask gains at least `--min-region-pixels`. Expect many more regions than greedy, but fewer than the raw `sam` map, which keeps every mask.
 
 **1. Generate on a GPU node** (after `source src/hpc/node_env.sh`). The same images go through each setting. SAM runs again for each one, so keep the image list short:
 
@@ -125,6 +161,7 @@ COMMON=(--config MSCOCO_epito --model sam2 --checkpoint "$SAM2_DIR/checkpoints/s
         --generate_at_least_n_masks 200 --save-partitions sam compact --image-id $IDS)
 python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy greedy
 python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy mso --mso-alpha 0.5
+python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy split
 # Optional, to see the effect of alpha:
 python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy mso --mso-alpha 0.3
 python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy mso --mso-alpha 0.7
@@ -136,7 +173,7 @@ Each run prints its folder (`For XAI set data.mask_dir_final: "..."`), e.g. `MSC
 
 ```bash
 F=MSCOCO_sam2_large_254_compact-sam_200
-for S in greedy mso_0.5 mso_0.3 mso_0.7; do
+for S in greedy mso_0.5 split; do
   python src/scripts/view_partitions.py --config MSCOCO_epito --partition-folder ${F}_$S \
     --image-id $IDS --methods sam compact
 done
@@ -146,7 +183,7 @@ done
 
 ```bash
 python src/scripts/compare_partition_folders.py --config MSCOCO_epito --name compact_strategy \
-  --folders ${F}_greedy ${F}_mso_0.5 ${F}_mso_0.3 ${F}_mso_0.7 --image-id $IDS
+  --folders ${F}_greedy ${F}_mso_0.5 ${F}_split --image-id $IDS
 ```
 
 The comparison writes the following to `<output.evaluations>/partition_compare/compact_strategy/`:

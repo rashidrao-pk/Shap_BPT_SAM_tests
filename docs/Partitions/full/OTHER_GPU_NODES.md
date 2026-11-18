@@ -6,6 +6,54 @@ The HPC4AI (mercurio) cluster has other GPU nodes. Two are stronger than EPITO's
 
 This guide sets up both and runs the usual commands there. [EPITO_SETUP.md](EPITO_SETUP.md) stays the reference for the full installation.
 
+## 0. Quick way: two scripts
+
+**On the login node**, see which GPU is free, heaviest first (H200 → GH200 → A100 → L40S → V100S → L4 → T4):
+
+```bash
+cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
+bash src/hpc/gpu_check.sh              # table: node, state, GPUs, free GPUs, jobs queued; best choice and its srun line
+bash src/hpc/gpu_check.sh --no-small   # leave out T4 and L4
+bash src/hpc/gpu_check.sh --start      # open an interactive session on the best free GPU (--time 02:00:00 to shorten)
+```
+
+A GPU counts as free when its node is `idle` or `mix` and Slurm has not handed it out. If none is free, the script picks the heaviest node that is up, and the request queues.
+
+**On the node**, once the prompt appears, run:
+
+```bash
+cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
+source src/hpc/node_env.sh             # add --sam to also load both SAM models on the GPU
+```
+
+It reads the CPU type and GPU, then chooses the environment:
+
+| CPU type | Nodes | Environment |
+| --- | --- | --- |
+| aarch64 | epito, gh | `pt_312_sam` (`pt_312_sam_gh` on `gh` nodes, if Section 4 created it) |
+| x86_64 | H200, L40S, V100S, T4, L4 | `pt_312_sam_x86` |
+
+It then does the following:
+- builds the x86 environment with `setup_x86_env.sh` the first time it is missing;
+- activates the environment, exports `PROJECT_DIR` and `SAM2_DIR`, and unsets `PYTHONPATH`;
+- compiles the BPT extension if this CPU type has none;
+- prints the check: GPU, CUDA calculation, extension, and the SAM imports.
+
+In later sessions, the same `source` line only activates and checks. `--setup` reruns the x86 installation, for example after requirements change. Use `source`, not `bash`, so the environment stays active in your shell.
+
+**Batch jobs** on the best free GPU:
+
+```bash
+eval "$(bash src/hpc/gpu_check.sh --sbatch)"   # sets GPU_OPTS, GPU_NODE and exports SAM_ENV for that CPU type
+sbatch $GPU_OPTS --export=ALL,CHAIN_LEFT=10 src/hpc/run_partitions.sbatch src/scripts/generate_coco_partitions.py \
+  --config MSCOCO_epito --model sam2 --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
+  --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact
+```
+
+`--export=ALL` carries `SAM_ENV` into the job. Files that pin `--nodelist=epito01` (`run_mscoco_large.sbatch`, `partitions_imagenet.sbatch`) also need `--nodelist=$GPU_NODE`. Build an x86 environment interactively once, as above, before sending x86 batch jobs.
+
+The sections below are the same steps done by hand.
+
 ## Which node
 
 | Node type | GPUs | CPU architecture | Use |

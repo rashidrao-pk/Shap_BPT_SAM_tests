@@ -49,7 +49,7 @@ def parse_args():
     p.add_argument("--stability-score-thresh", type=float, default=0.6)
     p.add_argument("--stability-score-offset", type=float, default=1.0)
     p.add_argument("--mask-threshold", type=float, default=0.0)
-    
+    # 
     p.add_argument("--box-nms-thresh", type=float, default=0.7)
     p.add_argument("--crop-n-layers", type=int, default=0)
     p.add_argument("--crop-nms-thresh", type=float, default=0.7)

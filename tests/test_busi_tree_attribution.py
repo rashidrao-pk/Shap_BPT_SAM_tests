@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import numpy as np
+import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'src/scripts/run_busi_shapbpt.py'
 spec = importlib.util.spec_from_file_location('busi_pipeline', SCRIPT)
@@ -182,3 +183,43 @@ def test_legacy_coalitions_average_each_background(monkeypatch):
     np.testing.assert_allclose(scores, [40, 70, 100])
     np.testing.assert_allclose(probabilities, [.4, .7, 1.])
     assert len(captured) == 15
+
+
+def _busi_partitions(tmp_path, monkeypatch, *extra):
+    import sys
+    import yaml
+    sys.path.insert(0, str(SCRIPT.parents[0] / 'explanations'))
+    import experiment_common as common
+    base = tmp_path / 'partitions'
+    for name in ['BUSI_sam1_vit_b_254_compact-sam_50', 'BUSI_sam2_large_254_compact-sam_50',
+                 'BUSI_medsam_vitb_254_compact-sam_50']:
+        (base / name).mkdir(parents=True)
+    config = tmp_path / 'config.yaml'
+    config.write_text(yaml.safe_dump({'data': {
+        'name': 'BUSI', 'mask_dir_final': 'BUSI_sam2_large_254_compact-sam_50',
+        'mask_dir_final_sam1': 'BUSI_sam1_vit_b_254_compact-sam_50',
+        'mask_dir_final_sam2': 'BUSI_sam2_large_254_compact-sam_50',
+        'mask_dir_final_medsam': 'BUSI_medsam_vitb_254_compact-sam_50'}, 'output': {'partitions': str(base)}}))
+    captured = []
+    monkeypatch.setattr(common, 'run', lambda kind, args: captured.append(args))
+    monkeypatch.setattr(sys, 'argv', [str(SCRIPT), 'run', '--config', str(config), '--model-dir', str(tmp_path / 'm'),
+                                      '--results', str(tmp_path / 'results'), '--explain_all', *extra])
+    mod.main()
+    return [yaml.safe_load(Path(args.config).read_text())['data'] for args in captured]
+
+
+def test_partition_folder_decides_the_model(tmp_path, monkeypatch):
+    data = _busi_partitions(tmp_path, monkeypatch, '--partition-folder', 'BUSI_sam1_vit_b_254_compact-sam_50')
+    assert len(data) == 1 and data[0]['mask_dir_final'].endswith('BUSI_sam1_vit_b_254_compact-sam_50')
+
+
+def test_conflicting_sam_and_folder_are_explained(tmp_path, monkeypatch):
+    with pytest.raises(SystemExit):
+        _busi_partitions(tmp_path, monkeypatch, '--sam', 'sam2',
+                         '--partition-folder', 'BUSI_sam1_vit_b_254_compact-sam_50')
+
+
+def test_medical_model_and_strategy_follow_the_config(tmp_path, monkeypatch):
+    data = _busi_partitions(tmp_path, monkeypatch, '--sam', 'medsam', '--compact-strategy', 'split')
+    assert data[0]['mask_dir_final'].endswith('BUSI_medsam_vitb_254_compact-sam_50')
+    assert data[0]['compact_strategy'] == 'split'

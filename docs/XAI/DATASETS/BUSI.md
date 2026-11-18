@@ -26,17 +26,35 @@ The standalone command now accepts `--explain_all` and routes to the same shared
 ```bash
 python -u src/scripts/run_busi_shapbpt.py run \
   --config BUSI_epito --model-dir checkpoints/busi_siglip --limit 1 \
-  --sam sam1 --regions 62 --budget 1000 --explain_all --batch-size 8 \
+  --sam sam1 --regions 254 --budget 1000 --explain_all --batch-size 8 \
   --show-gt --no-heatmaps --auc-num-samples 200 --bg-type full
 ```
 
-Use `--sam sam2` for SAM2 or `--sam sam1 sam2` for both. It prefers the configured folder when it matches the requested SAM model/region budget. Otherwise it looks for a single matching saved compact folder under `output.partitions`. If multiple folders match, select one explicitly:
+**Which partitions are explained.** These are the same folders the partition generators write:
+- **`--sam sam1 | sam2 | medsam | medicosam`:** that model's folder, `data.mask_dir_final_<model>` in `BUSI_epito.yaml`, for example `BUSI_sam2_large_254_compact-sam_50`. `--sam sam1 sam2` runs both.
+- **Without `--sam`:** SAM-1 and SAM-2.
+- **`--partition-folder NAME`:** that folder. Its model is read from the name, so leave out `--sam`. A conflicting pair, such as `--sam sam2` with a `BUSI_sam1_...` folder, stops with an explanation.
+- **`--compact-strategy greedy | split | mso_0.5 ...`:** which compact file of the folder is explained (`<id>_compact_<strategy>.npy`). The default is `data.compact_strategy`, i.e. greedy. Results for a non-greedy strategy go to `<folder>_<strategy>`.
+
+Each run prints its choice first, e.g. `[sam2] partitions: BUSI_sam2_large_254_compact-sam_50 | compact file: <id>_compact_greedy.npy`.
 
 ```bash
+# SAM-2 partitions, split selection
 python -u src/scripts/run_busi_shapbpt.py run \
   --config BUSI_epito --model-dir checkpoints/busi_siglip --limit 1 \
-  --sam sam1 --regions 62 --budget 1000 --explain_all --batch-size 8 \
-  --partition-folder BUSI_sam1_vit_b_254_compact-sam_50 \
+  --sam sam2 --compact-strategy split --regions 254 --budget 1000 --explain_all --batch-size 8 \
+  --show-gt --no-heatmaps --auc-num-samples 200
+
+# A specific folder (no --sam needed)
+python -u src/scripts/run_busi_shapbpt.py run \
+  --config BUSI_epito --model-dir checkpoints/busi_siglip --limit 1 \
+  --partition-folder BUSI_sam1_vit_b_254_compact-sam_50 --regions 254 --budget 1000 --explain_all \
+  --batch-size 8 --show-gt --no-heatmaps --auc-num-samples 200
+
+# MedSAM partitions
+python -u src/scripts/run_busi_shapbpt.py run \
+  --config BUSI_epito --model-dir checkpoints/busi_siglip --limit 1 \
+  --sam medsam --regions 254 --budget 1000 --explain_all --batch-size 8 \
   --show-gt --no-heatmaps --auc-num-samples 200
 ```
 

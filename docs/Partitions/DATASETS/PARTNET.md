@@ -65,10 +65,10 @@ Then use the printed SAM1 folder in `mask_dir_final`. Use separate partition out
 Preview the first five completed images without specifying image IDs:
 
 ```bash
-python src/scripts/view_partitions.py \
-  --config PartImageNet_epito --limit 5 \
-  --sam sam2 \
-  --methods sam compact_greedy compact_split --show-gt
+  python src/scripts/view_partitions.py \
+    --config PartImageNet_epito --limit 5 \
+    --sam sam2 \
+    --methods sam compact_greedy compact_split --show-gt
 ```
 
 Or select one image explicitly:

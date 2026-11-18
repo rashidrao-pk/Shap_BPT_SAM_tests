@@ -5,6 +5,18 @@ For long EPITO jobs: [resume and Slurm instructions](RESUME_EPITO.md). To run th
 All runners compare **BPT**, **BPT + SAM_c**, and **SAM_c + Kernel SHAP**.
 SAM_c reads the saved compact partition maps: `<id>_compact_<strategy>.npy`, chosen by `data.compact_strategy` in the config (default `greedy`; older folders hold `<id>_compact.npy`, read as greedy). Non-greedy strategies write their results to `<partition folder>_<strategy>`.
 
+**Choose the partitions on the command line.** Every runner (`OC_*`, `OD_*`, `VL_*`) accepts the same options as `view_partitions.py`:
+- `--sam sam1 | sam2 | medsam | medicosam` picks the config's `data.mask_dir_final_<model>`, which is the folder the generator wrote for that model.
+- `--partition-folder NAME` picks any folder.
+- `--compact-strategy greedy | split | mso_0.5 ...` picks the compact file.
+
+Without these options, the config's `data.mask_dir_final` and `data.compact_strategy` apply, as before. Each run prints its choice first, e.g. `Partitions: MSCOCO_sam2_large_254_compact-sam_200 | compact file: <id>_compact_split.npy`. These options do not change the resume signature: earlier runs resume, and each folder and strategy writes to its own output folder.
+
+```bash
+python src/scripts/explanations/OD_yolo.py --config MSCOCO_epito --sam sam2 --compact-strategy split --explain_all --limit 5
+python src/scripts/explanations/OC_KvasirSEG.py --config KvasirSEG_epito --sam medsam --explain_all --limit 5
+```
+
 All runners default to **`--bg-type full`**, averaging black, gray, white, blurred and noise replacements. New results use `bg_full_B<budget>` folders.
 
 AUC and the other faithfulness metrics use the same background as the explanation. To evaluate with a different one, add `--auc-bg-type`, for example `--bg-type full --auc-bg-type black`. `f_S` and `f_0` are then measured with that background, and results go to a separate `bg_full_auc_black_B<budget>` folder. The budget studies do not accept this option.

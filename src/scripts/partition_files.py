@@ -119,3 +119,34 @@ def sibling(partition_path, stage_name, other_stage):
             return path.with_name(path.name[:-len(f'_{name}.npy')] + f'_{other_stage}.npy')
     return None
 
+
+
+SAM_MODELS = ('sam1', 'sam2', 'medsam', 'medicosam')
+
+
+def add_partition_arguments(parser):
+    """--sam / --partition-folder / --compact-strategy, shared by the XAI runners (same rules as view_partitions)."""
+    choice = parser.add_mutually_exclusive_group()
+    choice.add_argument('--sam', dest='partition_sam', choices=SAM_MODELS,
+                        help="Partitions of this model: the config's data.mask_dir_final_<model>")
+    choice.add_argument('--partition-folder', help='Partition folder name under output.partitions, or a full path')
+    parser.add_argument('--compact-strategy', dest='partition_strategy', metavar='TAG',
+                        help='Compact file to explain: greedy, split, mso_0.5, ... (default: data.compact_strategy)')
+    return parser
+
+
+def apply_partition_choice(config, sam=None, partition_folder=None, compact_strategy=None):
+    """Point config['data'] at the chosen folder and compact file; returns a one-line description."""
+    data = config['data']
+    if partition_folder:
+        data['mask_dir_final'] = str(partition_folder)
+    elif sam:
+        key = f'mask_dir_final_{sam}'
+        if not data.get(key):
+            raise ValueError(f'The config has no data.{key}; pass --partition-folder FOLDER_NAME instead')
+        data['mask_dir_final'] = data[key]
+    if compact_strategy:
+        tag = tag_of(stage(compact_strategy))
+        parse_tag(tag)  # Rejects unknown tags early.
+        data['compact_strategy'] = tag
+    return f"Partitions: {Path(data['mask_dir_final']).name} | compact file: <id>_{configured_stage(data)}.npy"

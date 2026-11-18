@@ -109,7 +109,8 @@ def comparison_signature(args):
     import hashlib
     import json
     import guide_options
-    ignored = {'limit', 'image_ids', 'dry_run', 'resume', 'verbose', 'verbose_level', 'verbose_k', 'fail_fast'}
+    ignored = {'limit', 'image_ids', 'dry_run', 'resume', 'verbose', 'verbose_level', 'verbose_k', 'fail_fast',
+               'partition_sam', 'partition_folder', 'partition_strategy'}  # Part of the output folder already
     if guide_options.is_default(args):
         ignored |= set(guide_options.DEFAULTS)  # v1 merge: completion markers from before these options stay valid.
     values = {key: value for key, value in vars(args).items() if key not in ignored}

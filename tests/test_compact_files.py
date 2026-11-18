@@ -102,3 +102,20 @@ def test_names_and_config_selection():
     assert pf.run_label('X_compact-sam_200', 'greedy') == 'X_compact-sam_200'
     assert pf.run_label('X_compact-sam_200', 'split') == 'X_compact-sam_200_split'
     assert pf.tag_label('compact_split') == 'SPLIT' and pf.tag_label('compact_greedy') == ''
+
+
+def test_runner_partition_choice():
+    import argparse
+    parser = pf.add_partition_arguments(argparse.ArgumentParser())
+    config = {'data': {'mask_dir_final': 'X_sam1_vit_b_254_compact-sam_200',
+                       'mask_dir_final_sam2': 'X_sam2_large_254_compact-sam_200'}}
+    args = parser.parse_args(['--sam', 'sam2', '--compact-strategy', 'split'])
+    line = pf.apply_partition_choice(config, args.partition_sam, args.partition_folder, args.partition_strategy)
+    assert config['data']['mask_dir_final'] == 'X_sam2_large_254_compact-sam_200'
+    assert config['data']['compact_strategy'] == 'split' and 'compact_split' in line
+    with pytest.raises(ValueError, match='mask_dir_final_medsam'):
+        pf.apply_partition_choice(config, 'medsam')
+    with pytest.raises(SystemExit):
+        parser.parse_args(['--sam', 'sam2', '--partition-folder', 'Y'])  # one or the other
+    with pytest.raises(ValueError):
+        pf.apply_partition_choice(config, compact_strategy='random')

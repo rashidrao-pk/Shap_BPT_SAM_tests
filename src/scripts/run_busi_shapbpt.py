@@ -404,12 +404,21 @@ def run_all_methods(args):
     from experiment_common import create_parser, run
     config = load_path_config(args.config)
     base = output_path(config, 'partitions')
-    if args.partition_folder and len(args.sam) != 1:
-        raise ValueError('--partition-folder requires one --sam model')
+    import re
+    folder_model = None
+    if args.partition_folder:
+        found = re.search(r'_(sam1|sam2|medsam|medicosam)_', Path(args.partition_folder).name)
+        folder_model = found.group(1) if found else None
+        if args.sam and (len(args.sam) != 1 or (folder_model and args.sam[0] != folder_model)):
+            raise ValueError(f'--partition-folder {Path(args.partition_folder).name} holds {folder_model or "unknown"} '
+                             f'partitions but --sam is {" ".join(args.sam)}; drop --sam (the folder decides) or '
+                             'pass a matching folder')
+    models = args.sam or ([folder_model or 'sam1'] if args.partition_folder else ['sam1', 'sam2'])
     results = []
-    for sam_model in args.sam:
+    for sam_model in models:
         selected = copy.deepcopy(config)
         configured = base / config['data']['mask_dir_final']
+        per_model = config['data'].get(f'mask_dir_final_{sam_model}')
         prefix = f"BUSI_{sam_model}_"
         def matching(path):
             return (path.is_dir() and path.name.startswith(prefix)
@@ -417,8 +426,12 @@ def run_all_methods(args):
         if args.partition_folder:
             folder = Path(args.partition_folder)
             folder = folder if folder.is_absolute() else base / folder
-            if not matching(folder):
-                raise ValueError(f'Expected a {sam_model} compact partition folder for {args.regions} regions: {folder}')
+            if not folder.is_dir():
+                raise ValueError(f'Partition folder not found: {folder}')
+            if f'_{args.regions}_' not in folder.name:
+                raise ValueError(f'{folder.name} is not a {args.regions}-region folder; set --regions to match')
+        elif per_model and matching(base / per_model):
+            folder = base / per_model  # data.mask_dir_final_<model>, the folder the generator wrote
         elif matching(configured):
             folder = configured
         else:
@@ -429,9 +442,16 @@ def run_all_methods(args):
                                  f'Candidates: {[path.name for path in matches]}')
             folder = matches[0]
         selected['data']['mask_dir_final'] = str(folder.resolve())
+        if args.compact_strategy:
+            import partition_files
+            selected['data']['compact_strategy'] = partition_files.tag_of(partition_files.stage(args.compact_strategy))
+        import partition_files
+        print(f'[{sam_model}] partitions: {folder.name} | compact file: '
+              f'<id>_{partition_files.configured_stage(selected["data"])}.npy', flush=True)
         directory = args.results / 'all_methods_configs'
         directory.mkdir(parents=True, exist_ok=True)
-        path = (directory / f'{folder.name}.yaml').resolve()
+        tag = partition_files.configured_tag(selected['data'])
+        path = (directory / f'{partition_files.run_label(folder.name, tag)}.yaml').resolve()
         content = yaml.safe_dump(selected, sort_keys=False)
         if not path.exists() or path.read_text() != content:
             path.write_text(content)
@@ -459,7 +479,9 @@ def main():
     parser.add_argument("--no-resume", dest="resume", action="store_false",
                         help="Recompute XAI; existing SAM partitions/trees are still reused")
     parser.add_argument("--limit", type=int, default=2)
-    parser.add_argument("--sam", nargs="+", choices=["sam1", "sam2"], default=["sam1", "sam2"])
+    parser.add_argument("--sam", nargs="+", choices=["sam1", "sam2", "medsam", "medicosam"],
+                        help="Partition models (default: sam1 sam2; with --partition-folder: the folder's model). "
+                             "medsam / medicosam need --explain_all")
     parser.add_argument("--regions", type=int, default=254)
     parser.add_argument("--budget", type=int, default=504, help="minimum budget; rounded down to complete permutations")
     parser.add_argument("--batch-size", type=int, default=8)
@@ -475,7 +497,10 @@ def main():
     parser.add_argument('--explain_all', '--explain-all', action='store_true',
                         help='Run the shared OC_BUSI comparison on saved compact partitions')
     parser.add_argument('--config', default='BUSI_epito', help='Dataset/output config for --explain_all')
-    parser.add_argument('--partition-folder', help='Saved partition folder name or absolute path for one --sam model')
+    parser.add_argument('--partition-folder', help='Saved partition folder name or absolute path; its model is '
+                                                   'read from the name (e.g. BUSI_sam1_vit_b_254_compact-sam_50)')
+    parser.add_argument('--compact-strategy', metavar='TAG',
+                        help='Compact file to explain: greedy, split, mso_0.5, ... (default: data.compact_strategy)')
     parser.add_argument('--show-gt', '--show_gt', action='store_true')
     parser.add_argument('--no-heatmaps', action='store_true')
     parser.add_argument('--no-auc', action='store_true')
@@ -488,7 +513,13 @@ def main():
     if args.explain_all:
         if args.command not in {'run', 'all'}:
             parser.error('--explain_all applies to run/all commands')
-        return run_all_methods(args)
+        try:
+            return run_all_methods(args)
+        except ValueError as error:
+            parser.error(str(error))
+    args.sam = args.sam or ['sam1', 'sam2']
+    if set(args.sam) - {'sam1', 'sam2'}:
+        parser.error('medsam / medicosam partitions are explained with --explain_all (saved partitions)')
     cases = discover_cases(args.dataset)
     if not cases:
         raise RuntimeError(f"No BUSI images found in {args.dataset}. Run download first.")

@@ -57,6 +57,8 @@ EXPRESSION_RUNNERS = {'VL_RefCOCO'}
 def create_parser(kind, auc_background=True, road=True):
     parser = argparse.ArgumentParser(description=f'{kind}: BPT, BPT+SAM_c, SAM_c+Kernel SHAP')
     parser.add_argument('--config', default=DEFAULT_CONFIGS[kind])
+    import partition_files
+    partition_files.add_partition_arguments(parser)
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--limit', type=int)
     parser.add_argument('--image-ids', nargs='+')
@@ -145,6 +147,10 @@ def prepare_inputs(kind, args):
         from all_methods import validate
         validate(args)
     config = load_path_config(args.config)
+    import partition_files
+    print(partition_files.apply_partition_choice(config, getattr(args, 'partition_sam', None),
+                                                 getattr(args, 'partition_folder', None),
+                                                 getattr(args, 'partition_strategy', None)), flush=True)
     data = config['data']
     expected = EXPECTED_DATASETS.get(kind, 'imagenet')
     if data.get('name', '').replace('_', '').lower() != expected:
@@ -436,7 +442,9 @@ def write_json(path, value):
 def run_signature(kind, args, config=None):
     # ROAD only reads the finished maps, so its options never invalidate finished explanations.
     ignored = {'limit', 'image_ids', 'dry_run', 'resume', 'verbose_level', 'fail_fast', 'torch_threads', 'output_dir',
-               'compute_road', 'road_fractions', 'road_noise', 'road_seed', 'road_short_side'}
+               'compute_road', 'road_fractions', 'road_noise', 'road_seed', 'road_short_side',
+               # Folder / compact-file choice: already part of the output folder, and absent from older runs.
+               'partition_sam', 'partition_folder', 'partition_strategy'}
     settings = {key: jsonable(value) for key, value in vars(args).items() if key not in ignored}
     if not args.explain_all:
         for option in ['explain_all', 'bpt_budgets', 'lime_budgets', 'gradient_samples',

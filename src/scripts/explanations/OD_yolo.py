@@ -1571,6 +1571,10 @@ def run(args):
     global METHOD_ORDER
     project_root = find_project_root()
     config = load_config(project_root, args.config)
+    import partition_files
+    print(partition_files.apply_partition_choice(config, getattr(args, "partition_sam", None),
+                                                 getattr(args, "partition_folder", None),
+                                                 getattr(args, "partition_strategy", None)), flush=True)
     inputs = prepare_inputs(project_root, config, args)
     if args.explain_all:
         from all_methods import method_names
@@ -2076,6 +2080,8 @@ def run(args):
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="MSCOCO_epito", help="Config name from src/configs or path to YAML.")
+    import partition_files
+    partition_files.add_partition_arguments(parser)
     parser.add_argument("--methods", nargs="+", choices=SUPPORTED_METHODS, default=list(SUPPORTED_METHODS),
                         help="Default: BPT SAM_c SAM_c_kernelshap; ignores legacy evaluation.methods")
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs without loading models or creating outputs")

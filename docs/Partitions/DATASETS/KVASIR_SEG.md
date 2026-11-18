@@ -51,8 +51,8 @@ Keep `--save-partitions sam compact`. Saving other stages changes the folder nam
 
 ### Choose the partitions for XAI
 
-| Model | Folder |
-| --- | --- |
+| Model | Folder                                    |
+| ----- | ----------------------------------------- |
 | SAM-1 | `KvasirSEG_sam1_vit_b_254_compact-sam_50` |
 | SAM-2 | `KvasirSEG_sam2_large_254_compact-sam_50` |
 
@@ -74,7 +74,8 @@ python src/scripts/view_partitions.py \
 python src/scripts/view_partitions.py \
   --config KvasirSEG_epito \
   --image-id cju0qkwl35piu0993l0dewei2 \
-  --methods sam compact \
+  --sam sam2 \
+  --methods sam compact_greedy compact_split \
   --show-gt
 ```
 

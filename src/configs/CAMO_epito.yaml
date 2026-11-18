@@ -9,8 +9,8 @@ data:
   compact_strategy: greedy
     
   # New SAM2 batch outputs; older partition directories are preserved.
-  mask_dir_final_sam1: "MSCOCO_sam1_vit_b_254_compact-sam_200"
-  mask_dir_final_sam2: "MSCOCO_sam2_large_254_compact-sam_200"
+  mask_dir_final_sam1: "CAMO_sam1_vit_b_254_compact-sam_50"
+  mask_dir_final_sam2: "CAMO_sam2_large_254_compact-sam_50"
   
   ground_truth:
     format: binary

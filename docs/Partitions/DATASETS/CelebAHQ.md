@@ -80,7 +80,8 @@ For Large, use `sam2.1_hiera_large.pt` with `sam2.1_hiera_l.yaml`, and set
 python src/scripts/view_partitions.py \
   --config CelebAHQ_epito \
   --limit 5 \
-  --methods sam compact
+  --sam sam2 \
+  --methods sam compact_greedy compact_split
 ```
 
 For one image, replace `--limit 5` with `--image-id 0` (or another actual filename

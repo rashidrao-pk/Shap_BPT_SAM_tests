@@ -119,18 +119,54 @@ class MedSAMBoxGridGenerator:
     (here: boxes per decoder batch). Decoder outputs are cached for the last image, so relaxing the
     thresholds only refilters and costs no extra model calls.
 
-    Note: MedSAM was trained with mask losses only, so its IoU head is SAM's, applied to fine-tuned
-    features. Predicted IoU is kept for parity with SAM (filter and compact-selection weight); the
-    stability score is the better-founded criterion. Both are saved per mask.
+    Two steps keep the prompts in distribution and the scores meaningful:
+    - Box refinement: MedSAM was trained on tight boxes, and a grid box that contains an object is usually much
+      larger than it. Each grid mask's own bounding box (plus `refine_margin` px in the 1024 frame, like MedSAM's
+      training jitter) is therefore decoded a second time; the image embedding is reused.
+    - Quality score: MedSAM was trained with mask losses only, so its IoU head is untrained (it gave 0.52 to a
+      mask with true IoU 0.99). With quality='stability' (default), the stability score replaces it for the
+      `pred_iou_thresh` filter and as `predicted_iou` (the compact-selection weight); the decoder's value is
+      kept as `decoder_iou`.
     """
 
     def __init__(self, model, device, pred_iou_thresh=0.6, stability_score_thresh=0.6, stability_score_offset=1.0,
-                 box_nms_thresh=0.7, points_per_batch=64, side_fractions=BOX_SIDE_FRACTIONS):
+                 box_nms_thresh=0.7, points_per_batch=64, side_fractions=BOX_SIDE_FRACTIONS, refine_boxes=True,
+                 refine_margin=10, quality='stability'):
+        if quality not in ('stability', 'decoder'):
+            raise ValueError("quality must be 'stability' or 'decoder'")
         self.model, self.device = model, device
         self.pred_iou_thresh, self.stability_score_thresh = pred_iou_thresh, stability_score_thresh
         self.stability_score_offset, self.box_nms_thresh = stability_score_offset, box_nms_thresh
         self.points_per_batch, self.side_fractions = points_per_batch, tuple(side_fractions)
+        self.refine_boxes, self.refine_margin, self.quality = refine_boxes, refine_margin, quality
         self._cache_key, self._cache = None, None
+
+    def _decode(self, embedding, dense_pe, boxes_1024):
+        import torch
+        logits, ious = [], []
+        for start in range(0, len(boxes_1024), max(1, int(self.points_per_batch))):
+            chunk = torch.as_tensor(boxes_1024[start:start + int(self.points_per_batch)],
+                                    dtype=torch.float32, device=self.device)[:, None, :]
+            sparse, dense = self.model.prompt_encoder(points=None, boxes=chunk, masks=None)
+            low_res, iou = self.model.mask_decoder(
+                image_embeddings=embedding, image_pe=dense_pe, sparse_prompt_embeddings=sparse,
+                dense_prompt_embeddings=dense, multimask_output=False)
+            logits.append(low_res[:, 0])
+            ious.append(iou[:, 0])
+        return torch.cat(logits), torch.cat(ious).float()
+
+    def _tight_boxes(self, logits):
+        """Bounding boxes (1024 frame) of the masks in low-res logits, plus the margin; rows of empty masks are NaN."""
+        low = (logits > 0).cpu().numpy()
+        size = low.shape[-1]
+        scale = MEDSAM_INPUT_SIZE / size
+        boxes = np.full((len(low), 4), np.nan)
+        for index, mask in enumerate(low):
+            ys, xs = np.flatnonzero(mask.any(axis=1)), np.flatnonzero(mask.any(axis=0))
+            if ys.size:
+                boxes[index] = [xs[0] * scale - self.refine_margin, ys[0] * scale - self.refine_margin,
+                                (xs[-1] + 1) * scale + self.refine_margin, (ys[-1] + 1) * scale + self.refine_margin]
+        return np.clip(boxes, 0, MEDSAM_INPUT_SIZE)
 
     def _candidates(self, image):
         import torch
@@ -142,23 +178,20 @@ class MedSAMBoxGridGenerator:
         boxes = box_grid(height, width, self.side_fractions)
         scale = np.array([width, height, width, height], dtype=np.float64)
         boxes_1024 = boxes / scale * MEDSAM_INPUT_SIZE
-        logits, ious = [], []
         with torch.no_grad():
             embedding = self.model.image_encoder(tensor)
             dense_pe = self.model.prompt_encoder.get_dense_pe()
-            for start in range(0, len(boxes_1024), max(1, int(self.points_per_batch))):
-                chunk = torch.as_tensor(boxes_1024[start:start + int(self.points_per_batch)],
-                                        dtype=torch.float32, device=self.device)[:, None, :]
-                sparse, dense = self.model.prompt_encoder(points=None, boxes=chunk, masks=None)
-                low_res, iou = self.model.mask_decoder(
-                    image_embeddings=embedding, image_pe=dense_pe, sparse_prompt_embeddings=sparse,
-                    dense_prompt_embeddings=dense, multimask_output=False)
-                logits.append(low_res[:, 0])
-                ious.append(iou[:, 0])
-        logits = torch.cat(logits)
+            logits, ious = self._decode(embedding, dense_pe, boxes_1024)
+            if self.refine_boxes:
+                tight = self._tight_boxes(logits)
+                refine = np.flatnonzero(~np.isnan(tight[:, 0]))
+                if refine.size:
+                    refined_logits, refined_ious = self._decode(embedding, dense_pe, tight[refine])
+                    index = torch.as_tensor(refine, device=logits.device)
+                    logits[index], ious[index] = refined_logits, refined_ious
+                    boxes[refine] = tight[refine] * scale / MEDSAM_INPUT_SIZE  # The prompt actually used
         self._cache_key = key
-        self._cache = {'boxes': boxes, 'logits': logits, 'iou': torch.cat(ious).float().cpu().numpy(),
-                       'shape': (height, width)}
+        self._cache = {'boxes': boxes, 'logits': logits, 'iou': ious.cpu().numpy(), 'shape': (height, width)}
         return self._cache
 
     def generate(self, image):
@@ -167,9 +200,10 @@ class MedSAMBoxGridGenerator:
         from torchvision.ops import nms
         image = np.asarray(image)
         candidates = self._candidates(image)
-        logits, iou = candidates['logits'], candidates['iou']
+        logits, decoder_iou = candidates['logits'], candidates['iou']
         height, width = candidates['shape']
         stability = stability_scores(logits, 0.0, self.stability_score_offset).cpu().numpy()
+        iou = stability if self.quality == 'stability' else decoder_iou  # Quality score (see the class note)
         low = (logits > 0).cpu().numpy()
         keep = np.flatnonzero((iou >= self.pred_iou_thresh) & (stability >= self.stability_score_thresh)
                               & low.any(axis=(1, 2)))
@@ -198,6 +232,7 @@ class MedSAMBoxGridGenerator:
                     'segmentation': mask, 'area': int(mask.sum()),
                     'bbox': [int(xs[0]), int(ys[0]), int(xs[-1] - xs[0] + 1), int(ys[-1] - ys[0] + 1)],
                     'predicted_iou': float(iou[number]), 'stability_score': float(stability[number]),
+                    'decoder_iou': float(decoder_iou[number]),
                     'point_coords': [[float((x0 + x1) / 2), float((y0 + y1) / 2)]],
                     'prompt_box': [float(x0), float(y0), float(x1), float(y1)],
                     'crop_box': [0, 0, int(width), int(height)],
@@ -222,7 +257,9 @@ def build_medical_generator(args, device, amg_kwargs):
             stability_score_offset=args.stability_score_offset, box_nms_thresh=args.box_nms_thresh,
             points_per_batch=args.points_per_batch)
         info.update(path='MedSAMBoxGridGenerator (MedSAM_Inference.py preprocessing)', in_distribution=True,
-                    box_side_fractions=list(BOX_SIDE_FRACTIONS), box_stride='side/2')
+                    box_side_fractions=list(BOX_SIDE_FRACTIONS), box_stride='side/2',
+                    box_refinement='each grid mask re-prompted with its tight box + 10 px (1024 frame)',
+                    quality_score='stability (MedSAM IoU head untrained); decoder value saved as decoder_iou')
     else:
         from segment_anything import SamAutomaticMaskGenerator
         generator = SamAutomaticMaskGenerator(model, **amg_kwargs)

@@ -53,8 +53,8 @@ Keep `--save-partitions sam compact`. Without it the folder becomes `..._refined
 
 ### Choose the partitions for XAI
 
-| Model | Folder |
-| --- | --- |
+| Model | Folder                                |
+| ----- | ------------------------------------- |
 | SAM-1 | `DOTA_sam1_vit_b_254_compact-sam_200` |
 | SAM-2 | `DOTA_sam2_large_254_compact-sam_200` |
 
@@ -66,7 +66,8 @@ The config selects SAM-2. To explain SAM-1 partitions, set `data.mask_dir_final`
 python src/scripts/view_partitions.py \
   --config DOTA_epito \
   --limit 5 \
-  --methods sam compact \
+  --sam sam2 \
+  --methods sam compact_greedy compact_split \
   --show-gt
 ```
 

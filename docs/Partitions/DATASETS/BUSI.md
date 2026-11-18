@@ -89,5 +89,5 @@ python src/scripts/generate_busi_partitions.py --config BUSI_epito --model medsa
   --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --compact-strategy greedy split --limit 1000
 python src/scripts/generate_busi_partitions.py --config BUSI_epito --model medicosam --device cuda \
   --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --compact-strategy greedy split --limit 1000
-python src/scripts/view_partitions.py --config BUSI_epito --sam medsam --limit 5 --methods sam compact
+python src/scripts/view_partitions.py --config BUSI_epito --sam medsam --limit 5 --methods sam compact_greedy compact_split
 ```

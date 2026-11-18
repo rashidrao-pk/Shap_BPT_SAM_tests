@@ -152,8 +152,11 @@ Processing follows the official `MedSAM_Inference.py`:
 3. Scale the boxes to the 1024 frame and decode them in batches with `multimask_output=False`.
 4. Take the sigmoid, upsample bilinearly to the image size, and threshold at 0.5.
 
+5. **Box refinement.** MedSAM was trained on *tight* boxes, while a grid box that contains an object is usually much larger than it. Each grid mask's own bounding box, plus 10 px in the 1024 frame (about MedSAM's training jitter), is therefore decoded a second time. The image embedding is reused. In the first diagnostic, unrefined grid boxes reached at best IoU 0.46 on a disk that MedSAM segments at 0.99 from a tight box.
+
 Each box gives one mask. Filtering and NMS then work as in SAM's own generator:
-- **Filtering:** a mask is kept if its predicted IoU and stability score pass the thresholds (0.6 by default). The stability score is computed as SAM computes it, on the logits ±1.
+- **Quality score = stability.** MedSAM's IoU head was not trained: it gave 0.52 to a mask with true IoU 0.99, and never exceeded 0.60. The stability score (SAM's definition, logits ±1) is therefore used for the threshold and as the mask weight in compact selection. The decoder's value is saved per mask as `decoder_iou`.
+- **Filtering:** a mask is kept if its stability passes the thresholds (0.6 by default).
 - **Duplicates:** box NMS at 0.7 removes them.
 - **Mask target:** if fewer masks than the target survive, both thresholds are relaxed (0.6 → 0.4 → 0.2), exactly as for SAM. The decoder outputs are cached, so relaxing costs no extra model calls.
 
@@ -165,7 +168,8 @@ Each box gives one mask. Filtering and NMS then work as in SAM's own generator:
 
 ## Caveats
 
-- **MedSAM's IoU head was not trained.** MedSAM was fine-tuned with mask losses only, so its predicted IoU is SAM's original IoU head applied to fine-tuned features. It is still used for the threshold and as the weight in compact selection, for parity with SAM, and the stability score is applied too. Both values are saved per mask.
+- **MedSAM's IoU head was not trained.** MedSAM was fine-tuned with mask losses only. The diagnostic confirmed it: predicted IoU 0.52 for a near-perfect mask, never above 0.60. The stability score replaces it (see above).
+- **MedicoSAM's predicted IoU runs lower than SAM's** (at most 0.56 on the synthetic disk), so SAM's default 0.6 thresholds remove every mask. With `--generate_at_least_n_masks 50`, the thresholds relax to 0.4 and 0.2 until 50 masks survive, so generation runs still keep masks. Check its mask counts in `mask_tuning_history`.
 - **Box grid vs point grid.** The box grid is our choice of automatic prompts for MedSAM, not part of MedSAM. The point-grid ablation shows how much it matters.
 - **Training-data overlap.** MedSAM's training collection includes public ultrasound, dermoscopy and endoscopy data. Check the overlap with BUSI, ISIC 2018 and Kvasir-SEG before claiming generalisation; the paper's appendix should disclose it.
 - **Embedding check.** The preprocessing test reproduces the official script's steps line by line. A direct comparison of embeddings with the official script was not run, because that script is not importable as a function.

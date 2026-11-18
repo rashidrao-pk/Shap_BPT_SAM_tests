@@ -67,7 +67,8 @@ Preview the first five completed images without specifying image IDs:
 ```bash
 python src/scripts/view_partitions.py \
   --config PartImageNet_epito --limit 5 \
-  --methods sam compact --show-gt
+  --sam sam2 \
+  --methods sam compact_greedy compact_split --show-gt
 ```
 
 Or select one image explicitly:

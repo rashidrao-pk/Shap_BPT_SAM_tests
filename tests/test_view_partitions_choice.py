@@ -147,3 +147,21 @@ def test_no_complete_image_reports_counts_per_stage(tmp_path):
         (folder / name).write_bytes(b'{}')
     with pytest.raises(ValueError, match=r'sam: 2, compact_greedy: 1, compact_split: 0'):
         discover_image_ids(str(config), ['sam', 'compact_greedy', 'compact_split'], 5, sam='sam2')
+
+
+def test_every_config_names_its_own_folders_for_each_model():
+    """mask_dir_final_<model> must belong to the config's own dataset and mask target (no copy-paste from MS-COCO)."""
+    import re
+    import yaml
+    configs = sorted((Path(__file__).resolve().parents[1] / 'src/configs').glob('*_epito*.yaml'))
+    assert configs
+    for path in configs:
+        data = yaml.safe_load(path.read_text())['data']
+        prefix = re.split(r'_(?:sam1|sam2|medsam|medicosam)_', data['mask_dir_final'])[0]
+        target = data['mask_dir_final'].rsplit('_', 1)[-1]
+        for model in ['sam1', 'sam2']:
+            assert f'mask_dir_final_{model}' in data, f'{path.name}: no mask_dir_final_{model}'
+        for key, folder in data.items():
+            if key.startswith('mask_dir_final_'):
+                assert folder.startswith(f'{prefix}_{key.removeprefix("mask_dir_final_")}_'), f'{path.name}: {key}'
+                assert folder.endswith(f'_{target}'), f'{path.name}: {key} has another mask target'

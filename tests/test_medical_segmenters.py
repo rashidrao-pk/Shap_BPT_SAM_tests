@@ -109,8 +109,8 @@ def test_relaxing_thresholds_reuses_the_decoder_outputs():
     calls = []
     original = model.image_encoder
     model.image_encoder = lambda tensor: (calls.append(1), original(tensor))[1]
-    generator = med.MedSAMBoxGridGenerator(model, 'cpu', pred_iou_thresh=.95)
-    assert generator.generate(image) == []  # Every fake IoU is 0.9 or 0.1.
+    generator = med.MedSAMBoxGridGenerator(model, 'cpu', pred_iou_thresh=.95, quality='decoder')
+    assert generator.generate(image) == []  # Every fake decoder IoU is 0.9 or 0.1.
     generator.pred_iou_thresh = .5
     assert generator.generate(image)
     assert len(calls) == 1
@@ -165,3 +165,23 @@ def test_real_models_segment_a_bright_disk(name):
     best = max((a['segmentation'] & disk).sum() / (a['segmentation'] | disk).sum() for a in annotations)
     assert best > .5
     assert len(generator.segmenter_info['checkpoint_sha256']) == 64
+
+
+def test_box_refinement_reprompts_with_tight_boxes_and_stability_is_the_score():
+    image, disk = disk_image()
+    model = FakeMedSAM()
+    batches = []
+    original = model.mask_decoder
+    model.mask_decoder = lambda **kw: (batches.append(kw['sparse_prompt_embeddings'][:, 0].clone()), original(**kw))[1]
+    annotations = med.MedSAMBoxGridGenerator(model, 'cpu', points_per_batch=1000).generate(image)
+    assert len(batches) == 2  # grid pass, then one refinement pass
+    refined = batches[1]
+    assert len(refined) < len(batches[0])  # only boxes whose mask was not empty
+    # A tight box around the disk (diameter 81 px = 324 in the 1024 frame) plus the 10 px margin.
+    sides = (refined[:, 2] - refined[:, 0]).numpy()
+    assert np.isclose(sides, 324 + 20, atol=8).any()
+    assert all(a['predicted_iou'] == a['stability_score'] for a in annotations)
+    assert all('decoder_iou' in a for a in annotations)
+    best = max((a['segmentation'] & disk).sum() / (a['segmentation'] | disk).sum() for a in annotations)
+    assert best > .9
+

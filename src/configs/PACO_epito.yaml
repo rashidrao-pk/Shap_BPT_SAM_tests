@@ -8,6 +8,9 @@ data:
   mask_dir_final: PACO_sam2_large_254_compact-sam_50
   # Compact file read by XAI, previews and the audit: greedy (<id>_compact_greedy.npy), split, mso_0.5, ...
   compact_strategy: greedy
+  # Per-model folders: view_partitions.py --sam sam1 | sam2
+  mask_dir_final_sam1: "PACO_sam1_vit_b_254_compact-sam_50"
+  mask_dir_final_sam2: "PACO_sam2_large_254_compact-sam_50"
   ground_truth:
     format: paco
     root: /beegfs/home/mrashid/datasets/PACO

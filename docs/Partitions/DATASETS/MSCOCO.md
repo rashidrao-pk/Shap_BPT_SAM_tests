@@ -117,8 +117,9 @@ The merge works per image:
 ```bash
 python src/scripts/view_partitions.py \
   --config MSCOCO_epito \
+  --sam sam2 \
   --limit 5 \
-  --methods sam compact
+  --methods sam compact_greedy compact_split
 ```
 
 - Or preview specific images by COCO ID (one or more, padded or not). An image without partitions is reported and skipped, and the others still render:
@@ -128,7 +129,7 @@ python src/scripts/view_partitions.py \
   --config MSCOCO_epito \
   --sam sam2 \
   --image-id 76211 28285 57725 113867 11615 \
-  --methods sam compact
+  --methods sam compact_greedy compact_split
 ```
 
 - Choose the model with `--sam sam1` or `--sam sam2`. These read `data.mask_dir_final_sam1` / `_sam2` from the config. Without `--sam`, the preview uses `data.mask_dir_final` (SAM-1 for `MSCOCO_epito`). Use `--partition-folder NAME` for any other folder, for example an older `MSCOCO_sam1_vit_b_62_compact-sam_200`:

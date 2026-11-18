@@ -58,8 +58,9 @@ python src/scripts/generate_camo_partitions.py \
 ```bash
 python src/scripts/view_partitions.py \
   --config CAMO_epito \
-  --limit 5 \
-  --methods sam compact
+  --sam sam2 \
+  --limit 2 \
+  --methods sam compact_greedy compact_split
 ```
 
 ## Resume after CUDA out-of-memory

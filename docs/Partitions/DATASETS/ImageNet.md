@@ -43,7 +43,8 @@ python src/scripts/generate_imagenet_partitions.py \
 python src/scripts/view_partitions.py \
   --config ImageNet_epito \
   --limit 5 \
-  --methods sam compact
+  --sam sam2 \
+  --methods sam compact_greedy compact_split
 ```
 
 - Or preview one image by its validation number or full filename stem:

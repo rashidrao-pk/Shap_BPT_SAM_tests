@@ -65,10 +65,10 @@ Keep `--save-partitions sam compact`. Saving other stages changes the folder nam
 
 ### Choose the partitions for XAI
 
-| Model | Folder                              |
-| ----- | ----------------------------------- |
+| Model | Folder                               |
+| ----- | ------------------------------------ |
 | SAM-1 | `PACO_sam1_vit_b_254_compact-sam_50` |
-| SAM-2 | `PACO_sam2_large_254_compact-sam_50`  |
+| SAM-2 | `PACO_sam2_large_254_compact-sam_50` |
 
 The config selects SAM-2. To explain SAM-1 partitions, set `data.mask_dir_final` to the SAM-1 folder.
 
@@ -78,7 +78,8 @@ The config selects SAM-2. To explain SAM-1 partitions, set `data.mask_dir_final`
 python src/scripts/view_partitions.py \
   --config PACO_epito \
   --limit 5 \
-  --methods sam compact \
+  --sam sam2 \
+  --methods sam compact_greedy compact_split \
   --show-gt
 ```
 

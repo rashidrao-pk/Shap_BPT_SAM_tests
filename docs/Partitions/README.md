@@ -10,6 +10,7 @@
 - [EPITO: CAMO Train batches](CAMO.md)
 - [Single-image SAM1/SAM2 examples and optional SAM3](../full/SAM_Exps.md)
 - [One-time installation](../full/EPITO_SETUP.md)
+- [Medical priors: MedSAM and MedicoSAM (BUSI, ISIC 2018, Kvasir-SEG)](SAM/MEDICAL_SEGMENTERS.md)
 
 Next: [XAI experiments](../XAI/README.md).
 

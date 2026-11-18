@@ -77,3 +77,15 @@ python src/scripts/check_partition_progress.py \
 ```
 
 Do not add `--configured-only` to this command: that option hides every variant except the single folder specified in each config. Hiding rows does not delete computed files.
+
+### Medical priors: MedSAM and MedicoSAM
+
+Same settings, with a medical SAM instead. Setup, downloads and how they work: [MEDICAL_SEGMENTERS.md](../SAM/MEDICAL_SEGMENTERS.md).
+
+```bash
+python src/scripts/generate_busi_partitions.py --config BUSI_epito --model medsam --device cuda \
+  --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --limit 1000
+python src/scripts/generate_busi_partitions.py --config BUSI_epito --model medicosam --device cuda \
+  --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --limit 1000
+python src/scripts/view_partitions.py --config BUSI_epito --sam medsam --limit 5 --methods sam compact
+```

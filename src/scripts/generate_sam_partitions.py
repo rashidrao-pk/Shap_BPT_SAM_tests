@@ -23,7 +23,9 @@ from scipy import ndimage as ndi
 
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--model", choices=["sam1", "sam2"], default="sam2")
+    p.add_argument("--model", choices=["sam1", "sam2", "medsam", "medicosam"], default="sam2")
+    p.add_argument("--medsam-prompt", choices=["box-grid", "point-grid"], default="box-grid",
+                   help="MedSAM prompts: box-grid (in distribution) or SAM's point grid (ablation)")
     p.add_argument("--image", required=True, type=Path)
     p.add_argument("--device", choices=["auto", "cpu", "mps", "cuda"], default="auto")
     p.add_argument("--max-regions", type=int, default=254)
@@ -91,9 +93,33 @@ def get_device(requested):
     return requested
 
 
+def sam1_generator_kwargs(args):
+    return dict(
+        points_per_side=args.points_per_side,
+        points_per_batch=args.points_per_batch,
+        pred_iou_thresh=args.pred_iou_thresh,
+        stability_score_thresh=args.stability_score_thresh,
+        stability_score_offset=args.stability_score_offset,
+        box_nms_thresh=args.box_nms_thresh,
+        crop_n_layers=args.crop_n_layers,
+        crop_nms_thresh=args.crop_nms_thresh,
+        crop_overlap_ratio=args.crop_overlap_ratio,
+        crop_n_points_downscale_factor=args.crop_n_points_downscale_factor,
+        point_grids=args.point_grids,
+        min_mask_region_area=args.min_mask_region_area,
+        output_mode=args.output_mode,
+    )
+
+
 def build_generator(args):
     import torch
     device = get_device(args.device)
+    if args.model in ("medsam", "medicosam"):
+        from medical_segmenters import build_medical_generator
+        generator, checkpoint = build_medical_generator(args, device, sam1_generator_kwargs(args))
+        print(f"[model] {args.model}  [device] {device}  [checkpoint] {checkpoint}  "
+              f"[prompts] {generator.segmenter_info['prompt_mode']}", flush=True)
+        return generator, device, str(checkpoint)
     checkpoint = args.checkpoint
     if checkpoint is None:
         if args.model == "sam2":
@@ -134,22 +160,7 @@ def build_generator(args):
     else:
         from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
         model = sam_model_registry[args.sam1_variant](checkpoint=str(checkpoint)).to(device)
-        generator = SamAutomaticMaskGenerator(
-            model,
-            points_per_side=args.points_per_side,
-            points_per_batch=args.points_per_batch,
-            pred_iou_thresh=args.pred_iou_thresh,
-            stability_score_thresh=args.stability_score_thresh,
-            stability_score_offset=args.stability_score_offset,
-            box_nms_thresh=args.box_nms_thresh,
-            crop_n_layers=args.crop_n_layers,
-            crop_nms_thresh=args.crop_nms_thresh,
-            crop_overlap_ratio=args.crop_overlap_ratio,
-            crop_n_points_downscale_factor=args.crop_n_points_downscale_factor,
-            point_grids=args.point_grids,
-            min_mask_region_area=args.min_mask_region_area,
-            output_mode=args.output_mode,
-        )
+        generator = SamAutomaticMaskGenerator(model, **sam1_generator_kwargs(args))
         # SAM1's automatic point grids default to float64 on some versions.
         # Apple MPS cannot create float64 tensors; use float32 coordinates.
         if device == "mps":

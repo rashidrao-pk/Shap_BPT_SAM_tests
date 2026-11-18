@@ -232,8 +232,8 @@ def main():
     parser.add_argument('--methods', nargs='+', default=['sam', 'refined'],
                         help='Partition suffixes to view (default: sam refined)')
     choice = parser.add_mutually_exclusive_group()
-    choice.add_argument('--sam', choices=['sam1', 'sam2'],
-                        help="Partitions of this SAM model: the config's data.mask_dir_final_sam1 / _sam2 "
+    choice.add_argument('--sam', choices=['sam1', 'sam2', 'medsam', 'medicosam'],
+                        help="Partitions of this model: the config's data.mask_dir_final_<model> (sam1, sam2, medsam, medicosam) "
                              '(default: data.mask_dir_final)')
     choice.add_argument('--partition-folder', help='Partition folder name under output.partitions, '
                                                    'e.g. MSCOCO_sam1_vit_b_62_compact-sam_200')

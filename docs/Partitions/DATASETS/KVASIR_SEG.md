@@ -87,3 +87,15 @@ python src/scripts/check_partition_progress.py --config KvasirSEG_epito
 The expected total is 1,000.
 
 Next: [Kvasir-SEG XAI](../../XAI/DATASETS/KVASIR_SEG.md).
+
+### Medical priors: MedSAM and MedicoSAM
+
+Same settings, with a medical SAM instead. Setup, downloads and how they work: [MEDICAL_SEGMENTERS.md](../SAM/MEDICAL_SEGMENTERS.md).
+
+```bash
+python src/scripts/generate_kvasirseg_partitions.py --config KvasirSEG_epito --model medsam --device cuda \
+  --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --limit 1000
+python src/scripts/generate_kvasirseg_partitions.py --config KvasirSEG_epito --model medicosam --device cuda \
+  --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --limit 1000
+python src/scripts/view_partitions.py --config KvasirSEG_epito --sam medsam --limit 5 --methods sam compact
+```

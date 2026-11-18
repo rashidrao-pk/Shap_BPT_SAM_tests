@@ -22,7 +22,10 @@ from config_paths import output_path
 def create_parser(description=__doc__, default_config='MSCOCO_epito'):
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--config', default=default_config)
-    parser.add_argument('--model', choices=['sam1', 'sam2'], default='sam2')
+    parser.add_argument('--model', choices=['sam1', 'sam2', 'medsam', 'medicosam'], default='sam2',
+                        help='medsam / medicosam: medical ViT-B priors (docs/Partitions/SAM/MEDICAL_SEGMENTERS.md)')
+    parser.add_argument('--medsam-prompt', choices=['box-grid', 'point-grid'], default='box-grid',
+                        help='MedSAM prompts: box-grid (in distribution, default) or point-grid (ablation)')
     parser.add_argument('--checkpoint', type=Path)
     parser.add_argument('--sam2-config', default='configs/sam2.1/sam2.1_hiera_l.yaml')
     parser.add_argument('--sam1-variant', choices=['vit_b', 'vit_l', 'vit_h'], default='vit_b')
@@ -161,6 +164,10 @@ def partition_folder_name(data, args):
         raise ValueError('Dataset name must contain letters or digits')
     if args.model == 'sam1':
         variant = args.sam1_variant
+    elif args.model in ('medsam', 'medicosam'):
+        variant = 'vitb'
+        if args.model == 'medsam' and getattr(args, 'medsam_prompt', 'box-grid') == 'point-grid':
+            variant = 'vitb-pointgrid'  # Out-of-distribution ablation: its own folder.
     else:
         checkpoint = getattr(args, 'checkpoint', None)
         stem = Path(checkpoint).stem if checkpoint else ''
@@ -194,6 +201,8 @@ def generation_settings(args):
     settings = {key: str(value) if isinstance(value, Path) else value
                 for key, value in vars(args).items()
                 if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file', 'gt_only', 'image_ids'}}
+    if settings.get('model') != 'medsam':
+        settings.pop('medsam_prompt', None)  # Keeps SAM-1/SAM-2 stamps as they were.
     # Preserve compatibility with metadata written before stage selection existed.
     for key, default in [('save_partitions', ['sam', 'refined']),
                          ('select_count', 400), ('fill_max_distance', 3)]:
@@ -386,6 +395,7 @@ def _run(args, progress_stream):
             'model': args.model, 'checkpoint': checkpoint,
             'device': device, 'n_sam_masks': len(masks),
             'effective_points_per_batch': getattr(loaded[0], 'points_per_batch', None),
+            'segmenter': getattr(loaded[0], 'segmenter_info', None),
             
             'n_refined_instances': (
                 int(len(np.unique(maps['refined'])))

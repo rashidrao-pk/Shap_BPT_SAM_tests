@@ -8,6 +8,7 @@ partition quality only, not model behaviour.
 """
 import argparse
 import csv
+import re
 from pathlib import Path
 import sys
 
@@ -20,7 +21,7 @@ for directory in [ROOT, ROOT / 'src/scripts']:
         sys.path.insert(0, str(directory))
 
 from check_partition_progress import DEFAULT_CONFIGS, sam_label
-from config_paths import load_path_config, partition_path, resolve_path
+from config_paths import load_path_config, output_path, partition_path, resolve_path
 from ground_truth import _coco, annotation_mask, load_ground_truth
 from partition_diagnosis import diagnose, failure_cause, image_table, report, size_band
 from partition_colors import region_count
@@ -45,6 +46,10 @@ def parser():
     result.add_argument('--seed', type=int, default=0)
     result.add_argument('--partition-type', default='compact')
     result.add_argument('--all-sam', action='store_true', help="Also evaluate the dataset's other SAM partition folders")
+    result.add_argument('--folders', nargs='+', help='Folder names under output.partitions (or absolute paths)')
+    result.add_argument('--baseline-folder', help='Greedy folder to compare against; pairs shared images before --limit')
+    result.add_argument('--weak-iou', type=float, default=.5,
+                        help='A baseline image is weak if any GT object has best IoU below this (default: 0.5)')
     result.add_argument('--min-images', type=int, default=30, help='Fewer images than this gives no verdict')
     result.add_argument('--use-median-iou', type=float, default=.75)
     result.add_argument('--use-iou-50', type=float, default=.75, help='Share of GT objects with IoU of at least 0.5')
@@ -292,8 +297,11 @@ def partition_folders(config, all_sam):
     folder = partition_path(config)
     if not all_sam:
         return [folder]
-    prefix = folder.name.split('_sam')[0]
-    return sorted({folder, *(path for path in folder.parent.glob(f'{prefix}_sam*') if path.is_dir())})
+    # The dataset prefix, then any segmenter: SAM-1, SAM-2 or a medical prior (MedSAM, MedicoSAM).
+    prefix = re.split(r'_(?:sam1|sam2|medsam|medicosam)_', folder.name)[0]
+    model = re.compile(rf'{re.escape(prefix)}_(?:sam1|sam2|medsam|medicosam)_')
+    return sorted({folder, *(path for path in folder.parent.glob(f'{prefix}_*')
+                             if path.is_dir() and model.match(path.name))})
 
 
 def sam_region_count(partition_file, shape, partition_type):
@@ -314,12 +322,15 @@ def figure_case(config, image_id, image_path, partition_file, combine, partition
             'sam_cells': sam_region_count(partition_file, case['partition'].shape, partition_type)}
 
 
-def evaluate_folder(name, config, folder, args):
+def evaluate_folder(name, config, folder, args, selected_ids=None, label=None):
     suffix = f'_{args.partition_type}.npy'
     files = {path.name.removesuffix(suffix): path for path in folder.glob(f'*{suffix}')} if folder.is_dir() else {}
     paths = image_paths(config['data']) if files else {}
     ids = sorted(set(files) & set(paths))
-    label = f"{Path(name).stem.removesuffix('_epito')} {sam_label(folder.name)}"
+    if selected_ids is not None:
+        ids = sorted(set(ids) & set(selected_ids))
+    label = label or f"{Path(name).stem.removesuffix('_epito')} {sam_label(folder.name)}"
+    print(f'{label}: {len(ids)} available images | {folder}', flush=True)
     combine = combines_parts(config, args)
     rows, images, failed = [], 0, 0
     for index in np.random.default_rng(args.seed).permutation(len(ids)):
@@ -350,7 +361,74 @@ def evaluate_folder(name, config, folder, args):
 
 def evaluate_dataset(name, args):
     config = load_path_config(name)
-    return [evaluate_folder(name, config, folder, args) for folder in partition_folders(config, args.all_sam)]
+    folders = ([output_path(config, 'partitions') / folder for folder in args.folders]
+               if args.folders else partition_folders(config, args.all_sam))
+    selected_ids = None
+    if args.baseline_folder:
+        baseline = output_path(config, 'partitions') / args.baseline_folder
+        if baseline not in folders:
+            folders.insert(0, baseline)
+        missing = [str(folder) for folder in folders if not folder.is_dir()]
+        if missing:
+            raise FileNotFoundError('Comparison folders not found: ' + ', '.join(missing))
+        suffix = f'_{args.partition_type}.npy'
+        available = [{path.name.removesuffix(suffix) for path in folder.glob(f'*{suffix}')} for folder in folders]
+        selected_ids = set.intersection(*available)
+        if not selected_ids:
+            raise ValueError('No completed partitions shared by all comparison folders yet')
+        print(f'Paired comparison: {len(selected_ids)} shared images before --limit', flush=True)
+    labels = [f"{Path(name).stem.removesuffix('_epito')} {sam_label(folder.name)}" for folder in folders]
+    if len(set(labels)) != len(labels):
+        labels = [f'{Path(name).stem.removesuffix("_epito")} {folder.name}' for folder in folders]
+    return [evaluate_folder(name, config, folder, args, selected_ids, label)
+            for folder, label in zip(folders, labels)]
+
+
+def strategy_comparison(summaries, rows, args):
+    """Paired per-image changes; weak cases are selected solely from baseline GT scores."""
+    baseline_name = Path(args.baseline_folder).name
+    baseline = next((item for item in summaries if item['partitions'] == baseline_name), None)
+    if baseline is None:
+        return [], '# Strategy comparison\n\nBaseline was not evaluated; see conclusion.md.\n'
+    baseline_rows = [row for row in rows if row['config'] == baseline['config']]
+    base_images = {item['image_id']: item for item in image_table(baseline_rows)}
+    weak = {row['image_id'] for row in baseline_rows if row['best_iou'] < args.weak_iou}
+    pairs = []
+    lines = ['# Strategy comparison', '', f'Baseline: `{baseline_name}`. Weak images have at least one GT object '
+             f'with baseline oracle IoU < {args.weak_iou:g}. Scores use shared successfully evaluated images only.', '',
+             'These are descriptive partition-quality comparisons, not XAI accuracy or significance tests. '
+             'More regions can improve oracle IoU; compare region counts and grid gains too.', '',
+             '| Folder | Scope | Paired images | Mean IoU change | Improved / worse | Mean region change |',
+             '| --- | --- | --- | --- | --- | --- |']
+    for summary in summaries:
+        if summary is baseline:
+            continue
+        candidates = image_table([row for row in rows if row['config'] == summary['config']])
+        current = []
+        for candidate in candidates:
+            original = base_images.get(candidate['image_id'])
+            if original is None:
+                continue
+            pair = {'image_id': candidate['image_id'], 'baseline_folder': baseline_name,
+                    'folder': summary['partitions'], 'weak_greedy': candidate['image_id'] in weak,
+                    'baseline_iou': original['mean_iou'], 'candidate_iou': candidate['mean_iou'],
+                    'delta_iou': candidate['mean_iou'] - original['mean_iou'],
+                    'baseline_cells': original['cells'], 'candidate_cells': candidate['cells'],
+                    'baseline_low_objects': original['low_objects'], 'candidate_low_objects': candidate['low_objects']}
+            current.append(pair)
+        pairs.extend(current)
+        for scope, subset in [('All shared', current), ('Weak greedy', [p for p in current if p['weak_greedy']])]:
+            if not subset:
+                continue
+            delta = np.array([p['delta_iou'] for p in subset])
+            cells = np.mean([p['candidate_cells'] - p['baseline_cells'] for p in subset])
+            lines.append(f"| {summary['partitions']} | {scope} | {len(subset)} | {delta.mean():+.4f} | "
+                         f'{(delta > 1e-9).sum()} / {(delta < -1e-9).sum()} | {cells:+.1f} |')
+    worst = sorted((item for key, item in base_images.items() if key in weak),
+                   key=lambda item: (item['mean_iou'], item['image_id']))[:args.worst]
+    lines.extend(['', 'Weak greedy examples (lowest image mean IoU first):', '',
+                  ' '.join(item['image_id'] for item in worst) or 'None in this evaluated subset.', ''])
+    return pairs, '\n'.join(lines)
 
 
 def write_csv(path, rows, fields):
@@ -410,6 +488,10 @@ def print_table(summaries):
 def run(args):
     if (args.limit is not None and args.limit < 1) or args.min_images < 1 or args.worst < 1:
         raise ValueError('--limit, --min-images, and --worst must be positive')
+    if not 0 < args.weak_iou <= 1:
+        raise ValueError('--weak-iou must be in (0, 1]')
+    if args.baseline_folder and len(args.config) != 1:
+        raise ValueError('--baseline-folder requires exactly one --config')
     args.output_dir.mkdir(parents=True, exist_ok=True)
     summaries, rows = [], []
     for name in args.config:
@@ -429,6 +511,13 @@ def run(args):
     (args.output_dir / 'diagnosis.md').write_text(report(summaries, diagnoses, args.worst))
     write_csv(args.output_dir / 'partition_quality_summary.csv', summaries, SUMMARY_FIELDS)
     (args.output_dir / 'conclusion.md').write_text(conclusion(summaries, args))
+    if args.baseline_folder:
+        pairs, text = strategy_comparison(summaries, rows, args)
+        fields = ['image_id', 'baseline_folder', 'folder', 'weak_greedy', 'baseline_iou', 'candidate_iou',
+                  'delta_iou', 'baseline_cells', 'candidate_cells', 'baseline_low_objects', 'candidate_low_objects']
+        write_csv(args.output_dir / 'strategy_comparison.csv', pairs, fields)
+        (args.output_dir / 'strategy_comparison.md').write_text(text)
+        print(text, flush=True)
     if args.plots:
         from partition_quality_plots import plot_all
         plot_all(summaries, rows, args, diagnoses)

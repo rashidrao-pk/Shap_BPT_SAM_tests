@@ -126,6 +126,16 @@ def test_all_sam_finds_each_partition_folder_of_the_dataset(tmp_path, monkeypatc
     assert [path.name for path in ep.partition_folders({}, False)] == ['CAMO_sam2_tiny_62']
 
 
+def test_all_sam_also_finds_medical_priors(tmp_path, monkeypatch):
+    names = ['BUSI_sam1_vit_b_254_compact-sam_50_greedy', 'BUSI_medsam_vitb_254_compact-sam_50_greedy',
+             'BUSI_medicosam_vitb_254_compact-sam_50_greedy', 'BUSI_medsam_vitb-pointgrid_254_compact-sam_50_greedy',
+             'BUSIX_sam1_vit_b_62', 'BUSI_previews']
+    for name in names:
+        (tmp_path / name).mkdir()
+    monkeypatch.setattr(ep, 'partition_path', lambda _: tmp_path / 'BUSI_medsam_vitb_254_compact-sam_50_greedy')
+    assert [path.name for path in ep.partition_folders({}, True)] == sorted(names[:4])
+
+
 def test_the_default_uses_every_completed_partition():
     assert ep.parser().parse_args([]).limit is None
 

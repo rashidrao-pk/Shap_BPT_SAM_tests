@@ -100,6 +100,10 @@ def sam_label(folder_name):
 
 def _sam_model(folder_name):
     parts = folder_name.split('_')
+    for model, name in (('medsam', 'MedSAM'), ('medicosam', 'MedicoSAM')):
+        if model in parts:
+            variant = parts[parts.index(model) + 1] if parts.index(model) + 1 < len(parts) else ''
+            return f"{name}-VB{'-PG' if variant.endswith('pointgrid') else ''}"
     if 'sam1' in parts:
         size = parts[parts.index('sam1') + 2:parts.index('sam1') + 3]
         return f"SAM1-V{size[0].upper()}" if size and parts[parts.index('sam1') + 1] == 'vit' else 'SAM1'

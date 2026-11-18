@@ -4,6 +4,9 @@ data:
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/Kvasir-SEG/images
   mask_dir_final: KvasirSEG_sam1_vit_b_254_compact-sam_50_greedy
+  # Medical priors (T2): view with view_partitions.py --sam medsam | medicosam.
+  mask_dir_final_medsam: "KvasirSEG_medsam_vitb_254_compact-sam_50_greedy"
+  mask_dir_final_medicosam: "KvasirSEG_medicosam_vitb_254_compact-sam_50_greedy"
   ground_truth:
     format: kvasir_seg
     root: /beegfs/home/mrashid/datasets/Kvasir-SEG/masks

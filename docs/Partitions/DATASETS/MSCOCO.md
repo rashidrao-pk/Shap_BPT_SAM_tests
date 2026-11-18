@@ -196,6 +196,46 @@ The comparison writes the following to `<output.evaluations>/partition_compare/c
 
 The IoU is the best union of cells for each GT object, as in [EVALUATE_PARTITIONS.md](../EVALUATE_PARTITIONS.md). More regions raise it almost automatically, so read it with the region count and the `gain` over the grid. `--labels` renames the columns; without `--image-id` it compares every image present in all folders (`--limit N`).
 
+## Evaluate quality and weak greedy cases
+
+The plain command below evaluates `data.mask_dir_final`, currently **SAM-1 greedy**, even when the latest generation run used SAM-2 split:
+
+```bash
+python src/scripts/evaluate_partitions.py --config MSCOCO_epito
+```
+
+To compare SAM-2 strategies using the new folders, select them explicitly. No GPU or model checkpoint is needed:
+
+```bash
+F=MSCOCO_sam2_large_254_compact-sam_200
+python src/scripts/evaluate_partitions.py --config MSCOCO_epito \
+  --folders ${F}_greedy ${F}_mso_0.5 ${F}_split \
+  --baseline-folder ${F}_greedy \
+  --output-dir results/evaluations/partition_quality/MSCOCO_sam2_strategies
+```
+
+Only list folders you have generated: remove `${F}_mso_0.5` to compare greedy with split alone. Folder names must match the generation output, including the region cap (`254` above).
+
+With `--baseline-folder`, the evaluator selects images present in **every listed folder before applying `--limit`**. You can run it while split generation continues; the report covers only the shared images available then. Repeat it when generation finishes for the full comparison. Missing or unreadable images are reported, and fewer than 30 scored images give no overall USE/CAUTION/SKIP verdict.
+
+Outputs include:
+
+- `partition_quality_summary.csv` and `conclusion.md`: GT oracle IoU, coverage, region counts and the grid comparison per folder.
+- `strategy_comparison.csv` and `strategy_comparison.md`: paired IoU changes against greedy, both overall and on weak greedy images. An image is weak when **any GT object has greedy IoU below 0.5**; change this with `--weak-iou`. The report lists the worst weak image IDs.
+- `diagnosis.md`, `examples/` and `worst/`: failure groups and representative previews.
+
+To draw the same weak images side by side, copy their IDs from `strategy_comparison.md`:
+
+```bash
+python src/scripts/compare_partition_folders.py --config MSCOCO_epito \
+  --folders ${F}_greedy ${F}_mso_0.5 ${F}_split \
+  --image-id 76211 28285 57725 113867 11615 --name weak_greedy
+```
+
+The IDs above are the earlier inspection examples; replace them with the measured weak IDs. Higher oracle IoU means the cells can represent GT better. Read it alongside region counts and grid gain: split may improve IoU partly by retaining more cells. A comparison restricted to weak greedy cases describes those cases, not the entire dataset.
+
+Use `--all-sam` instead of `--folders` for a separate quality summary of every discovered MS-COCO SAM folder, including older region caps and strategies. Without `--baseline-folder`, each folder uses its own completed images.
+
 ## Progress
 
 ```bash

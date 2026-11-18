@@ -446,6 +446,8 @@ def run_signature(kind, args, config=None):
                # Folder / compact-file choice: already part of the output folder, and absent from older runs.
                'partition_sam', 'partition_folder', 'partition_strategy'}
     settings = {key: jsonable(value) for key, value in vars(args).items() if key not in ignored}
+    from all_methods import without_unused_extras
+    without_unused_extras(settings)  # Earlier runs keep their signature while no extra method is requested
     if not args.explain_all:
         for option in ['explain_all', 'bpt_budgets', 'lime_budgets', 'gradient_samples',
                        'idg_steps', 'attribution_batch_size', 'explanation_seed', 'aa_budget', 'lime_segments']:

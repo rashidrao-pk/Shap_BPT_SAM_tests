@@ -33,7 +33,7 @@ python src/scripts/explanations/OD_yolo.py \
 # SAM-2 Large, split compact partitions
 python src/scripts/explanations/OD_yolo.py \
   --config MSCOCO_epito --sam sam2 --compact-strategy split --model yolo11s --show_gt --limit 1 \
-  --max-evals 1000 --bg-type full --no-heatmaps
+  --max-evals 1000 --bg-type full --explain_all --no-heatmaps
 ```
 
 For all options, the output layout, and how the explained class is chosen, see the [YOLO guide](OD_yolo.md).

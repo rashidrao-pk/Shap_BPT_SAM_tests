@@ -29,6 +29,26 @@ def add_arguments(parser):
     parser.add_argument('--idg-steps', type=int, default=50)
     parser.add_argument('--attribution-batch-size', type=int, default=4)
     parser.add_argument('--explanation-seed', type=int, default=0)
+    parser.add_argument('--extra-methods', nargs='+', default=[], choices=['hshap', 'hshap-cs', 'eac'],
+                        help='Extra baselines at the partition budget(s): native h-Shap, h-Shap with cycle '
+                             'spinning, EAC on the compact SAM map (docs/XAI/ALL_METHODS.md)')
+    parser.add_argument('--hshap-min-size', type=int, default=8, help='Smallest h-Shap quadrant side in pixels')
+    parser.add_argument('--eac-mc-samples', type=int, default=2000,
+                        help='Surrogate samples per concept for EAC values (no model queries)')
+    parser.add_argument('--eac-estimator', choices=['eac', 'shapley'], default='eac',
+                        help="eac: the released code's Bernoulli(0.5) estimator; shapley: permutation sampling")
+
+
+EXTRA_OPTIONS = ['extra_methods', 'hshap_min_size', 'eac_mc_samples', 'eac_estimator']
+EXTRA_PREFIX = {'hshap': 'hShap', 'hshap-cs': 'hShap-CS', 'eac': 'EAC'}
+
+
+def without_unused_extras(values):
+    """Drop the extra-method options when none is requested, so earlier runs keep their signatures."""
+    if not values.get('extra_methods'):
+        for option in EXTRA_OPTIONS:
+            values.pop(option, None)
+    return values
 
 
 def partition_budgets(args):
@@ -91,7 +111,9 @@ def method_names(args):
     return ([f'{method}-{budget}' for method in partition_methods(args)
              for budget in partition_budgets(args)] +
             [f'LIME-{budget}' for budget in dict.fromkeys(args.lime_budgets)] +
-            [f'Shap-AA-{args.aa_budget}', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'])
+            [f'Shap-AA-{args.aa_budget}', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'] +
+            [f'{EXTRA_PREFIX[method]}-{budget}' for method in getattr(args, 'extra_methods', None) or []
+             for budget in partition_budgets(args)])
 
 
 def grid_methods(args):
@@ -113,7 +135,7 @@ def comparison_signature(args):
                'partition_sam', 'partition_folder', 'partition_strategy'}  # Part of the output folder already
     if guide_options.is_default(args):
         ignored |= set(guide_options.DEFAULTS)  # v1 merge: completion markers from before these options stay valid.
-    values = {key: value for key, value in vars(args).items() if key not in ignored}
+    values = without_unused_extras({key: value for key, value in vars(args).items() if key not in ignored})
     return hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()
 
 
@@ -494,6 +516,25 @@ def compute_extra(runtime, args, adapter, image, replacements, explainer, tree, 
                                                         method='AA' if method == 'Shap-AA' else 'BPT',
                                                         batch_size=args.eval_batch_size)
                 info['budget'] = budget
+            elif name.startswith(('hShap-', 'EAC-')):
+                method, budget = name.rsplit('-', 1)
+                if predict is None:
+                    raise ValueError(f'{method} requires the masked predictor')
+                if method == 'EAC':
+                    import eac_native
+                    if labels is None:
+                        raise ValueError('EAC uses the compact SAM map as its concepts')
+                    values, details = eac_native.explain(
+                        predict, labels, target, int(budget), mc_samples=args.eac_mc_samples,
+                        estimator=args.eac_estimator, batch_size=args.eval_batch_size, seed=args.explanation_seed)
+                else:
+                    import hshap_native
+                    explain = (hshap_native.explain_cycle_spinning if method == 'hShap-CS'
+                               else hshap_native.explain_budgeted)
+                    values, details = explain(predict, target, image.shape[:2], int(budget),
+                                              min_size=args.hshap_min_size)
+                values = values[None]
+                info.update(details)
             elif name.startswith('LIME-'):
                 values, details = lime_map(adapter, image, replacements, target, int(name.split('-')[1]), args,
                                            dataset_name=dataset_name)

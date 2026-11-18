@@ -105,6 +105,60 @@ The lower-left panel shows every ground-truth object of the image: one colour pe
 
 Previews are saved under `previews/<partition folder>/`, so SAM-1 and SAM-2 previews of the same image do not overwrite each other.
 
+## Compare compact strategies (greedy vs MSO)
+
+`--compact-strategy` chooses how the compact stage picks SAM masks. Each step takes the mask with the highest score:
+
+| Strategy | Score | Folder suffix |
+| --- | --- | --- |
+| `greedy` (default) | uncovered pixels × predicted IoU | `_greedy` |
+| `mso` | uncovered pixels<sup>α</sup> × predicted IoU, with `--mso-alpha` α in (0, 1), default 0.5 | `_mso_<α>` |
+
+With α < 1, MSO favours smaller masks more than greedy does, so it usually picks more, smaller regions. Each setting writes to its own folder, so the runs do not overwrite each other.
+
+**1. Generate on a GPU node** (after `source src/hpc/node_env.sh`). The same images go through each setting. SAM runs again for each one, so keep the image list short:
+
+```bash
+IDS="76211 28285 57725 113867 11615"
+COMMON=(--config MSCOCO_epito --model sam2 --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt"
+        --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml --device cuda
+        --generate_at_least_n_masks 200 --save-partitions sam compact --image-id $IDS)
+python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy greedy
+python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy mso --mso-alpha 0.5
+# Optional, to see the effect of alpha:
+python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy mso --mso-alpha 0.3
+python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy mso --mso-alpha 0.7
+```
+
+Each run prints its folder (`For XAI set data.mask_dir_final: "..."`), e.g. `MSCOCO_sam2_large_254_compact-sam_200_greedy` and `MSCOCO_sam2_large_254_compact-sam_200_mso_0.5`.
+
+**2. Preview each folder** (no GPU needed):
+
+```bash
+F=MSCOCO_sam2_large_254_compact-sam_200
+for S in greedy mso_0.5 mso_0.3 mso_0.7; do
+  python src/scripts/view_partitions.py --config MSCOCO_epito --partition-folder ${F}_$S \
+    --image-id $IDS --methods sam compact
+done
+```
+
+**3. Compare them side by side** (no GPU needed):
+
+```bash
+python src/scripts/compare_partition_folders.py --config MSCOCO_epito --name compact_strategy \
+  --folders ${F}_greedy ${F}_mso_0.5 ${F}_mso_0.3 ${F}_mso_0.7 --image-id $IDS
+```
+
+The comparison writes the following to `<output.evaluations>/partition_compare/compact_strategy/`:
+
+- **One figure per image (`<id>.png`):**
+  - Top row: the original, the raw SAM map, and each setting's compact map. Each map is titled with `SAM → Compact` region counts and the mean GT IoU next to a same-size grid's; ★ marks the best setting.
+  - Bottom row: the GT objects, then overlays with the share of unassigned (black) pixels and of objects reaching IoU ≥ 0.5.
+- **`per_image.csv`:** one row per image and setting.
+- **`summary.csv`:** the same columns over all images, plus `best_on_images`, the number of images where the setting had the highest mean IoU. It is also printed as a table.
+
+The IoU is the best union of cells for each GT object, as in [EVALUATE_PARTITIONS.md](../EVALUATE_PARTITIONS.md). More regions raise it almost automatically, so read it with the region count and the `gain` over the grid. `--labels` renames the columns; without `--image-id` it compares every image present in all folders (`--limit N`).
+
 ## Progress
 
 ```bash

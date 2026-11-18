@@ -191,7 +191,11 @@ def discover_image_ids(config_name, methods, limit, allowed_ids=None, **choice):
             if len(image_ids) >= limit:
                 break
     if not image_ids:
-        raise ValueError(f'No completed images with all requested stages in {folder}')
+        names = {path.name for path in folder.iterdir() if path.is_file()}
+        counts = ', '.join(f'{stage}: {len(partition_files.stage_files(folder, stage, names))}'
+                           for stage in method_stages(methods, data))
+        raise ValueError(f'No completed images with all requested stages in {folder} '
+                         f'(images per stage: {counts})')
     return image_ids
 
 

@@ -136,3 +136,14 @@ def test_a_missing_partition_is_reported_with_what_exists(tmp_path):
     image, partitions, output = resolve_paths(args)
     with pytest.raises(FileNotFoundError, match='not generated in .* yet .*missing 000000076211_sam.npy.*compact_greedy'):
         render(image, partitions, output)
+
+
+def test_no_complete_image_reports_counts_per_stage(tmp_path):
+    from view_partitions import discover_image_ids
+    config = write_config(tmp_path)
+    folder = tmp_path / 'partitions/MSCOCO_sam2_large_254_compact-sam_200'
+    folder.mkdir(parents=True)
+    for name in ['1_results.json', '1_sam.npy', '1_compact.npy', '2_results.json', '2_sam.npy']:
+        (folder / name).write_bytes(b'{}')
+    with pytest.raises(ValueError, match=r'sam: 2, compact_greedy: 1, compact_split: 0'):
+        discover_image_ids(str(config), ['sam', 'compact_greedy', 'compact_split'], 5, sam='sam2')

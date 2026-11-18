@@ -36,7 +36,7 @@ Use `--sam sam2` for SAM2 or `--sam sam1 sam2` for both. It prefers the configur
 python -u src/scripts/run_busi_shapbpt.py run \
   --config BUSI_epito --model-dir checkpoints/busi_siglip --limit 1 \
   --sam sam1 --regions 62 --budget 1000 --explain_all --batch-size 8 \
-  --partition-folder BUSI_sam1_vit_b_254_compact-sam_50_greedy \
+  --partition-folder BUSI_sam1_vit_b_254_compact-sam_50 \
   --show-gt --no-heatmaps --auc-num-samples 200
 ```
 

@@ -1,6 +1,6 @@
 # Medical segmentation priors: MedSAM and MedicoSAM
 
-On the medical datasets (BUSI, ISIC 2018, Kvasir-SEG), the generic SAM ViT-B prior often fails the partition audit. Two SAM ViT-B models fine-tuned on medical images are added as alternative priors. Both plug into the existing partition generators and produce the usual `<id>_sam.npy`, `<id>_compact.npy` and `<id>_results.json`, so explanations, previews and the audit work unchanged.
+On the medical datasets (BUSI, ISIC 2018, Kvasir-SEG), the generic SAM ViT-B prior often fails the partition audit. Two SAM ViT-B models fine-tuned on medical images are added as alternative priors. Both plug into the existing partition generators and produce the usual `<id>_sam.npy`, `<id>_compact_greedy.npy` (and any other `--compact-strategy`) and `<id>_results.json`, so explanations, previews and the audit work unchanged.
 
 | Prior | `--model` | Trained with | How it runs here | Folder |
 | --- | --- | --- | --- | --- |
@@ -126,8 +126,8 @@ Side by side with SAM, scored against the lesion masks:
 
 ```bash
 python src/scripts/compare_partition_folders.py --config BUSI_epito --name medical_priors --limit 50 \
-  --folders BUSI_sam1_vit_b_254_compact-sam_50_greedy BUSI_sam2_large_254_compact-sam_50_greedy \
-            BUSI_medsam_vitb_254_compact-sam_50_greedy BUSI_medicosam_vitb_254_compact-sam_50_greedy \
+  --folders BUSI_sam1_vit_b_254_compact-sam_50 BUSI_sam2_large_254_compact-sam_50 \
+            BUSI_medsam_vitb_254_compact-sam_50 BUSI_medicosam_vitb_254_compact-sam_50 \
   --labels SAM1-VB SAM2-L MedSAM MedicoSAM
 ```
 

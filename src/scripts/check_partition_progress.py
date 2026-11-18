@@ -9,6 +9,7 @@ import sys
 
 import yaml
 from config_paths import output_path
+import partition_files
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIGS = ['MSCOCO_epito', 'ImageNet_epito', 'CelebAHQ_epito', 'CAMO_epito',
@@ -133,6 +134,8 @@ def format_duration(seconds, samples):
 
 
 def output_image_id(name):
+    if name.endswith('.npy') and '_compact_' in name:  # <id>_compact_<strategy>.npy
+        return name[:name.rindex('_compact_')]
     for suffix in ['_results.json', '_raw_masks.npz', *[f'_{stage}.npy' for stage in STAGES]]:
         if name.endswith(suffix):
             return name.removesuffix(suffix)
@@ -174,7 +177,8 @@ def inspect_folder(folder, expected_ids, dataset, methods=None):
                         stages = ['sam', 'compact'] if f'{image_id}_compact.npy' in files else ['sam', 'refined']
                 if not isinstance(stages, list) or not all(isinstance(stage, str) for stage in stages):
                     raise ValueError('Invalid saved stages')
-                if all(f'{image_id}_{stage}.npy' in files for stage in stages):
+                if all(any(f'{image_id}_{name}.npy' in files for name in partition_files.alternatives(stage))
+                       for stage in stages):
                     folder_completed += 1
                     if in_subset:
                         complete.add(image_id)
@@ -190,13 +194,9 @@ def inspect_folder(folder, expected_ids, dataset, methods=None):
                 if in_subset:
                     invalid_metadata += 1
         elif name.endswith('.npy'):
-            for stage in STAGES:
-                suffix = f'_{stage}.npy'
-                if name.endswith(suffix):
-                    image_id = name.removesuffix(suffix)
-                    if image_id in expected_ids:
-                        observed.add(image_id)
-                    break
+            image_id = output_image_id(name)
+            if image_id in expected_ids:
+                observed.add(image_id)
     total = len(expected_ids)
     return {'dataset': dataset, 'folder': str(folder), 'completed': len(complete),
             'total': total, 'percent': round(100 * len(complete) / total, 2) if total else 0,
@@ -338,8 +338,9 @@ def print_time_summary(summary):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', '--configs', nargs='+', default=DEFAULT_CONFIGS)
-    parser.add_argument('--methods', nargs='+', choices=STAGES,
-                        help='Require these stages; default: stages recorded for each image')
+    parser.add_argument('--methods', nargs='+', metavar='STAGE',
+                        help='Require these stages, e.g. sam compact_greedy compact_split (compact = greedy); '
+                             'default: stages recorded for each image')
     parser.add_argument('--configured-only', action='store_true', help='Check only data.mask_dir_final')
     parser.add_argument('--gt-only', '--gtonly', action='store_true',
                         help='ImageNet: count only inputs with configured ImageNetS GT before applying --limit; other datasets unchanged')

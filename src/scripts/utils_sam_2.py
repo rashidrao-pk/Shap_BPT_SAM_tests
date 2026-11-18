@@ -95,7 +95,8 @@ def load_refine_partitions(image_to_explain, masks_base_path, image_id, partitio
     if verbose:
         print(f"Loading partitions for image_id: {image_id}, partition_type: {partition_type}")
 
-    partition_path = os.path.join(masks_base_path, f"{image_id}_{partition_type}.npy")
+    from partition_files import partition_file  # compact_greedy and the legacy compact are interchangeable
+    partition_path = str(partition_file(masks_base_path, image_id, partition_type))
     if not os.path.exists(partition_path):
         raise FileNotFoundError(f"Partition file not found: {partition_path}")
 

@@ -297,13 +297,15 @@ def check_gt(spec, data, ids):
     return Check(OK, text, '')
 
 
-def completed_partitions(folder, ids):
+def completed_partitions(folder, ids, stage='compact_greedy'):
     """Count XAI inputs from one listing: stat calls are slow on a network filesystem.
 
     check_partition_progress.py reads every metadata file, for exact progress and timing.
     """
+    import partition_files
     names = set(os.listdir(folder))
-    return sum(f'{image_id}_compact.npy' in names and f'{image_id}_results.json' in names for image_id in ids)
+    compact = partition_files.stage_files(folder, stage, names)
+    return sum(image_id in compact and f'{image_id}_results.json' in names for image_id in ids)
 
 
 def partition_folder(base, prefix, sam, configured):
@@ -320,7 +322,8 @@ def check_partitions(config, ids, sam):
     folder, matches = partition_folder(base, prefix, sam, data.get('mask_dir_final'))
     if folder is None:
         return Check(WARN, 'none', ''), 0
-    completed = completed_partitions(folder, ids)
+    import partition_files
+    completed = completed_partitions(folder, ids, partition_files.configured_stage(data))
     detail = f'{matches} {sam} partition folders: select one with data.mask_dir_final' if matches > 1 else ''
     return Check(OK if completed == len(ids) and not detail else WARN, f'{completed}/{len(ids)}', detail), completed
 
@@ -365,7 +368,9 @@ def check_dataset(config_name, pins=None):
         if check.detail:
             problem(f'{version} partitions', check, 'docs/Partitions/DATASETS/README.md')
     configured = output_path(config, 'partitions') / data.get('mask_dir_final', '__unset__')
-    result['configured_ready'] = completed_partitions(configured, selected) if configured.is_dir() else 0
+    import partition_files
+    result['configured_ready'] = (completed_partitions(configured, selected, partition_files.configured_stage(data))
+                                  if configured.is_dir() else 0)
     return result
 
 

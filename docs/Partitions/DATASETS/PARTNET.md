@@ -47,7 +47,7 @@ python src/scripts/generate_partimagenet_partitions.py \
 
 Remove `--limit 2` for the entire configured split. The generator reads only images listed in `data.annotation_file`; masks are not used to generate partitions. Text progress, logs, and resume follow the existing dataset generators.
 
-Set `data.mask_dir_final` to the output folder printed by the generator. This example produces `PartImageNet_sam2_large_254_compact-sam_50_greedy`.
+Set `data.mask_dir_final` to the output folder printed by the generator. This example produces `PartImageNet_sam2_large_254_compact-sam_50`.
 
 For SAM1, replace the model/checkpoint options with:
 

@@ -5,7 +5,9 @@ data:
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/PACO/images
   annotation_file: /beegfs/home/mrashid/datasets/PACO/annotations/paco_lvis_v1_val.json
-  mask_dir_final: PACO_sam2_large_254_compact-sam_50_greedy
+  mask_dir_final: PACO_sam2_large_254_compact-sam_50
+  # Compact file read by XAI, previews and the audit: greedy (<id>_compact_greedy.npy), split, mso_0.5, ...
+  compact_strategy: greedy
   ground_truth:
     format: paco
     root: /beegfs/home/mrashid/datasets/PACO

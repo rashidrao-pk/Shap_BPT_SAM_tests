@@ -25,6 +25,7 @@ from config_paths import load_path_config, output_path, partition_path, resolve_
 from ground_truth import _coco, annotation_mask, load_ground_truth
 from partition_diagnosis import diagnose, failure_cause, image_table, report, size_band
 from partition_colors import region_count
+import partition_files
 from utils_sam_2 import load_partition_array
 
 IGNORED_LABEL = 1000  # ImageNet-S marks pixels to ignore with this value.
@@ -44,10 +45,17 @@ def parser():
     result.add_argument('--config', nargs='+', default=DEFAULT_CONFIGS)
     result.add_argument('--limit', type=int, help='Images with GT to evaluate per dataset; default: every completed partition')
     result.add_argument('--seed', type=int, default=0)
-    result.add_argument('--partition-type', default='compact')
+    result.add_argument('--partition-type', help='Stage file to score, e.g. compact_split '
+                        '(default: data.compact_strategy of each config, i.e. compact_greedy)')
     result.add_argument('--all-sam', action='store_true', help="Also evaluate the dataset's other SAM partition folders")
     result.add_argument('--folders', nargs='+', help='Folder names under output.partitions (or absolute paths)')
+    result.add_argument('--partition-types', nargs='+', metavar='STAGE',
+                        help='Several stage files to score, e.g. compact_greedy compact_mso_0.5 compact_split '
+                             '(strategies saved in one folder)')
     result.add_argument('--baseline-folder', help='Greedy folder to compare against; pairs shared images before --limit')
+    result.add_argument('--baseline-type', metavar='STAGE',
+                        help='Stage file of the baseline (e.g. compact_greedy); with --partition-types, this '
+                             'compares strategies inside one folder on the same images')
     result.add_argument('--weak-iou', type=float, default=.5,
                         help='A baseline image is weak if any GT object has best IoU below this (default: 0.5)')
     result.add_argument('--min-images', type=int, default=30, help='Fewer images than this gives no verdict')
@@ -306,10 +314,9 @@ def partition_folders(config, all_sam):
 
 def sam_region_count(partition_file, shape, partition_type):
     """Regions in the image's full SAM map (<id>_sam.npy next to the partition), or None if it is missing."""
-    name = Path(partition_file).name
-    if partition_type == 'sam' or not name.endswith(f'_{partition_type}.npy'):
+    sam = None if partition_type == 'sam' else partition_files.sibling(partition_file, partition_type, 'sam')
+    if sam is None:
         return None
-    sam = Path(partition_file).with_name(name.removesuffix(f'_{partition_type}.npy') + '_sam.npy')
     try:
         return region_count(load_partition_array(sam, shape)) if sam.is_file() else None
     except (OSError, ValueError):
@@ -323,13 +330,12 @@ def figure_case(config, image_id, image_path, partition_file, combine, partition
 
 
 def evaluate_folder(name, config, folder, args, selected_ids=None, label=None):
-    suffix = f'_{args.partition_type}.npy'
-    files = {path.name.removesuffix(suffix): path for path in folder.glob(f'*{suffix}')} if folder.is_dir() else {}
+    files = partition_files.stage_files(folder, args.partition_type) if folder.is_dir() else {}
     paths = image_paths(config['data']) if files else {}
     ids = sorted(set(files) & set(paths))
     if selected_ids is not None:
         ids = sorted(set(ids) & set(selected_ids))
-    label = label or f"{Path(name).stem.removesuffix('_epito')} {sam_label(folder.name)}"
+    label = label or f"{Path(name).stem.removesuffix('_epito')} {segmenter_label(folder, args)}"
     print(f'{label}: {len(ids)} available images | {folder}', flush=True)
     combine = combines_parts(config, args)
     rows, images, failed = [], 0, 0
@@ -345,7 +351,7 @@ def evaluate_folder(name, config, folder, args, selected_ids=None, label=None):
         rows.extend(image_rows)
         images += bool(image_rows)  # Images without GT do not use up the limit.
     summary = summarize(label, folder.name, len(ids), images, rows, args, failed)
-    summary.update(dataset=Path(name).stem.removesuffix('_epito'), segmenter=sam_label(folder.name))
+    summary.update(dataset=Path(name).stem.removesuffix('_epito'), segmenter=segmenter_label(folder, args))
     if rows and args.plots and summary['verdict'] in {USE, CAUTION, SKIP}:
         from partition_quality_plots import plot_examples
         kind = args.partition_type
@@ -359,35 +365,64 @@ def evaluate_folder(name, config, folder, args, selected_ids=None, label=None):
     return summary, rows
 
 
+def segmenter_label(folder, args):
+    """SAM model from the folder name, plus the compact strategy unless it is greedy (e.g. SAM2-L-SPLIT)."""
+    strategy = partition_files.tag_label(args.partition_type)
+    return f'{sam_label(folder.name)}-{strategy}' if strategy else sam_label(folder.name)
+
+
 def evaluate_dataset(name, args):
     config = load_path_config(name)
+    # Each config may select its own compact strategy (data.compact_strategy).
+    args = argparse.Namespace(**{**vars(args), 'partition_type': args.partition_type
+                                 or partition_files.configured_stage(config['data'])})
     folders = ([output_path(config, 'partitions') / folder for folder in args.folders]
                if args.folders else partition_folders(config, args.all_sam))
-    selected_ids = None
-    if args.baseline_folder:
-        baseline = output_path(config, 'partitions') / args.baseline_folder
-        if baseline not in folders:
-            folders.insert(0, baseline)
-        missing = [str(folder) for folder in folders if not folder.is_dir()]
+    # (folder, stage) entries: several folders with one stage, or several stages (strategies) of one folder.
+    types = args.partition_types or [args.partition_type]
+    entries = [(folder, kind) for folder in folders for kind in types]
+    selected_ids, baseline = None, None
+    if args.baseline_folder or args.baseline_type:
+        baseline = (output_path(config, 'partitions') / args.baseline_folder if args.baseline_folder else folders[0],
+                    args.baseline_type or args.partition_type)
+        if baseline not in entries:
+            entries.insert(0, baseline)
+        missing = sorted({str(folder) for folder, _ in entries if not folder.is_dir()})
         if missing:
             raise FileNotFoundError('Comparison folders not found: ' + ', '.join(missing))
-        suffix = f'_{args.partition_type}.npy'
-        available = [{path.name.removesuffix(suffix) for path in folder.glob(f'*{suffix}')} for folder in folders]
+        available = [set(partition_files.stage_files(folder, kind)) for folder, kind in entries]
         selected_ids = set.intersection(*available)
         if not selected_ids:
-            raise ValueError('No completed partitions shared by all comparison folders yet')
+            raise ValueError('No completed partitions shared by all compared folders and strategies yet')
         print(f'Paired comparison: {len(selected_ids)} shared images before --limit', flush=True)
-    labels = [f"{Path(name).stem.removesuffix('_epito')} {sam_label(folder.name)}" for folder in folders]
+    labels = [f"{Path(name).stem.removesuffix('_epito')} {segmenter_label(folder, with_type(args, kind))}"
+              for folder, kind in entries]
     if len(set(labels)) != len(labels):
-        labels = [f'{Path(name).stem.removesuffix("_epito")} {folder.name}' for folder in folders]
-    return [evaluate_folder(name, config, folder, args, selected_ids, label)
-            for folder, label in zip(folders, labels)]
+        labels = [f'{Path(name).stem.removesuffix("_epito")} {entry_name(folder, kind)}' for folder, kind in entries]
+    results = []
+    for (folder, kind), label in zip(entries, labels):
+        summary, rows = evaluate_folder(name, config, folder, with_type(args, kind), selected_ids, label)
+        summary.update(partitions=entry_name(folder, kind), partition_type=kind, baseline=(folder, kind) == baseline)
+        results.append((summary, rows))
+    return results
+
+
+def with_type(args, kind):
+    return argparse.Namespace(**{**vars(args), 'partition_type': kind})
+
+
+def entry_name(folder, kind):
+    """Folder name, plus ':<stage>' for compact strategies other than greedy (they share the folder)."""
+    tag = partition_files.tag_of(kind) if str(kind).startswith('compact') else kind
+    return folder.name if tag == partition_files.DEFAULT_TAG else f'{folder.name}:{kind}'
 
 
 def strategy_comparison(summaries, rows, args):
     """Paired per-image changes; weak cases are selected solely from baseline GT scores."""
-    baseline_name = Path(args.baseline_folder).name
-    baseline = next((item for item in summaries if item['partitions'] == baseline_name), None)
+    baseline = next((item for item in summaries if item.get('baseline')), None)
+    if baseline is None and args.baseline_folder:
+        baseline = next((item for item in summaries if item['partitions'] == Path(args.baseline_folder).name), None)
+    baseline_name = baseline['partitions'] if baseline else Path(args.baseline_folder or '').name
     if baseline is None:
         return [], '# Strategy comparison\n\nBaseline was not evaluated; see conclusion.md.\n'
     baseline_rows = [row for row in rows if row['config'] == baseline['config']]
@@ -490,8 +525,8 @@ def run(args):
         raise ValueError('--limit, --min-images, and --worst must be positive')
     if not 0 < args.weak_iou <= 1:
         raise ValueError('--weak-iou must be in (0, 1]')
-    if args.baseline_folder and len(args.config) != 1:
-        raise ValueError('--baseline-folder requires exactly one --config')
+    if (args.baseline_folder or args.baseline_type) and len(args.config) != 1:
+        raise ValueError('--baseline-folder / --baseline-type require exactly one --config')
     args.output_dir.mkdir(parents=True, exist_ok=True)
     summaries, rows = [], []
     for name in args.config:
@@ -511,7 +546,7 @@ def run(args):
     (args.output_dir / 'diagnosis.md').write_text(report(summaries, diagnoses, args.worst))
     write_csv(args.output_dir / 'partition_quality_summary.csv', summaries, SUMMARY_FIELDS)
     (args.output_dir / 'conclusion.md').write_text(conclusion(summaries, args))
-    if args.baseline_folder:
+    if args.baseline_folder or args.baseline_type:
         pairs, text = strategy_comparison(summaries, rows, args)
         fields = ['image_id', 'baseline_folder', 'folder', 'weak_greedy', 'baseline_iou', 'candidate_iou',
                   'delta_iou', 'baseline_cells', 'candidate_cells', 'baseline_low_objects', 'candidate_low_objects']

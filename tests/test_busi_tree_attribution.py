@@ -141,7 +141,7 @@ def test_explain_all_dispatches_to_shared_runner_for_selected_sam(tmp_path, monk
     sys.path.insert(0, str(SCRIPT.parents[0] / 'explanations'))
     import experiment_common as common
     base = tmp_path / 'partitions'
-    sam1 = base / 'BUSI_sam1_vit_b_254_compact-sam_50_greedy'
+    sam1 = base / 'BUSI_sam1_vit_b_254_compact-sam_50'
     sam2 = base / 'BUSI_sam2_tiny_254_compact-sam_50'
     sam1.mkdir(parents=True)
     sam2.mkdir()

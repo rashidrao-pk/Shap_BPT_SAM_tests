@@ -130,14 +130,14 @@ def test_folder_names_labels_and_resume_settings():
     args = argparse.Namespace(model='medsam', medsam_prompt='box-grid', checkpoint=None, max_regions=254,
                               generate_at_least_n_masks=50, save_partitions=['sam', 'compact'],
                               compact_strategy='greedy', mso_alpha=0.5)
-    assert batch.partition_folder_name({'name': 'BUSI'}, args) == 'BUSI_medsam_vitb_254_compact-sam_50_greedy'
+    assert batch.partition_folder_name({'name': 'BUSI'}, args) == 'BUSI_medsam_vitb_254_compact-sam_50'
     args.medsam_prompt = 'point-grid'
     assert batch.partition_folder_name({'name': 'BUSI'}, args).startswith('BUSI_medsam_vitb-pointgrid_254')
     args.model = 'medicosam'
-    assert batch.partition_folder_name({'name': 'BUSI'}, args) == 'BUSI_medicosam_vitb_254_compact-sam_50_greedy'
-    assert sam_label('BUSI_medsam_vitb_254_compact-sam_50_greedy') == 'MedSAM-VB'
-    assert sam_label('BUSI_medsam_vitb-pointgrid_254_compact-sam_50_greedy') == 'MedSAM-VB-PG'
-    assert sam_label('BUSI_medicosam_vitb_62_compact-sam_50_greedy') == 'MedicoSAM-VB-K62'
+    assert batch.partition_folder_name({'name': 'BUSI'}, args) == 'BUSI_medicosam_vitb_254_compact-sam_50'
+    assert sam_label('BUSI_medsam_vitb_254_compact-sam_50') == 'MedSAM-VB'
+    assert sam_label('BUSI_medsam_vitb-pointgrid_254_compact-sam_50') == 'MedSAM-VB-PG'
+    assert sam_label('BUSI_medicosam_vitb_62_compact-sam_50') == 'MedicoSAM-VB-K62'
     parsed = batch.create_parser().parse_args(['--model', 'sam2'])
     assert 'medsam_prompt' not in batch.generation_settings(parsed)  # SAM-2 resume stamps unchanged.
     parsed = batch.create_parser().parse_args(['--model', 'medsam'])

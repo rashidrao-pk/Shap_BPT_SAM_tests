@@ -71,37 +71,40 @@ COCO IDs work padded or not (`76211` = `000000076211`); other datasets use the f
 
 | Model       | Folder                                  |
 | ----------- | --------------------------------------- |
-| SAM-1       | `MSCOCO_sam1_vit_b_254_compact-sam_200_greedy` |
-| SAM-2 Large | `MSCOCO_sam2_large_254_compact-sam_200_greedy` |
+| SAM-1       | `MSCOCO_sam1_vit_b_254_compact-sam_200` |
+| SAM-2 Large | `MSCOCO_sam2_large_254_compact-sam_200` |
 
 `data.mask_dir_final` selects the folder used by XAI. `MSCOCO_epito` currently selects SAM-1.
 
-**Folder suffix (since 2026-11-18).** When the `compact` stage is saved, the folder name ends with the compact strategy: `_greedy` (the default) or `_mso_<α>`. Every config points to the `_greedy` folders.
-- **Same algorithm as before:** greedy is the selection the compact stage always used. Old 254-region folders without the suffix therefore hold greedy partitions, and renaming them keeps them.
-- **Resuming in a renamed folder:** it works, because stamps written before the flag existed count as greedy.
-- **The 62-region folders:** they keep their old names.
+**Compact files (since 2026-11-18).** Each compact selection is a file of its own in the partition folder:
 
-Rename once on the login node. A folder that already has a `_greedy` twin, for example from a test run, is merged into it without overwriting files:
+| File | Made with |
+| --- | --- |
+| `<id>_sam.npy` | all SAM masks (one per image) |
+| `<id>_compact_greedy.npy` | `--compact-strategy greedy` (default) |
+| `<id>_compact_mso_0.5.npy` | `--compact-strategy mso --mso-alpha 0.5` |
+| `<id>_compact_split.npy` | `--compact-strategy split` |
 
-```bash
-cd /beegfs/home/mrashid/datasets/SAM_BPT
-for d in *_254_*compact*; do
-  [[ -d $d && $d != *_greedy && $d != *_mso_* && $d != *.log ]] || continue
-  if [[ -d ${d}_greedy ]]; then
-    find "$d" -maxdepth 1 -type f -exec mv -n -t "${d}_greedy" {} +
-    rmdir "$d" 2>/dev/null && echo "$d merged into ${d}_greedy" || echo "kept $d: files also in ${d}_greedy (see mv messages)"
-  else
-    mv "$d" "${d}_greedy" && echo "$d -> ${d}_greedy"
-  fi
-done
-```
+The folder name does not depend on the strategy. Behaviour:
+- **One run, several strategies:** `--compact-strategy greedy split` runs SAM once per image and writes both files.
+- **Adding a strategy later:** run the same command with the new strategy added. Images that already have the other files run SAM again and write only the missing file; existing files are not touched.
+- **Which file is used:** `data.compact_strategy` in the config (`greedy` by default). It applies to XAI, `view_partitions --methods compact`, the audit and the comparison. XAI results for a non-greedy strategy go to `<folder>_<strategy>`, so they never overwrite the greedy results.
+- **Older folders:** a single `<id>_compact.npy` is read as greedy, so the 62-region folders and other older folders work unchanged.
 
-Run it first with `echo` in front of `mv` and `find` to see what it would do. If it reports `kept`, some image appears in both folders. The `_greedy` copy is kept, and the files listed by `mv: not replacing` stay in the old folder. When both used the same settings (same folder name apart from the suffix), the old folder can be removed:
+**Merge the folders written while the strategy was a folder suffix** (`..._greedy`, `..._mso_0.5`, `..._split`). Stop any generator writing to them first. Then, on the login node, preview the merge and apply it:
 
 ```bash
-ls MSCOCO_sam2_large_254_compact-sam_200      # only the clashing files should remain
-rm -r MSCOCO_sam2_large_254_compact-sam_200
+cd /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests
+source /beegfs/home/mrashid/pt_312_sam_x86/bin/activate; unset PYTHONPATH
+python src/hpc/merge_compact_folders.py --root /beegfs/home/mrashid/datasets/SAM_BPT           # dry run
+python src/hpc/merge_compact_folders.py --root /beegfs/home/mrashid/datasets/SAM_BPT --apply
 ```
+
+The merge works per image:
+- `<base>_<tag>/<id>_compact.npy` becomes `<base>/<id>_compact_<tag>.npy`.
+- The metadata are merged.
+- A duplicate SAM map is dropped. A different one, from a separate SAM run, is kept as `<id>_sam_<tag>.npy` and flagged as `sam_run_differs` in the metadata.
+- Nothing is overwritten, and folders with unfinished `*.tmp` files are skipped.
 
 ## Preview the first five completed images
 
@@ -136,13 +139,13 @@ Previews are saved under `previews/<partition folder>/`, so SAM-1 and SAM-2 prev
 
 `--compact-strategy` chooses how the compact stage picks SAM masks. Each step takes the mask with the highest score:
 
-| Strategy | Score | Folder suffix |
+| Strategy | Score | File |
 | --- | --- | --- |
-| `greedy` (default) | uncovered pixels × predicted IoU | `_greedy` |
-| `mso` | uncovered pixels<sup>α</sup> × predicted IoU, with `--mso-alpha` α in (0, 1), default 0.5 | `_mso_<α>` |
-| `split` | split gain × predicted IoU (see below); stops when no mask gains `--min-region-pixels` (default 64) | `_split` (`_split_<N>` for another minimum) |
+| `greedy` (default) | uncovered pixels × predicted IoU | `<id>_compact_greedy.npy` |
+| `mso` | uncovered pixels<sup>α</sup> × predicted IoU, with `--mso-alpha` α in (0, 1), default 0.5 | `<id>_compact_mso_<α>.npy` |
+| `split` | split gain × predicted IoU (see below); stops when no mask gains `--min-region-pixels` (default 64) | `<id>_compact_split.npy` (`_split_<N>` for another minimum) |
 
-With α < 1, MSO favours smaller masks more than greedy does, so it usually picks more, smaller regions. Each setting writes to its own folder, so the runs do not overwrite each other.
+With α < 1, MSO favours smaller masks more than greedy does, so it usually picks more, smaller regions. Each strategy is saved as its own file in the same folder (see [Choose the partitions for XAI](#choose-the-partitions-for-xai)).
 
 **Why greedy and MSO can end with very few regions.** Both count only *uncovered* pixels and stop once every pixel is covered. SAM often returns one mask for a whole facade, wall or table. Once that mask is picked, every window, door or object inside it adds no uncovered pixel. Its score becomes 0 and selection stops. An image with 212 SAM masks can then end with 13 compact regions, and MSO cannot change this, because it only reorders the picks.
 
@@ -152,38 +155,31 @@ With α < 1, MSO favours smaller masks more than greedy does, so it usually pick
 
 A window inside the facade therefore gains its own area. A mask that only repeats an existing region gains nothing and is skipped. Selection stops at `--max-regions` or when no mask gains at least `--min-region-pixels`. Expect many more regions than greedy, but fewer than the raw `sam` map, which keeps every mask.
 
-**1. Generate on a GPU node** (after `source src/hpc/node_env.sh`). The same images go through each setting. SAM runs again for each one, so keep the image list short:
+**1. Generate on a GPU node** (after `source src/hpc/node_env.sh`). One run computes every strategy from the same SAM masks:
 
 ```bash
 IDS="76211 28285 57725 113867 11615"
-COMMON=(--config MSCOCO_epito --model sam2 --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt"
-        --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml --device cuda
-        --generate_at_least_n_masks 200 --save-partitions sam compact --image-id $IDS)
-python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy greedy
-python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy mso --mso-alpha 0.5
-python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy split
-# Optional, to see the effect of alpha:
-python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy mso --mso-alpha 0.3
-python src/scripts/generate_coco_partitions.py "${COMMON[@]}" --compact-strategy mso --mso-alpha 0.7
+python src/scripts/generate_coco_partitions.py --config MSCOCO_epito --model sam2 \
+  --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
+  --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact \
+  --compact-strategy greedy mso split --mso-alpha 0.3 0.5 0.7 --image-id $IDS
 ```
 
-Each run prints its folder (`For XAI set data.mask_dir_final: "..."`), e.g. `MSCOCO_sam2_large_254_compact-sam_200_greedy` and `MSCOCO_sam2_large_254_compact-sam_200_mso_0.5`.
+This writes `<id>_compact_greedy.npy`, `<id>_compact_mso_0.3.npy`, `<id>_compact_mso_0.5.npy`, `<id>_compact_mso_0.7.npy` and `<id>_compact_split.npy` into `MSCOCO_sam2_large_254_compact-sam_200`. Drop `--image-id` for the full run.
 
-**2. Preview each folder** (no GPU needed):
+**2. Preview them side by side** (no GPU needed):
 
 ```bash
-F=MSCOCO_sam2_large_254_compact-sam_200
-for S in greedy mso_0.5 split; do
-  python src/scripts/view_partitions.py --config MSCOCO_epito --partition-folder ${F}_$S \
-    --image-id $IDS --methods sam compact
-done
+python src/scripts/view_partitions.py --config MSCOCO_epito --sam sam2 --image-id $IDS \
+  --methods sam compact_greedy compact_mso_0.5 compact_split
 ```
 
-**3. Compare them side by side** (no GPU needed):
+**3. Compare them, scored against the GT** (no GPU needed):
 
 ```bash
 python src/scripts/compare_partition_folders.py --config MSCOCO_epito --name compact_strategy \
-  --folders ${F}_greedy ${F}_mso_0.5 ${F}_split --image-id $IDS
+  --folders MSCOCO_sam2_large_254_compact-sam_200 \
+  --partition-types compact_greedy compact_mso_0.5 compact_split --image-id $IDS
 ```
 
 The comparison writes the following to `<output.evaluations>/partition_compare/compact_strategy/`:
@@ -194,7 +190,7 @@ The comparison writes the following to `<output.evaluations>/partition_compare/c
 - **`per_image.csv`:** one row per image and setting.
 - **`summary.csv`:** the same columns over all images, plus `best_on_images`, the number of images where the setting had the highest mean IoU. It is also printed as a table.
 
-The IoU is the best union of cells for each GT object, as in [EVALUATE_PARTITIONS.md](../EVALUATE_PARTITIONS.md). More regions raise it almost automatically, so read it with the region count and the `gain` over the grid. `--labels` renames the columns; without `--image-id` it compares every image present in all folders (`--limit N`).
+The IoU is the best union of cells for each GT object, as in [EVALUATE_PARTITIONS.md](../EVALUATE_PARTITIONS.md). More regions raise it almost automatically, so read it with the region count and the `gain` over the grid. `--labels` renames the columns. Without `--image-id`, it compares every image that has all the listed files (`--limit N`). Several `--folders` with one `--partition-types` value compare folders instead, e.g. SAM-1 against SAM-2.
 
 ## Evaluate quality and weak greedy cases
 
@@ -204,19 +200,18 @@ The plain command below evaluates `data.mask_dir_final`, currently **SAM-1 greed
 python src/scripts/evaluate_partitions.py --config MSCOCO_epito
 ```
 
-To compare SAM-2 strategies using the new folders, select them explicitly. No GPU or model checkpoint is needed:
+To compare SAM-2 strategies, which are files in one folder, list them. No GPU or model checkpoint is needed:
 
 ```bash
 F=MSCOCO_sam2_large_254_compact-sam_200
-python src/scripts/evaluate_partitions.py --config MSCOCO_epito \
-  --folders ${F}_greedy ${F}_mso_0.5 ${F}_split \
-  --baseline-folder ${F}_greedy \
+python src/scripts/evaluate_partitions.py --config MSCOCO_epito --folders $F \
+  --partition-types compact_greedy compact_mso_0.5 compact_split --baseline-type compact_greedy \
   --output-dir results/evaluations/partition_quality/MSCOCO_sam2_strategies
 ```
 
-Only list folders you have generated: remove `${F}_mso_0.5` to compare greedy with split alone. Folder names must match the generation output, including the region cap (`254` above).
+Only list strategies you have generated: drop `compact_mso_0.5` to compare greedy with split alone. To score one strategy, use `--partition-type compact_split`, or set `data.compact_strategy: split` in the config.
 
-With `--baseline-folder`, the evaluator selects images present in **every listed folder before applying `--limit`**. You can run it while split generation continues; the report covers only the shared images available then. Repeat it when generation finishes for the full comparison. Missing or unreadable images are reported, and fewer than 30 scored images give no overall USE/CAUTION/SKIP verdict.
+With a baseline (`--baseline-type`, or `--baseline-folder` for folders), the evaluator selects images present in **every compared file set before applying `--limit`**. You can run it while generation continues; the report covers only the shared images available then. Repeat it when generation finishes for the full comparison. Missing or unreadable images are reported, and fewer than 30 scored images give no overall USE/CAUTION/SKIP verdict.
 
 Outputs include:
 
@@ -227,14 +222,14 @@ Outputs include:
 To draw the same weak images side by side, copy their IDs from `strategy_comparison.md`:
 
 ```bash
-python src/scripts/compare_partition_folders.py --config MSCOCO_epito \
-  --folders ${F}_greedy ${F}_mso_0.5 ${F}_split \
+python src/scripts/compare_partition_folders.py --config MSCOCO_epito --folders $F \
+  --partition-types compact_greedy compact_mso_0.5 compact_split \
   --image-id 76211 28285 57725 113867 11615 --name weak_greedy
 ```
 
 The IDs above are the earlier inspection examples; replace them with the measured weak IDs. Higher oracle IoU means the cells can represent GT better. Read it alongside region counts and grid gain: split may improve IoU partly by retaining more cells. A comparison restricted to weak greedy cases describes those cases, not the entire dataset.
 
-Use `--all-sam` instead of `--folders` for a separate quality summary of every discovered MS-COCO SAM folder, including older region caps and strategies. Without `--baseline-folder`, each folder uses its own completed images.
+Use `--all-sam` instead of `--folders` for a separate quality summary of every discovered MS-COCO SAM folder, including older region caps. Each folder is scored with `data.compact_strategy`, or with `--partition-type`. Without a baseline, each folder uses its own completed images.
 
 ## Progress
 

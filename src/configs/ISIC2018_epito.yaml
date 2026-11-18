@@ -4,10 +4,12 @@ data:
   name: ISIC2018
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/ISIC2018/prepared_1024/validation/images
-  mask_dir_final: ISIC2018_sam2_large_254_compact-sam_50_greedy
+  mask_dir_final: ISIC2018_sam2_large_254_compact-sam_50
+  # Compact file read by XAI, previews and the audit: greedy (<id>_compact_greedy.npy), split, mso_0.5, ...
+  compact_strategy: greedy
   # Medical priors (T2): view with view_partitions.py --sam medsam | medicosam.
-  mask_dir_final_medsam: "ISIC2018_medsam_vitb_254_compact-sam_50_greedy"
-  mask_dir_final_medicosam: "ISIC2018_medicosam_vitb_254_compact-sam_50_greedy"
+  mask_dir_final_medsam: "ISIC2018_medsam_vitb_254_compact-sam_50"
+  mask_dir_final_medicosam: "ISIC2018_medicosam_vitb_254_compact-sam_50"
   ground_truth:
     format: isic2018
     root: /beegfs/home/mrashid/datasets/ISIC2018/prepared_1024/validation/masks

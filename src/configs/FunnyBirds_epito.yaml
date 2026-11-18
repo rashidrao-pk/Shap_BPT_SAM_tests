@@ -4,7 +4,9 @@ data:
   name: FunnyBirds
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/FunnyBirds/test
-  mask_dir_final: FunnyBirds_sam2_large_254_compact-sam_50_greedy
+  mask_dir_final: FunnyBirds_sam2_large_254_compact-sam_50
+  # Compact file read by XAI, previews and the audit: greedy (<id>_compact_greedy.npy), split, mso_0.5, ...
+  compact_strategy: greedy
   ground_truth:
     format: funnybirds
     root: /beegfs/home/mrashid/datasets/FunnyBirds

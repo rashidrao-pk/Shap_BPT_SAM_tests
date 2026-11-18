@@ -30,7 +30,8 @@ def inputs(args):
     else:
         folder = Path(args.partition_dir)
         images = {path.stem: path for path in Path(args.images_dir).glob('*.jpg')}
-    ids = sorted(set(path.name.removesuffix('_compact.npy') for path in folder.glob('*_compact.npy')) & set(images))
+    from partition_files import stage_files  # <id>_compact_greedy.npy or the legacy <id>_compact.npy
+    ids = sorted(set(stage_files(folder, 'compact')) & set(images))
     if not ids:
         raise SystemExit(f'No images with a compact partition in {folder}')
     order = np.random.default_rng(args.seed).permutation(len(ids))[:args.limit]

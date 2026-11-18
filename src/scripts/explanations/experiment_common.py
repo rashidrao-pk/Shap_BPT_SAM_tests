@@ -171,6 +171,8 @@ def prepare_inputs(kind, args):
     folder = partition_path(config)
     if not folder.is_dir():
         raise FileNotFoundError(folder)
+    import partition_files
+    compact_stage = partition_files.configured_stage(data)  # data.compact_strategy, default greedy
     image_dir = resolve_path(data['image_dir'])
     if not image_dir.is_dir():
         raise FileNotFoundError(image_dir)
@@ -203,10 +205,10 @@ def prepare_inputs(kind, args):
             metadata = json.loads(path.read_text())
             saved = metadata.get('saved_partitions')
             stages = list(saved or {}) or metadata.get('generation_settings', {}).get('save_partitions') or ['sam', 'refined']
-            if saved and 'compact' not in saved:
+            if saved and not set(partition_files.alternatives(compact_stage)) & set(saved):
                 continue
-            if (folder / f'{image_id}_compact.npy').is_file() and all(
-                    (folder / f'{image_id}_{stage}.npy').is_file() for stage in stages):
+            if partition_files.partition_file(folder, image_id, compact_stage).is_file() and all(
+                    partition_files.partition_file(folder, image_id, stage).is_file() for stage in stages):
                 completed[image_id] = metadata
         except (ValueError, TypeError, AttributeError):
             continue
@@ -231,7 +233,7 @@ def prepare_inputs(kind, args):
         elif len(matched) < len(ids):
             print('Some images have no ImageNetS annotation. Use --gt-only to select annotated images before --limit.')
     if expected == 'refcoco':
-        records = expression_records(data, completed, images, folder, args)
+        records = expression_records(data, completed, images, folder, args, compact_stage)
     else:
         if args.limit is not None:
             ids = ids[:args.limit]
@@ -244,7 +246,7 @@ def prepare_inputs(kind, args):
             if not images[image_id].is_file():
                 raise FileNotFoundError(images[image_id])
             records.append({'image_id': image_id, 'image_path': images[image_id],
-                            'partition_path': folder / f'{image_id}_compact.npy',
+                            'partition_path': partition_files.partition_file(folder, image_id, compact_stage),
                             'partition_metadata': completed[image_id]})
     if args.attribute and kind != 'OC_CelebA':
         raise ValueError('--attribute is for OC_CelebA')
@@ -263,21 +265,25 @@ def prepare_inputs(kind, args):
                 raise FileNotFoundError(getattr(args, name))
     if kind not in DETECTOR_RUNNERS and args.model != MODEL_NAMES[kind]:
         raise ValueError(f'{kind} supports --model {MODEL_NAMES[kind]}')
-    base = resolve_path(args.output_dir) if args.output_dir else output_path(config, 'explanations') / kind / folder.name
+    # Non-greedy compact files share the partition folder, so their results get the tag in the folder name.
+    label = partition_files.run_label(folder.name, partition_files.tag_of(compact_stage))
+    base = resolve_path(args.output_dir) if args.output_dir else output_path(config, 'explanations') / kind / label
     if kind == 'OC_CelebA':
         attribute_folder = args.attribute or ('Brown_Hair' if args.target_class is None else f'class_{args.target_class}')
         if not attribute_folder.replace('_', '').isalnum():
             raise ValueError('Attribute names must contain letters, numbers, and underscores')
         base = base / attribute_folder
     run_dir = base / run_folder(args)
-    return {'config': config, 'records': records, 'partition_dir': folder,
+    return {'config': config, 'records': records, 'partition_dir': folder, 'compact_stage': compact_stage,
+            'partition_label': label,
             'run_dir': run_dir, 'evaluation_dir': evaluation_path(config, run_dir),
             'annotation_file': annotation_file, 'methods': comparison_names(args) if args.explain_all else list(METHODS),
             'ground_truth': ({'format': 'coco', 'annotation_file': annotation_file}
                              if expected == 'mscoco' else data.get('ground_truth')) if args.show_gt else None}
 
 
-def expression_records(data, completed, images, folder, args):
+def expression_records(data, completed, images, folder, args, compact_stage='compact_greedy'):
+    import partition_files
     """One record per referring expression; records of one image share its partition.
 
     Ordered so that --limit N first takes one object from each of N images.
@@ -317,7 +323,8 @@ def expression_records(data, completed, images, folder, args):
         if not images[stem].is_file():
             raise FileNotFoundError(images[stem])
         records.append({'image_id': entry['record_id'], 'partition_id': stem, 'image_path': images[stem],
-                        'partition_path': folder / f'{stem}_compact.npy', 'partition_metadata': completed[stem],
+                        'partition_path': partition_files.partition_file(folder, stem, compact_stage),
+                        'partition_metadata': completed[stem],
                         'image_expressions': list(candidates[stem]),
                         **{key: entry[key] for key in ['expression', 'ann_id', 'ref_id', 'sent_id', 'category']}})
     return records
@@ -711,7 +718,8 @@ def run(kind, args, adapter=None):
             with Image.open(record['image_path']) as source:
                 image = np.asarray(source.convert('RGB'))
             _, labels = runtime.partitions.load_refine_partitions(
-                image, str(inputs['partition_dir']), record.get('partition_id', image_id), 'compact',
+                image, str(inputs['partition_dir']), record.get('partition_id', image_id),
+                inputs.get('compact_stage', 'compact'),
                 max_labels=guide_options.max_labels(args))
             if hasattr(adapter, 'set_record'):
                 adapter.set_record(record)  # The referring expression this record explains.

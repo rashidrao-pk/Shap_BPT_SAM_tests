@@ -53,8 +53,8 @@ Keep `--save-partitions sam compact`. Without it the folder becomes `..._refined
 
 | Model | Folder |
 | --- | --- |
-| SAM-1 | `DOTA_sam1_vit_b_254_compact-sam_200_greedy` |
-| SAM-2 | `DOTA_sam2_large_254_compact-sam_200_greedy` |
+| SAM-1 | `DOTA_sam1_vit_b_254_compact-sam_200` |
+| SAM-2 | `DOTA_sam2_large_254_compact-sam_200` |
 
 The config selects SAM-2. To explain SAM-1 partitions, set `data.mask_dir_final` to the SAM-1 folder.
 

@@ -57,8 +57,8 @@ Remove `--limit 2` for the full dataset. Resume with the same command; completed
 images with matching settings are skipped. For the SAM2 command above, outputs and log are:
 
 ```text
-/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_large_254_compact-sam_50_greedy/
-/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_large_254_compact-sam_50_greedy.log
+/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_large_254_compact-sam_50/
+/beegfs/home/mrashid/datasets/SAM_BPT/CelebAHQ_sam2_large_254_compact-sam_50.log
 ```
 
 The terminal shows text tqdm; the log records mask counts, saved stage names,
@@ -70,7 +70,7 @@ notebook stages retain their original behavior. The raw mask target of 50 is
 a bounded threshold search, not a guarantee. See [stage details](../EPITO.md#choose-which-partition-stages-to-save).
 
 For Large, use `sam2.1_hiera_large.pt` with `sam2.1_hiera_l.yaml`, and set
-`data.mask_dir_final` to `CelebAHQ_sam2_large_254_compact-sam_50_greedy` before previewing.
+`data.mask_dir_final` to `CelebAHQ_sam2_large_254_compact-sam_50` before previewing.
 
 ## Preview saved partitions
 
@@ -84,7 +84,7 @@ python src/scripts/view_partitions.py \
 For one image, replace `--limit 5` with `--image-id 0` (or another actual filename
 stem). Use only stages that were saved. Previews and statistics JSON files are
 written under `output.evaluations` in
-`previews/CelebAHQ_sam2_large_254_compact-sam_50_greedy/`. No GPU is needed for viewing.
+`previews/CelebAHQ_sam2_large_254_compact-sam_50/`. No GPU is needed for viewing.
 
 Generated labels are regions, not semantic face-part names. For attribute
 explanations, use [OC_CelebA](../../XAI/DATASETS/CELEBA.md) after selecting the generated

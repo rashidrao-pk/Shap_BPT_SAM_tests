@@ -9,6 +9,10 @@ import random
 import shutil
 import zipfile
 import yaml
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+import partition_files  # noqa: E402
 
 
 def digest(path):
@@ -94,15 +98,16 @@ def main():
             'output': str(output), 'source': str(info_path.parent), 'runner': runner})
     cfg = yaml.safe_load((repo / 'src/configs/MSCOCO_epito.yaml').read_text())
     base = Path(cfg['output']['partitions'])
-    variants = [cfg['data'].get('mask_dir_final_sam1', 'MSCOCO_sam1_vit_b_254_compact-sam_200_greedy'),
-                cfg['data'].get('mask_dir_final_sam2', 'MSCOCO_sam2_large_254_compact-sam_200_greedy')]
+    variants = [cfg['data'].get('mask_dir_final_sam1', 'MSCOCO_sam1_vit_b_254_compact-sam_200'),
+                cfg['data'].get('mask_dir_final_sam2', 'MSCOCO_sam2_large_254_compact-sam_200')]
     pools = []
     for name in variants:
         folder = base / name
         pool = set()
         for path in folder.glob('*_results.json'):
             image_id = path.name.removesuffix('_results.json')
-            if all((folder / (image_id + '_' + stage + '.npy')).is_file() for stage in ['sam', 'compact']):
+            if all(partition_files.partition_file(folder, image_id, stage).is_file()
+                   for stage in ['sam', partition_files.configured_stage(cfg['data'])]):
                 pool.add(image_id)
         pools.append(pool)
     common = sorted(set.intersection(*pools))
@@ -117,8 +122,9 @@ def main():
         config_path.parent.mkdir(exist_ok=True)
         config_path.write_text(yaml.safe_dump(config, sort_keys=False))
         for image_id in pilot_ids:
-            for suffix in ['_compact.npy', '_sam.npy', '_results.json']:
-                path = base / variant / (image_id + suffix)
+            for path in [partition_files.partition_file(base / variant, image_id,
+                                                        partition_files.configured_stage(cfg['data'])),
+                         base / variant / (image_id + '_sam.npy'), base / variant / (image_id + '_results.json')]:
                 pilot_inputs.append({'path': str(path), 'sha256': digest(path)})
         for runner, model in [('OD_yolo', 'yolo11s'), ('OD_DETR', 'facebook/detr-resnet-50')]:
             output_root = home / 'budget'

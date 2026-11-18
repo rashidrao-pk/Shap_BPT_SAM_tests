@@ -413,7 +413,7 @@ def run(args, adapter=None):
     signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     study['signature'] = signature
     root = resolve_path(args.output_dir) if args.output_dir else output_path(inputs['config'], 'evaluations')/'budget_ablation'
-    folder = root/args.runner/inputs['partition_dir'].name/f'bg_{args.bg_type}'
+    folder = root/args.runner/inputs.get('partition_label', inputs['partition_dir'].name)/f'bg_{args.bg_type}'
     if args.runner == 'OC_CelebA':
         folder = folder/(study['attribute'] or f'class_{args.target_class}')
     folder = folder/args.study_name
@@ -453,7 +453,8 @@ def run(args, adapter=None):
     for record in runtime.tqdm(run_records, desc='Budget pilot', ascii=True):
         image_id = record['image_id']; image_folder = folder/image_id; image_folder.mkdir(exist_ok=True)
         image = np.asarray(Image.open(record['image_path']).convert('RGB'))
-        _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id, 'compact',
+        _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id,
+                                                              inputs.get('compact_stage', 'compact'),
                                                              max_labels=guide_options.max_labels(args))
         replacements = common.backgrounds(image, args.bg_type)
         base_predict = common.make_masked_predictor(adapter, image, replacements, args.model_batch_size)

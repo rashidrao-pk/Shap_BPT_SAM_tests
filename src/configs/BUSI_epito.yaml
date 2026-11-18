@@ -4,14 +4,16 @@ data:
   name: BUSI
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/BUSI
-  mask_dir_final: BUSI_sam2_large_254_compact-sam_50_greedy
+  mask_dir_final: BUSI_sam2_large_254_compact-sam_50
+  # Compact file read by XAI, previews and the audit: greedy (<id>_compact_greedy.npy), split, mso_0.5, ...
+  compact_strategy: greedy
     
   # New SAM2 batch outputs; older partition directories are preserved.
-  mask_dir_final_sam1: "BUSI_sam1_vit_b_254_compact-sam_50_greedy"
-  mask_dir_final_sam2: "BUSI_sam2_large_254_compact-sam_50_greedy"
+  mask_dir_final_sam1: "BUSI_sam1_vit_b_254_compact-sam_50"
+  mask_dir_final_sam2: "BUSI_sam2_large_254_compact-sam_50"
   # Medical priors (T2): view with view_partitions.py --sam medsam | medicosam.
-  mask_dir_final_medsam: "BUSI_medsam_vitb_254_compact-sam_50_greedy"
-  mask_dir_final_medicosam: "BUSI_medicosam_vitb_254_compact-sam_50_greedy"
+  mask_dir_final_medsam: "BUSI_medsam_vitb_254_compact-sam_50"
+  mask_dir_final_medicosam: "BUSI_medicosam_vitb_254_compact-sam_50"
   
   
   ground_truth:

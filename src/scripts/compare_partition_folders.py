@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Compare partition folders that differ in one setting, such as --compact-strategy greedy vs mso, image by image.
+"""Compare compact strategies (files in one partition folder) or partition folders, image by image.
 
-For each image it saves one figure: the original and GT, the raw SAM map, and each folder's partition with its
-region count and GT score. It also writes per-image and summary tables. Scores follow evaluate_partitions.py:
+For each image it saves one figure: the original and GT, the raw SAM map, and each strategy's or folder's
+partition with its region count and GT score. It also writes per-image and summary tables. Scores follow evaluate_partitions.py:
 for every GT object, the best IoU reachable by a union of cells, and the same for a plain grid with as many cells.
 No model or GPU is needed.
 
+    # Strategies saved in one folder (<id>_compact_greedy.npy, <id>_compact_split.npy, ...):
     python src/scripts/compare_partition_folders.py --config MSCOCO_epito \
-      --folders MSCOCO_sam2_large_254_compact-sam_200_greedy MSCOCO_sam2_large_254_compact-sam_200_mso_0.5 \
+      --folders MSCOCO_sam2_large_254_compact-sam_200 --partition-types compact_greedy compact_mso_0.5 compact_split \
       --image-id 76211 28285 57725 113867 11615
+    # Folders (e.g. SAM-1 vs SAM-2), each with the config's compact strategy:
+    python src/scripts/compare_partition_folders.py --config MSCOCO_epito \
+      --folders MSCOCO_sam1_vit_b_254_compact-sam_200 MSCOCO_sam2_large_254_compact-sam_200
 """
 import argparse
 import csv
@@ -32,11 +36,12 @@ for directory in [ROOT, ROOT / 'src/scripts']:
 import evaluate_partitions as evaluation  # noqa: E402
 from config_paths import output_path  # noqa: E402
 from partition_colors import colorize, count_title, region_count  # noqa: E402
+import partition_files  # noqa: E402
 from view_partitions import load_view_config, preview_objects  # noqa: E402
 
-PER_IMAGE_FIELDS = ['image_id', 'label', 'folder', 'sam_regions', 'regions', 'unassigned_pct', 'objects',
+PER_IMAGE_FIELDS = ['image_id', 'label', 'folder', 'partition_type', 'sam_regions', 'regions', 'unassigned_pct', 'objects',
                     'mean_iou', 'median_iou', 'iou_50_pct', 'grid_mean_iou', 'gain']
-SUMMARY_FIELDS = ['label', 'folder', 'images', 'mean_regions', 'mean_unassigned_pct', 'objects', 'mean_iou',
+SUMMARY_FIELDS = ['label', 'folder', 'partition_type', 'images', 'mean_regions', 'mean_unassigned_pct', 'objects', 'mean_iou',
                   'median_iou', 'iou_50_pct', 'grid_mean_iou', 'gain', 'best_on_images']
 
 
@@ -53,19 +58,56 @@ def folder_label(folder):
     return folder
 
 
+def type_label(partition_type):
+    """Short name of a compact file: compact_greedy -> Greedy, compact_mso_0.5 -> MSO α=0.5, compact_split -> Split."""
+    if not partition_type.startswith('compact'):
+        return partition_type
+    strategy, alpha, gain = partition_files.parse_tag(partition_files.tag_of(partition_type))
+    if strategy == 'mso':
+        return f'MSO α={alpha:g}'
+    if strategy == 'split':
+        return 'Split' if gain == partition_files.DEFAULT_MIN_GAIN else f'Split (gain ≥{gain} px)'
+    return 'Greedy'
+
+
+def entries_and_labels(folders, types, labels=None):
+    """(folder, partition type) pairs to compare and their display names."""
+    if len(folders) == 1:
+        entries = [(folders[0], kind) for kind in types]
+    elif len(types) == 1:
+        entries = [(folder, types[0]) for folder in folders]
+    elif len(types) == len(folders):
+        entries = list(zip(folders, types))
+    else:
+        raise SystemExit('Give one folder and several --partition-types, several folders and one type, '
+                         'or one type per folder')
+    if labels:
+        if len(labels) != len(entries):
+            raise SystemExit(f'--labels needs {len(entries)} names')
+        return entries, list(labels)
+    multi_folder, multi_type = len({f for f, _ in entries}) > 1, len({t for _, t in entries}) > 1
+    names = [' '.join(part for part in [folder_label(folder.name) if multi_folder else '',
+                                        type_label(kind) if multi_type or not multi_folder else ''] if part)
+             for folder, kind in entries]
+    if len(set(names)) != len(names):
+        names = [f'{folder.name}:{kind}' for folder, kind in entries]
+    return entries, names
+
+
 def id_keys(value):
     text = str(value).strip()
     return {text, str(int(text))} if text.isdigit() else {text}
 
 
 def available_ids(folder, partition_type):
-    suffix = f'_{partition_type}.npy'
-    return {path.name[:-len(suffix)] for path in folder.glob(f'*{suffix}')}
+    return set(partition_files.stage_files(folder, partition_type))
 
 
-def select_ids(folders, partition_type, wanted=None, limit=None):
-    """Image IDs present in every folder; `wanted` may use padded or unpadded numbers."""
-    common = set.intersection(*(available_ids(folder, partition_type) for folder in folders))
+def select_ids(entries, partition_type=None, wanted=None, limit=None):
+    """Image IDs present for every (folder, type) entry; `wanted` may use padded or unpadded numbers.
+    Plain folders with one `partition_type` are accepted too."""
+    entries = [(entry, partition_type) if partition_type else entry for entry in entries]
+    common = set.intersection(*(available_ids(folder, kind) for folder, kind in entries))
     if wanted:
         chosen, missing = [], []
         for requested in wanted:
@@ -83,11 +125,12 @@ def select_ids(folders, partition_type, wanted=None, limit=None):
 def score(config, label, image_id, image_path, partition_file, combine):
     rows = evaluation.evaluate_image(config, label, image_id, image_path, partition_file, combine)
     partition = evaluation.load_partition(image_path, partition_file)
-    sam_file = partition_file.with_name(f'{image_id}_sam.npy')
+    sam_file = partition_file.with_name(f'{image_id}_sam.npy')  # One SAM map per folder and image
     ious = np.array([row['best_iou'] for row in rows])
     grid = np.array([row['grid_iou'] for row in rows])
     return {
         'image_id': image_id, 'label': label, 'folder': partition_file.parent.name,
+        'partition_type': partition_file.name[len(image_id) + 1:-4],
         'sam_regions': region_count(evaluation.load_partition(image_path, sam_file)) if sam_file.is_file() else '',
         'regions': region_count(partition), 'unassigned_pct': float((partition == 0).mean() * 100),
         'objects': len(rows),
@@ -161,7 +204,8 @@ def summarize(per_image, labels):
         grid = np.concatenate([row['_grid'] for row in rows]) if rows else np.array([])
         has = len(ious) > 0
         summary.append({
-            'label': label, 'folder': rows[0]['folder'] if rows else '', 'images': len(rows),
+            'label': label, 'folder': rows[0]['folder'] if rows else '',
+            'partition_type': rows[0]['partition_type'] if rows else '', 'images': len(rows),
             'mean_regions': float(np.mean([row['regions'] for row in rows])) if rows else np.nan,
             'mean_unassigned_pct': float(np.mean([row['unassigned_pct'] for row in rows])) if rows else np.nan,
             'objects': len(ious), 'mean_iou': float(ious.mean()) if has else np.nan,
@@ -196,12 +240,15 @@ def print_summary(summary):
 def parser():
     result = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     result.add_argument('--config', required=True, help='Config name or YAML path (for images, GT and output.partitions)')
-    result.add_argument('--folders', nargs='+', required=True, help='Partition folder names under output.partitions')
-    result.add_argument('--labels', nargs='+', help='Display names, one per folder (default: from the folder suffix)')
+    result.add_argument('--folders', nargs='+', help='Partition folder names under output.partitions '
+                        '(default: the config\'s data.mask_dir_final)')
+    result.add_argument('--partition-types', '--partition-type', dest='partition_types', nargs='+',
+                        help='Stage files to compare, e.g. compact_greedy compact_split '
+                             '(default: the config\'s data.compact_strategy)')
+    result.add_argument('--labels', nargs='+', help='Display names, one per compared entry')
     result.add_argument('--image-id', '--image-ids', dest='image_ids', nargs='+', metavar='ID',
                         help='Images to compare (default: every image present in all folders, up to --limit)')
     result.add_argument('--limit', type=int, help='Most images to compare')
-    result.add_argument('--partition-type', default='compact', help='Stage file to compare: {id}_{type}.npy')
     result.add_argument('--name', default='compare', help='Output subfolder name')
     result.add_argument('--output-dir', type=Path,
                         help='Default: <output.evaluations>/partition_compare/<name>')
@@ -212,20 +259,18 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
-    if args.labels and len(args.labels) != len(args.folders):
-        raise SystemExit('--labels needs one name per folder')
     root, config = load_view_config(args.config)
     base = output_path(config, 'partitions', root)
-    folders = [base / name for name in args.folders]
+    folders = [base / name for name in (args.folders or [config['data']['mask_dir_final']])]
     missing = [str(folder) for folder in folders if not folder.is_dir()]
     if missing:
         raise SystemExit('Partition folder(s) not found:\n  ' + '\n  '.join(missing))
-    labels = args.labels or [folder_label(name) for name in args.folders]
-    if len(set(labels)) != len(labels):
-        labels = list(args.folders)
-    image_ids = select_ids(folders, args.partition_type, args.image_ids, args.limit)
+    types = [partition_files.stage(kind) if kind.startswith('compact') else kind
+             for kind in (args.partition_types or [partition_files.configured_stage(config['data'])])]
+    entries, labels = entries_and_labels(folders, types, args.labels)
+    image_ids = select_ids(entries, None, args.image_ids, args.limit)
     if not image_ids:
-        raise SystemExit('No image has a partition in every folder')
+        raise SystemExit('No image has every compared partition')
     paths = evaluation.image_paths(config['data'])
     combine = config['data'].get('name', '').lower() == 'celebahq'
     output = args.output_dir or output_path(config, 'evaluations', root) / 'partition_compare' / args.name
@@ -238,8 +283,8 @@ def main(argv=None):
             print(f'{image_id}: image not found in data.image_dir, skipped', file=sys.stderr)
             continue
         rows = []
-        for folder, label in zip(folders, labels):
-            partition_file = folder / f'{image_id}_{args.partition_type}.npy'
+        for (folder, kind), label in zip(entries, labels):
+            partition_file = partition_files.partition_file(folder, image_id, kind)
             row = score(config, label, image_id, image_path, partition_file, combine)
             row['_file'] = partition_file
             rows.append(row)

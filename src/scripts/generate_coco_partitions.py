@@ -16,6 +16,7 @@ import yaml
 from tqdm import tqdm
 
 import generate_sam_partitions as sam
+import partition_files
 from config_paths import output_path
 
 
@@ -36,11 +37,12 @@ def create_parser(description=__doc__, default_config='MSCOCO_epito'):
                         default=['sam', 'refined'], help='Stage label maps to save (default: sam refined)')
     parser.add_argument('--select-count', type=int, default=400,
                         help='Maximum greedy-selected masks for notebook stages')
-    parser.add_argument('--compact-strategy', choices=['greedy', 'mso', 'split'], default='greedy',
-                        help='Mask selection for the compact stage: greedy and mso count uncovered pixels; '
-                             'split counts how much a mask splits the partition, so nested masks are kept')
-    parser.add_argument('--mso-alpha', type=float, default=0.5,
-                        help='Exponent applied to unpicked area in the MSO strategy')
+    parser.add_argument('--compact-strategy', nargs='+', choices=['greedy', 'mso', 'split'], default=['greedy'],
+                        help='Mask selection(s) for the compact stage, all from the same SAM masks: greedy and mso '
+                             'count uncovered pixels; split counts how much a mask splits the partition, so nested '
+                             'masks are kept. Each one is saved as <id>_compact_<tag>.npy in the same folder')
+    parser.add_argument('--mso-alpha', type=float, nargs='+', default=[0.5],
+                        help='Exponent(s) on the unpicked area for mso; one file per value (compact_mso_<alpha>)')
     parser.add_argument('--fill-max-distance', type=float, default=3,
                         help='Maximum gap-fill distance for notebook stages, in pixels')
     parser.add_argument('--generate_at_least_n_masks', '--generate-at-least-n-masks',
@@ -186,21 +188,34 @@ def partition_folder_name(data, args):
         f'{args.max_regions}_{stages}_'
         f'{target if target is not None else "singlepass"}'
     )
-    if 'compact' in getattr(args, 'save_partitions', []):
-        compact_strategy = getattr(args, 'compact_strategy', 'greedy')
-        compact_suffix = compact_strategy
-        if compact_strategy == 'mso':
-            alpha = getattr(args, 'mso_alpha', 0.5)
-            compact_suffix = f'mso_{alpha:g}'
-        elif compact_strategy == 'split' and getattr(args, 'min_region_pixels', 64) != 64:
-            compact_suffix = f'split_{args.min_region_pixels}'  # Minimum split gain in pixels.
-        folder = f'{folder}_{compact_suffix}'
+    # Compact strategies are not part of the name: all of them share this folder, one file each.
     return folder
+
+
+def compact_tags_of(args):
+    """File tags of the requested compact strategies, e.g. ['greedy', 'split']."""
+    strategies = getattr(args, 'compact_strategy', ['greedy'])
+    alphas = getattr(args, 'mso_alpha', [0.5])
+    strategies = [strategies] if isinstance(strategies, str) else list(strategies)
+    alphas = [alphas] if isinstance(alphas, (int, float)) else list(alphas)
+    return partition_files.compact_tags(strategies, alphas, getattr(args, 'min_region_pixels', 64))
+
+
+def output_stages(args):
+    """Stage names saved per image: 'compact' expands to one compact_<tag> per strategy."""
+    stages = []
+    for name in dict.fromkeys(getattr(args, 'save_partitions', ['sam', 'refined'])):
+        if name == 'compact':
+            stages.extend(partition_files.stage(tag) for tag in compact_tags_of(args))
+        else:
+            stages.append(name)
+    return stages
 
 def generation_settings(args):
     settings = {key: str(value) if isinstance(value, Path) else value
                 for key, value in vars(args).items()
-                if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file', 'gt_only', 'image_ids'}}
+                if key not in {'limit', 'overwrite', 'dry_run', 'config', 'log_file', 'gt_only', 'image_ids',
+                               'compact_strategy', 'mso_alpha'}}  # Strategies are per file, not per folder.
     if settings.get('model') != 'medsam':
         settings.pop('medsam_prompt', None)  # Keeps SAM-1/SAM-2 stamps as they were.
     # Preserve compatibility with metadata written before stage selection existed.
@@ -212,13 +227,11 @@ def generation_settings(args):
 
 
 def same_settings(previous, current):
-    """Compare resume stamps; stamps from before --compact-strategy existed count as greedy."""
+    """Compare resume stamps, ignoring the compact strategy: each strategy has its own file in the folder."""
     def normalized(settings):
         settings = dict(settings or {})
-        if settings.get('compact_strategy', 'greedy') == 'greedy':
-            settings.pop('compact_strategy', None)
-        if settings.get('compact_strategy') != 'mso':
-            settings.pop('mso_alpha', None)  # Only MSO uses alpha.
+        settings.pop('compact_strategy', None)
+        settings.pop('mso_alpha', None)
         return settings
     return normalized(previous) == normalized(current)
 
@@ -246,16 +259,14 @@ def notebook_stage_maps(annotations, shape, stages, select_count=400, max_distan
 
 
 def _run(args, progress_stream):
-    stages = list(dict.fromkeys(getattr(args, 'save_partitions', ['sam', 'refined'])))
-    extra_stages = set(stages) - {'sam', 'refined'}
+    stages = output_stages(args)
+    compact_stages = [name for name in stages if name.startswith('compact_')]
     if getattr(args, 'select_count', 400) < 1 or getattr(args, 'fill_max_distance', 3) < 0:
         raise ValueError('select-count must be positive and fill-max-distance nonnegative')
-    compact_strategy = getattr(args, 'compact_strategy', 'greedy')
-    mso_alpha = getattr(args, 'mso_alpha', 0.5)
-    if compact_strategy not in {'greedy', 'mso', 'split'}:
-        raise ValueError("compact-strategy must be 'greedy', 'mso' or 'split'")
-    if compact_strategy == 'mso' and not 0 < mso_alpha < 1:
-        raise ValueError('mso-alpha must be between 0 and 1')
+    if any(partition_files.parse_tag(partition_files.tag_of(name))[0] == 'mso' for name in compact_stages):
+        alphas = getattr(args, 'mso_alpha', [0.5])
+        if any(not 0 < alpha < 1 for alpha in ([alphas] if isinstance(alphas, (int, float)) else alphas)):
+            raise ValueError('mso-alpha must be between 0 and 1')
     mask_target = getattr(args, 'generate_at_least_n_masks', None)
     if mask_target is not None and (mask_target < 1 or args.mask_tuning_max_steps < 1):
         raise ValueError('Mask target and tuning attempt count must be positive')
@@ -295,19 +306,21 @@ def _run(args, progress_stream):
         image_id = (str(image['id']) if data.get('input_format') == 'directory'
                     else f"{int(image['id']):012d}")
         metadata_path = output / f'{image_id}_results.json'
-        completed = all((output / f'{image_id}_{name}.npy').is_file()
-                        for name in stages) and metadata_path.is_file()
-        if completed and not args.overwrite:
+        missing = [name for name in stages if not partition_files.partition_file(output, image_id, name).is_file()]
+        if metadata_path.is_file() and not args.overwrite:
             previous = json.loads(metadata_path.read_text())
-            settings = generation_settings(args)
-            if not same_settings(previous.get('generation_settings'), settings):
+            if not same_settings(previous.get('generation_settings'), generation_settings(args)):
                 raise ValueError(f'{image_id}: settings differ; use a new output folder or --overwrite')
+            if not missing:
+                continue
+            # Some files exist (e.g. greedy) and another strategy is new: SAM runs again, existing files stay.
+            pending.append((image_id, path, missing))
             continue
-        pending.append((image_id, path))
+        pending.append((image_id, path, stages))
     print(f'Pending: {len(pending)}; already complete: {len(images) - len(pending)}', flush=True)
     if args.dry_run:
-        for image_id, path in pending[:10]:
-            print(f'{image_id}: {path}')
+        for image_id, path, todo in pending[:10]:
+            print(f'{image_id}: {path} -> {", ".join(todo)}')
         return
     if not pending:
         return
@@ -316,12 +329,14 @@ def _run(args, progress_stream):
     progress = tqdm(pending, total=len(images), initial=len(images) - len(pending),
                     desc=f"{args.model.upper()} {data.get('name', 'MSCOCO')}", ascii=True,
                     dynamic_ncols=True, file=progress_stream)
-    for index, (image_id, path) in enumerate(progress, 1):
+    for index, (image_id, path, todo) in enumerate(progress, 1):
         start = time.perf_counter()
         image = np.asarray(Image.open(path).convert('RGB'))
         tuning_history = []
         annotations = None
-        if extra_stages:
+        todo_compact = [name for name in todo if name.startswith('compact_')]
+        extra_stages = set(todo) - {'sam', 'refined'} - set(todo_compact)  # Notebook stages
+        if extra_stages or todo_compact:
             masks, seconds, device, checkpoint, tuning_history, annotations = sam.infer_masks(
                 image, args, loaded, return_annotations=True)
         elif mask_target is not None:
@@ -334,13 +349,13 @@ def _run(args, progress_stream):
 
         maps = {}
 
-        if 'sam' in stages:
+        if 'sam' in todo:
             maps['sam'] = sam.enforce_region_budget(
                 sam.raw_overwrite(masks),
                 args.max_regions
             )
 
-        if 'refined' in stages:
+        if 'refined' in todo:
             maps['refined'] = sam.refined_partitions(
                 masks,
                 args.min_region_pixels,
@@ -352,24 +367,31 @@ def _run(args, progress_stream):
         
         notebook_metadata = {}
 
-        # Compact usa la nuova implementazione di generate_sam_partitions.py
-        if 'compact' in stages:
+        # Compact selections (generate_sam_partitions.compact_partitions), all from the same SAM masks.
+        compact_files = {}
+        if todo_compact:
             predicted_ious = np.asarray(
                 [ann["predicted_iou"] for ann in annotations],
                 dtype=np.float32
             )
+            for name in todo_compact:
+                tag = partition_files.tag_of(name)
+                strategy, alpha, min_gain = partition_files.parse_tag(tag)
+                compact_start = time.perf_counter()
+                maps[name] = sam.compact_partitions(
+                    masks,
+                    predicted_ious,
+                    args.max_regions,
+                    strategy=strategy,
+                    alpha=alpha if alpha is not None else 0.5,
+                    min_gain=min_gain if min_gain is not None else args.min_region_pixels
+                )
+                compact_files[tag] = {'strategy': strategy, 'mso_alpha': alpha, 'min_gain': min_gain,
+                                      'regions': int(np.count_nonzero(np.unique(maps[name]))),
+                                      'seconds': time.perf_counter() - compact_start}
 
-            maps["compact"] = sam.compact_partitions(
-                masks,
-                predicted_ious,
-                args.max_regions,
-                strategy=getattr(args, 'compact_strategy', 'greedy'),
-                alpha=getattr(args, 'mso_alpha', 0.5),
-                min_gain=args.min_region_pixels
-            )
-
-        # Le altre strategie continuano a usare la pipeline notebook
-        notebook_stages = extra_stages - {'compact'}
+        # The other stages still use the notebook pipeline.
+        notebook_stages = extra_stages
 
         if notebook_stages:
             extra_maps, notebook_metadata = notebook_stage_maps(
@@ -382,7 +404,7 @@ def _run(args, progress_stream):
             maps.update(extra_maps)
 
         saved_paths = {}
-        for name in stages:
+        for name in todo:
             labels = maps[name]
             target = output / f'{image_id}_{name}.npy'
             temporary = target.with_suffix('.npy.tmp')
@@ -408,9 +430,19 @@ def _run(args, progress_stream):
             'total_time_sec': time.perf_counter() - start,
             'generation_settings': generation_settings(args),
             'saved_partitions': saved_paths,
-            'partition_label_counts': {name: int(len(np.unique(maps[name]))) for name in stages},
+            'partition_label_counts': {name: int(len(np.unique(maps[name]))) for name in todo},
+            'compact_files': compact_files,
             **notebook_metadata,
         }
+        previous_path = output / f'{image_id}_results.json'
+        if previous_path.is_file() and not args.overwrite:
+            # Files added to a completed image: keep the earlier entries (and their SAM run's timings).
+            previous = json.loads(previous_path.read_text())
+            for key in ('saved_partitions', 'partition_label_counts', 'compact_files'):
+                metadata[key] = {**(previous.get(key) or {}), **metadata[key]}
+            metadata['added_stages'] = {**(previous.get('added_stages') or {}),
+                                        **{name: datetime.now(timezone.utc).isoformat() for name in todo}}
+            metadata = {**previous, **metadata}
         target = output / f'{image_id}_results.json'
         temporary = target.with_suffix('.json.tmp')
         temporary.write_text(json.dumps(metadata, indent=2) + '\n')
@@ -419,7 +451,7 @@ def _run(args, progress_stream):
               f'{metadata["n_refined_instances"]} regions, '
               f'sam_s={seconds:.3f} refinement_s={refinement_seconds:.3f} '
               f'total_s={metadata["total_time_sec"]:.3f}', flush=True)
-        print(f'{image_id} saved_stages={",".join(stages)} '
+        print(f'{image_id} saved_stages={",".join(todo)} '
               f'label_counts={metadata["partition_label_counts"]}', flush=True)
         progress.set_postfix(masks=len(masks), regions=metadata['n_refined_instances'],
                              seconds=f"{metadata['total_time_sec']:.1f}")

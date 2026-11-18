@@ -29,6 +29,12 @@ python src/scripts/evaluate_partitions.py --all-sam --paper-dir results/paper/T-
 
 Check the `found` and `images` columns: a folder whose generation was still running is scored only on its finished images.
 
+**Which compact file is scored.** Each folder can hold several compact selections (`<id>_compact_greedy.npy`, `<id>_compact_split.npy`, ...). By default the evaluation scores the one named by `data.compact_strategy` in each config (`greedy`; older folders' `<id>_compact.npy` counts as greedy). Other options:
+- **One other strategy:** `--partition-type compact_split`.
+- **Several strategies on the same images:** `--partition-types compact_greedy compact_split --baseline-type compact_greedy`.
+
+Rows for strategies other than greedy are labelled with the strategy, e.g. `SAM2-L-SPLIT` or `SAM2-L-MSO0.5`. The commands are in [MSCOCO.md](DATASETS/MSCOCO.md#evaluate-quality-and-weak-greedy-cases).
+
 ## Outputs
 
 Saved in `results/evaluations/partition_quality/`:

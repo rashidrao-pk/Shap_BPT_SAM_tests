@@ -15,6 +15,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from skimage.segmentation import mark_boundaries
 from partition_colors import colorize, count_title, region_count
+import partition_files
 
 
 def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None, objects=None):
@@ -44,15 +45,16 @@ def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None, o
             if labels.ndim != 2 or labels.shape != image.shape[:2] or not np.issubdtype(labels.dtype, np.integer):
                 raise ValueError(f'{path}: expected integer labels of shape {image.shape[:2]}')
             maps.append(labels)
-        kinds = [path.stem.rsplit('_', 1)[-1] for path in paths]
+        kinds = [stage_kind(path) for path in paths]
         sam_regions = region_count(maps[kinds.index('sam')]) if 'sam' in kinds else None
         for column, (path, labels, kind) in enumerate(zip(paths, maps, kinds), 1):
             unique, counts = np.unique(labels, return_counts=True)
             colored = colorize(labels)  # Label 0 (no SAM mask) is black.
             axes[0, column].imshow(colored)
             regions = region_count(labels)
-            title = (count_title(regions, sam_regions, kind) if kind != 'sam' and sam_regions is not None
-                     else f'{kind.upper() if kind == "sam" else kind.capitalize()}\n{regions} regions')
+            shown = kind_title(kind)
+            title = (count_title(regions, sam_regions, shown) if kind != 'sam' and sam_regions is not None
+                     else f'{shown.upper() if kind == "sam" else shown.capitalize()}\n{regions} regions')
             axes[0, column].set_title(f'{path.stem}\n{title}', fontsize=9)
             overlay = (1 - alpha) * (image / 255.) + alpha * colored
             axes[1, column].imshow(mark_boundaries(overlay, labels, color=(1, 1, 1)))
@@ -83,6 +85,24 @@ def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None, o
     finally:
         plt.close(fig)
     return statistics
+
+
+def stage_kind(path):
+    """Stage of a partition file: 'sam', 'compact', 'compact_split', 'compact_mso_0.5', ..."""
+    stem = Path(path).stem
+    return stem[stem.rindex('_compact') + 1:] if '_compact' in stem else stem.rsplit('_', 1)[-1]
+
+
+def kind_title(kind):
+    """'compact_split' -> 'compact (split)'; the greedy and legacy files are plain 'compact'."""
+    if not kind.startswith('compact') or partition_files.tag_of(kind) == partition_files.DEFAULT_TAG:
+        return kind
+    return f"compact ({partition_files.tag_of(kind).replace('_', ' ')})"
+
+
+def method_stages(methods, data):
+    """'compact' means the config's data.compact_strategy; other names are used as given."""
+    return [partition_files.configured_stage(data) if method == 'compact' else method for method in methods]
 
 
 def preview_ground_truth(args, image):
@@ -158,7 +178,8 @@ def discover_image_ids(config_name, methods, limit, allowed_ids=None, **choice):
         image_id = metadata.name.removesuffix('_results.json')
         if allowed_ids is not None and image_id not in allowed_ids:
             continue
-        if all((folder / f'{image_id}_{method}.npy').is_file() for method in methods):
+        if all(partition_files.partition_file(folder, image_id, method).is_file()
+               for method in method_stages(methods, data)):
             image_ids.append(image_id)
             if len(image_ids) >= limit:
                 break
@@ -195,7 +216,8 @@ def resolve_paths(args, image_index=None):
 
         partition_dir = partition_path(config, root)
         if partitions is None:
-            partitions = [partition_dir / f'{image_id}_{method}.npy' for method in args.methods]
+            partitions = [partition_files.partition_file(partition_dir, image_id, method)
+                          for method in method_stages(args.methods, data)]
         if image is None:
             image_dir = rooted(data['image_dir'])
             if data.get('name', '').lower() in {'partimagenet', 'paco'}:
@@ -230,7 +252,8 @@ def main():
     parser.add_argument('--limit', type=int,
                         help='Preview first N completed images from the config partition folder')
     parser.add_argument('--methods', nargs='+', default=['sam', 'refined'],
-                        help='Partition suffixes to view (default: sam refined)')
+                        help='Partition stages to view (default: sam refined). compact = the config\'s '
+                             'data.compact_strategy; name others directly, e.g. sam compact_greedy compact_split')
     choice = parser.add_mutually_exclusive_group()
     choice.add_argument('--sam', choices=['sam1', 'sam2', 'medsam', 'medicosam'],
                         help="Partitions of this model: the config's data.mask_dir_final_<model> (sam1, sam2, medsam, medicosam) "

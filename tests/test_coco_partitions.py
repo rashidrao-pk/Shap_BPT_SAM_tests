@@ -167,14 +167,20 @@ class CocoExportTest(unittest.TestCase):
     def test_compact_strategy_arguments(self):
         args = batch.create_parser().parse_args([
             '--compact-strategy', 'mso', '--mso-alpha', '0.7'])
-        self.assertEqual(args.compact_strategy, 'mso')
-        self.assertEqual(args.mso_alpha, 0.7)
+        self.assertEqual(args.compact_strategy, ['mso'])
+        self.assertEqual(args.mso_alpha, [0.7])
 
         greedy = batch.create_parser().parse_args([])
-        self.assertEqual(greedy.compact_strategy, 'greedy')
-        self.assertEqual(greedy.mso_alpha, 0.5)
+        self.assertEqual(greedy.compact_strategy, ['greedy'])
+        self.assertEqual(greedy.mso_alpha, [0.5])
 
-    def test_compact_strategy_is_at_end_of_folder_name(self):
+        several = batch.create_parser().parse_args([
+            '--save-partitions', 'sam', 'compact', '--compact-strategy', 'greedy', 'mso', 'split',
+            '--mso-alpha', '0.3', '0.5'])
+        self.assertEqual(batch.output_stages(several),
+                         ['sam', 'compact_greedy', 'compact_mso_0.3', 'compact_mso_0.5', 'compact_split'])
+
+    def test_compact_strategies_share_one_folder(self):
         base = argparse.Namespace(
             model='sam2',
             checkpoint=Path('sam2.1_hiera_tiny.pt'),
@@ -185,13 +191,13 @@ class CocoExportTest(unittest.TestCase):
             compact_strategy='greedy',
             mso_alpha=0.5,
         )
-        self.assertTrue(batch.partition_folder_name(
-            {'name': 'MS_COCO'}, base).endswith('_greedy'))
+        greedy = batch.partition_folder_name({'name': 'MS_COCO'}, base)
+        self.assertEqual(greedy, 'MSCOCO_sam2_tiny_62_compact-sam_200')
 
-        base.compact_strategy = 'mso'
-        base.mso_alpha = 0.7
-        folder = batch.partition_folder_name({'name': 'MS_COCO'}, base)
-        self.assertTrue(folder.endswith('_mso_0.7'))
+        base.compact_strategy = ['mso']
+        base.mso_alpha = [0.7]
+        self.assertEqual(batch.partition_folder_name({'name': 'MS_COCO'}, base), greedy)
+        self.assertEqual(batch.output_stages(base), ['sam', 'compact_mso_0.7'])
 
     def test_empty_masks(self):
         masks = np.zeros((0, 5, 6), dtype=bool)

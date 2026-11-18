@@ -81,8 +81,9 @@ def folder_rows(name, folder, args):
     from evaluate_partitions import image_paths, load_partition
     config = load_path_config(name)
     paths = image_paths(config['data'])
-    suffix = f'_{args.partition_type}.npy'
-    ids = sorted(set(path.name.removesuffix(suffix) for path in folder.glob(f'*{suffix}')) & set(paths))
+    from partition_files import configured_stage, stage_files
+    files = stage_files(folder, args.partition_type or configured_stage(config['data']))
+    ids = sorted(set(files) & set(paths))
     if args.limit:
         ids = [ids[index] for index in sorted(np.random.default_rng(args.seed).permutation(len(ids))[:args.limit])]
     base = {'dataset': Path(name).stem.removesuffix('_epito'), 'segmenter': sam_label(folder.name), 'partitions': folder.name}
@@ -91,7 +92,7 @@ def folder_rows(name, folder, args):
         try:
             with Image.open(paths[image_id]) as source:
                 image = np.asarray(source.convert('RGB'))
-            partition = load_partition(paths[image_id], folder / f'{image_id}{suffix}')
+            partition = load_partition(paths[image_id], files[image_id])
             meta_path = folder / f'{image_id}_results.json'
             metadata = json.loads(meta_path.read_text()) if meta_path.is_file() else {}
             rows.append({**base, 'image_id': image_id, **describe(image, partition, metadata)})
@@ -121,7 +122,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--config', nargs='+', default=DEFAULT_CONFIGS)
     parser.add_argument('--all-sam', action='store_true', help="Every SAM folder of each dataset, not only the config's")
-    parser.add_argument('--partition-type', default='compact')
+    parser.add_argument('--partition-type', help='Stage file, e.g. compact_split (default: data.compact_strategy)')
     parser.add_argument('--limit', type=int, help='Random images per folder (default: all)')
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--output-dir', type=Path, default=ROOT / 'results/evaluations/partition_descriptors')

@@ -70,8 +70,8 @@ The default experiment runs exactly these methods, regardless of legacy
 | Result key         | Explanation method             | Partition input               |
 | ------------------ | ------------------------------ | ----------------------------- |
 | `BPT`              | Stock BPT explanations         | Image-built hierarchy         |
-| `SAM_c`            | BPT + SAM_c guidance           | `<image_id>_compact.npy`      |
-| `SAM_c_kernelshap` | Kernel SHAP over SAM_c regions | Same `<image_id>_compact.npy` |
+| `SAM_c`            | BPT + SAM_c guidance           | `<image_id>_compact_<strategy>.npy` (`data.compact_strategy`; legacy `<image_id>_compact.npy` = greedy) |
+| `SAM_c_kernelshap` | Kernel SHAP over SAM_c regions | The same compact file |
 
 No raw-SAM, boosted, filled, or component-refined variant is run. Both SAM_c
 methods use the same saved map and the same loader cap/sanitization. Generate

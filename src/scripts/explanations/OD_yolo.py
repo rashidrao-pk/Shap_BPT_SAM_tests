@@ -1489,6 +1489,8 @@ def prepare_inputs(project_root, config, args):
     partition_dir = partition_path(config, project_root)
     if not partition_dir.is_dir():
         raise FileNotFoundError(f"Partition directory not found: {partition_dir}")
+    import partition_files
+    compact_stage = partition_files.configured_stage(data)  # data.compact_strategy, default greedy
     image_dir = rooted(data["image_dir"])
     annotation_path = rooted(data["annotation_file"])
     annotation_images = {int(item["id"]): item for item in json.loads(annotation_path.read_text())["images"]}
@@ -1526,11 +1528,12 @@ def prepare_inputs(project_root, config, args):
         if not image_path.is_file():
             raise FileNotFoundError(image_path)
     available = []
+    compact_ids = partition_files.stage_files(partition_dir, compact_stage, files)
     for method in SUPPORTED_METHODS:
-        suffix = partition_type_for_method(method)
-        if method == "BPT" or all(f"{image_id}_{suffix}.npy" in files and
+        if method == "BPT" or all(image_id in compact_ids and
                 (not completed[image_id].get("saved_partitions") or
-                 suffix in completed[image_id]["saved_partitions"]) for image_id in ids):
+                 set(partition_files.alternatives(compact_stage)) & set(completed[image_id]["saved_partitions"]))
+                for image_id in ids):
             available.append(method)
     requested = args.methods if args.methods is not None else SUPPORTED_METHODS
     if not isinstance(requested, list) or not requested or any(method not in SUPPORTED_METHODS for method in requested):
@@ -1539,15 +1542,18 @@ def prepare_inputs(project_root, config, args):
     missing = [method for method in methods if method not in available]
     if missing:
         raise ValueError(f"Requested methods are not saved for every selected image: {missing}; "
-                         "both SAM_c methods require existing <image_id>_compact.npy (SAM_c input)")
+                         f"both SAM_c methods require existing <image_id>_{compact_stage}.npy "
+                         "(or, for greedy, the legacy <image_id>_compact.npy) as SAM_c input")
     if args.output_dir:
         output_root = rooted(args.output_dir)
     else:
         output_root = output_path(config, "explanations", project_root)
-        output_root = output_root / "OD_yolo" / data["mask_dir_final"]
+        output_root = output_root / "OD_yolo" / partition_files.run_label(
+            data["mask_dir_final"], partition_files.tag_of(compact_stage))
     auc_folder = f"_auc_{args.auc_bg_type}" if args.auc_bg_type not in {None, args.bg_type} else ""
     output_root = output_root / f"bg_{args.bg_type}{auc_folder}_B{args.max_evals}{guide_options.folder_suffix(args)}"
-    return {"partition_dir": partition_dir, "image_dir": image_dir,
+    return {"partition_dir": partition_dir, "image_dir": image_dir, "compact_stage": compact_stage,
+            "partition_label": partition_files.run_label(partition_dir.name, partition_files.tag_of(compact_stage)),
             "annotation_file": annotation_path, "image_ids": ids,
             "methods": methods, "method_labels": {method: METHOD_LABELS[method] for method in methods},
             "output_root": output_root,
@@ -1798,13 +1804,14 @@ def run(args):
                     comparison_tree = bptree
                     from experiment_common import bpt_partition_labels
                     _, sam_labels = uts2.load_refine_partitions(
-                        input_data["image_to_explain"], str(masks_base_path), image_id, partition_type="compact",
+                        input_data["image_to_explain"], str(masks_base_path), image_id,
+                        partition_type=inputs.get("compact_stage", "compact"),
                         max_labels=guide_options.max_labels(args))
                     bpt_labels = bpt_partition_labels(
                         bptree, len(np.unique(sam_labels)), input_data["image_to_explain"].shape[:2])
                 else:
                     timing_start = time.time()
-                    partition_type = partition_type_for_method(method)
+                    partition_type = inputs.get("compact_stage") or partition_type_for_method(method)
                     partitions[method], partition_capped[method] = uts2.load_refine_partitions(
                         input_data["image_to_explain"], str(masks_base_path), image_id, partition_type=partition_type,
                         max_labels=guide_options.max_labels(args))
@@ -1875,7 +1882,8 @@ def run(args):
                 scoring_adapter = SimpleNamespace(predict_batch=lambda images: predict_yolo_batch(
                     model, images, num_classes=yolo_class_count(model), aggregate=args.class_aggregation))
                 _, sam_labels = uts2.load_refine_partitions(
-                    input_data['image_to_explain'], str(masks_base_path), image_id, partition_type='compact',
+                    input_data['image_to_explain'], str(masks_base_path), image_id,
+                    partition_type=inputs.get("compact_stage", "compact"),
                     max_labels=guide_options.max_labels(args))
                 partition_capped['SAM_c'] = sam_labels
                 if comparison_tree is None:

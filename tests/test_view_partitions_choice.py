@@ -14,9 +14,9 @@ def write_config(tmp_path):
     config.write_text(f'''data:
   name: MSCOCO
   image_dir: {tmp_path}/images
-  mask_dir_final: MSCOCO_sam1_vit_b_254_compact-sam_200_greedy
-  mask_dir_final_sam1: MSCOCO_sam1_vit_b_254_compact-sam_200_greedy
-  mask_dir_final_sam2: MSCOCO_sam2_large_254_compact-sam_200_greedy
+  mask_dir_final: MSCOCO_sam1_vit_b_254_compact-sam_200
+  mask_dir_final_sam1: MSCOCO_sam1_vit_b_254_compact-sam_200
+  mask_dir_final_sam2: MSCOCO_sam2_large_254_compact-sam_200
 output:
   partitions: {tmp_path}/partitions
   evaluations: {tmp_path}/evaluations
@@ -27,7 +27,7 @@ output:
 def test_sam_and_folder_choice(tmp_path):
     config = write_config(tmp_path)
     assert load_view_config(str(config))[1]['data']['mask_dir_final'].startswith('MSCOCO_sam1')
-    assert load_view_config(str(config), sam='sam2')[1]['data']['mask_dir_final'] == 'MSCOCO_sam2_large_254_compact-sam_200_greedy'
+    assert load_view_config(str(config), sam='sam2')[1]['data']['mask_dir_final'] == 'MSCOCO_sam2_large_254_compact-sam_200'
     assert load_view_config(str(config), partition_folder='X_62')[1]['data']['mask_dir_final'] == 'X_62'
 
 
@@ -45,11 +45,16 @@ def test_paths_and_preview_folder_follow_the_choice(tmp_path):
     args = argparse.Namespace(config=str(config), image_id='76211', image=None, partitions=None, output=None,
                               methods=['sam', 'compact'], sam='sam2', partition_folder=None)
     _, partitions, output = resolve_paths(args)
-    assert partitions[1] == tmp_path / 'partitions/MSCOCO_sam2_large_254_compact-sam_200_greedy/000000076211_compact.npy'
-    assert output.parent.name == 'MSCOCO_sam2_large_254_compact-sam_200_greedy'
+    # Nothing generated yet: the new name (<id>_compact_greedy.npy); an existing legacy <id>_compact.npy is used too.
+    folder = tmp_path / 'partitions/MSCOCO_sam2_large_254_compact-sam_200'
+    assert partitions[1] == folder / '000000076211_compact_greedy.npy'
+    folder.mkdir(parents=True)
+    (folder / '000000076211_compact.npy').write_bytes(b'')
+    assert resolve_paths(args)[1][1] == folder / '000000076211_compact.npy'
+    assert output.parent.name == 'MSCOCO_sam2_large_254_compact-sam_200'
 
 
-def make_images(tmp_path, ids, folder='MSCOCO_sam2_large_254_compact-sam_200_greedy'):
+def make_images(tmp_path, ids, folder='MSCOCO_sam2_large_254_compact-sam_200'):
     import numpy as np
     from PIL import Image
     (tmp_path / 'images').mkdir(exist_ok=True)
@@ -70,7 +75,7 @@ def test_several_image_ids_render_one_preview_each(tmp_path, monkeypatch, capsys
     monkeypatch.setattr(sys, 'argv', ['view_partitions.py', '--config', str(config), '--sam', 'sam2',
                                       '--image-id', '76211', '28285', '--methods', 'sam', 'compact'])
     view_partitions.main()
-    previews = tmp_path / 'evaluations/previews/MSCOCO_sam2_large_254_compact-sam_200_greedy'
+    previews = tmp_path / 'evaluations/previews/MSCOCO_sam2_large_254_compact-sam_200'
     assert sorted(path.name for path in previews.glob('*.png')) == ['000000028285.png', '000000076211.png']
 
 
@@ -82,7 +87,7 @@ def test_a_missing_image_does_not_stop_the_others(tmp_path, monkeypatch):
                                       '--image-id', '99999', '76211', '--methods', 'sam', 'compact'])
     with pytest.raises(SystemExit):
         view_partitions.main()
-    assert (tmp_path / 'evaluations/previews/MSCOCO_sam2_large_254_compact-sam_200_greedy/000000076211.png').is_file()
+    assert (tmp_path / 'evaluations/previews/MSCOCO_sam2_large_254_compact-sam_200/000000076211.png').is_file()
 
 
 def fake_objects(monkeypatch):
@@ -111,7 +116,7 @@ def test_lower_left_panel_shows_every_gt_object(tmp_path, monkeypatch):
     assert names == ['person', 'clock']  # Largest first, so the clock is painted on top.
     assert object_map[2, 2] == 2 and object_map[5, 1] == 1 and object_map[0, 0] == 0
     assert view_partitions.preview_objects(argparse.Namespace(config=str(config), no_gt_panel=True), image) is None
-    folder = tmp_path / 'partitions/MSCOCO_sam2_large_254_compact-sam_200_greedy'
+    folder = tmp_path / 'partitions/MSCOCO_sam2_large_254_compact-sam_200'
     output = tmp_path / 'preview.png'
     view_partitions.render(image, [folder / '000000076211_compact.npy'], output, objects=(object_map, names))
     assert output.is_file()

@@ -69,13 +69,11 @@ def test_split_runs_fast_enough_for_sam_sized_inputs():
     assert time.perf_counter() - start < 60
 
 
-def test_split_folder_name_and_resume_settings():
+def test_split_file_names():
     args = argparse.Namespace(model='sam2', checkpoint=Path('sam2.1_hiera_large.pt'), max_regions=254,
                               generate_at_least_n_masks=200, save_partitions=['sam', 'compact'],
-                              compact_strategy='split', mso_alpha=0.5, min_region_pixels=64)
-    assert batch.partition_folder_name({'name': 'MSCOCO'}, args).endswith('_compact-sam_200_split')
+                              compact_strategy=['greedy', 'split'], mso_alpha=[0.5], min_region_pixels=64)
+    assert batch.partition_folder_name({'name': 'MSCOCO'}, args).endswith('_compact-sam_200')
+    assert batch.output_stages(args) == ['sam', 'compact_greedy', 'compact_split']
     args.min_region_pixels = 200
-    assert batch.partition_folder_name({'name': 'MSCOCO'}, args).endswith('_split_200')
-    assert batch.same_settings({'compact_strategy': 'split', 'mso_alpha': 0.5},
-                               {'compact_strategy': 'split', 'mso_alpha': 0.7})
-    assert not batch.same_settings({'compact_strategy': 'split'}, {'compact_strategy': 'greedy'})
+    assert batch.output_stages(args) == ['sam', 'compact_greedy', 'compact_split_200']

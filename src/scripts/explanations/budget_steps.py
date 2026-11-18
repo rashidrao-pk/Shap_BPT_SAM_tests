@@ -328,7 +328,8 @@ def write_timing(runtime, folder, results, run_timing, scope):
 def explain_image(runtime, args, adapter, record, inputs, folder, signature, progress=''):
     image_id = record['image_id']
     image = np.asarray(Image.open(record['image_path']).convert('RGB'))
-    _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id, 'compact',
+    _, labels = runtime.partitions.load_refine_partitions(image, str(inputs['partition_dir']), image_id,
+                                                          inputs.get('compact_stage', 'compact'),
                                                          max_labels=guide_options.max_labels(args))
     replacements = common.backgrounds(image, args.bg_type)
     masked_predict = common.make_masked_predictor(adapter, image, replacements, args.model_batch_size)
@@ -420,7 +421,7 @@ def run(args, adapter=None):
     inputs = common.prepare_inputs('OD_DETR' if args.runner == 'OD_yolo' else args.runner, args)
     identity = {'runner': args.runner, 'model': args.model, 'checkpoint': str(args.checkpoint), 'seed': args.seed,
                 'background': args.bg_type, 'auc_points': args.auc_num_samples, 'target': args.target_class,
-                'aggregation': args.class_aggregation, 'partitions': inputs['partition_dir'].name}
+                'aggregation': args.class_aggregation, 'partitions': inputs.get('partition_label', inputs['partition_dir'].name)}
     if not guide_options.is_default(args):
         identity['guide'] = guide_options.settings(args)  # Absent for v1 defaults, so old caches stay valid.
     if args.runner == 'OD_yolo':
@@ -428,7 +429,8 @@ def run(args, adapter=None):
         identity['yolo_input_version'] = YOLO_INPUT_VERSION
     signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     root = resolve_path(args.output_dir) if args.output_dir else output_path(inputs['config'], 'evaluations') / 'budget_steps'
-    folder = root / args.runner / inputs['partition_dir'].name / f'bg_{args.bg_type}' / args.study_name
+    folder = (root / args.runner / inputs.get('partition_label', inputs['partition_dir'].name)
+              / f'bg_{args.bg_type}' / args.study_name)
     # Cached maps stay in folder for every selection; each selection reports to its own subfolder.
     report_folder = folder if args.select == 'random' else folder / args.select
     if args.check_difficulty is not None:
@@ -476,7 +478,7 @@ def run(args, adapter=None):
               flush=True)
         run_timing = {'model_load_sec': model_load_sec, 'wall_sec': time.perf_counter() - run_started,
                       'images_done': number, 'images': len(records), 'device': str(device)}
-        summary = write_reports(runtime, report_folder, rows, args, inputs['partition_dir'].name, run_timing)  # Inspect while it runs.
+        summary = write_reports(runtime, report_folder, rows, args, inputs.get('partition_label', inputs['partition_dir'].name), run_timing)  # Inspect while it runs.
     return summary
 
 

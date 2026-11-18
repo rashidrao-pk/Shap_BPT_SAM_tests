@@ -24,7 +24,7 @@ committed to this repository: download it separately on EPITO.
 
 ## Run explanations
 
-The configured partition folder must contain completed `<id>_compact.npy` maps
+The configured partition folder must contain completed compact maps (`<id>_compact_greedy.npy`, or the legacy `<id>_compact.npy`; see `data.compact_strategy`)
 and `<id>_results.json`, just like the other dataset runners.
 
 ```bash

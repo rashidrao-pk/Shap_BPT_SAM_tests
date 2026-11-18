@@ -35,7 +35,7 @@ evaluation:
 
 These are the relevant fields, not a replacement for the complete config.
 `OD_yolo.py` defaults to BPT, BPT+SAM_c, and SAM_c+Kernel SHAP.
-Both SAM_c methods require the saved `*_compact.npy` maps.
+Both SAM_c methods require the saved compact maps (`<id>_compact_<strategy>.npy` for `data.compact_strategy`, or the legacy `<id>_compact.npy` for greedy).
 Optional notebook stages such as `boosted` are available only when explicitly saved
 during generation. See [the YOLO explanation guide](OD_yolo.md).
 

@@ -3,7 +3,7 @@
 For long EPITO jobs: [resume and Slurm instructions](RESUME_EPITO.md). To run the full XAI at chosen budgets (for example 3000 and 5000) one after another, resumably: [budget runs](BUDGET_RUNS.md). Resume is enabled by default; omit `--no-resume` to continue completed-image experiments.
 
 All runners compare **BPT**, **BPT + SAM_c**, and **SAM_c + Kernel SHAP**.
-SAM_c reads the saved `*_compact.npy` partition maps.
+SAM_c reads the saved compact partition maps: `<id>_compact_<strategy>.npy`, chosen by `data.compact_strategy` in the config (default `greedy`; older folders hold `<id>_compact.npy`, read as greedy). Non-greedy strategies write their results to `<partition folder>_<strategy>`.
 
 All runners default to **`--bg-type full`**, averaging black, gray, white, blurred and noise replacements. New results use `bg_full_B<budget>` folders.
 

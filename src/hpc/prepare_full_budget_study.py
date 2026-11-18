@@ -8,6 +8,10 @@ from pathlib import Path
 import random
 import shutil
 import yaml
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+import partition_files  # noqa: E402
 
 MODELS = {
     'MSCOCO': [('OD_yolo', 'yolo11s'), ('OD_DETR', 'facebook/detr-resnet-50')],
@@ -70,8 +74,9 @@ def prepare(repo, home, datasets, size=20):
                 image = Path(metadata.get('source_image', '/missing'))
                 key = path.name.removesuffix('_results.json')
                 stages = list(metadata.get('saved_partitions') or {}) or metadata.get('generation_settings', {}).get('save_partitions') or ['sam', 'refined']
-                if image.is_file() and (folder / f'{key}_compact.npy').is_file() and all(
-                        (folder / f'{key}_{stage}.npy').is_file() for stage in stages):
+                compact = partition_files.configured_stage(cfg['data'])
+                if image.is_file() and partition_files.partition_file(folder, key, compact).is_file() and all(
+                        partition_files.partition_file(folder, key, stage).is_file() for stage in stages):
                     records[key] = image
             completed[folder.name] = records
         common = sorted(set.intersection(*(set(completed[p.name]) for p in variants)))
@@ -94,8 +99,8 @@ def prepare(repo, home, datasets, size=20):
             config_path.parent.mkdir(exist_ok=True)
             config_path.write_text(yaml.safe_dump(config, sort_keys=False))
             for key in selected:
-                for suffix in ['_compact.npy', '_results.json']:
-                    path = folder / (key + suffix)
+                for path in [partition_files.partition_file(folder, key, partition_files.configured_stage(cfg['data'])),
+                             folder / (key + '_results.json')]:
                     inputs.append({'path': str(path), 'sha256': digest(path)})
             for runner, model in MODELS[dataset]:
                 root = home / 'budget'

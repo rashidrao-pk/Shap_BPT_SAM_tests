@@ -3,10 +3,12 @@ data:
   name: KvasirSEG
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/Kvasir-SEG/images
-  mask_dir_final: KvasirSEG_sam1_vit_b_254_compact-sam_50_greedy
+  mask_dir_final: KvasirSEG_sam1_vit_b_254_compact-sam_50
+  # Compact file read by XAI, previews and the audit: greedy (<id>_compact_greedy.npy), split, mso_0.5, ...
+  compact_strategy: greedy
   # Medical priors (T2): view with view_partitions.py --sam medsam | medicosam.
-  mask_dir_final_medsam: "KvasirSEG_medsam_vitb_254_compact-sam_50_greedy"
-  mask_dir_final_medicosam: "KvasirSEG_medicosam_vitb_254_compact-sam_50_greedy"
+  mask_dir_final_medsam: "KvasirSEG_medsam_vitb_254_compact-sam_50"
+  mask_dir_final_medicosam: "KvasirSEG_medicosam_vitb_254_compact-sam_50"
   ground_truth:
     format: kvasir_seg
     root: /beegfs/home/mrashid/datasets/Kvasir-SEG/masks

@@ -1490,7 +1490,7 @@ def prepare_inputs(project_root, config, args):
     if not partition_dir.is_dir():
         raise FileNotFoundError(f"Partition directory not found: {partition_dir}")
     import partition_files
-    compact_stage = partition_files.configured_stage(data)  # data.compact_strategy, default greedy
+    compact_stage = partition_files.configured_stage(data)  # data.compact_strategy (split in every config)
     image_dir = rooted(data["image_dir"])
     annotation_path = rooted(data["annotation_file"])
     annotation_images = {int(item["id"]): item for item in json.loads(annotation_path.read_text())["images"]}

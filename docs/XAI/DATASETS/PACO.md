@@ -14,7 +14,7 @@ python src/scripts/explanations/OC_PACO.py \
 
 ### SAM version and compact partitions
 
-The same command for each SAM model (`--sam`, its folder from the generator) and each saved compact file (`--compact-strategy`). Results of `split` go to `<partition-folder>_split`; each run prints `Partitions: ... | compact file: ...` first.
+The same command for each SAM model (`--sam`, its folder from the generator) and each saved compact file (`--compact-strategy`). Without `--compact-strategy`, the config's default `split` is used. Results of `split` go to `<partition-folder>_split`; each run prints `Partitions: ... | compact file: ...` first.
 
 ```bash
 # SAM-1 ViT-B, greedy compact partitions

@@ -37,10 +37,11 @@ def create_parser(description=__doc__, default_config='MSCOCO_epito'):
                         default=['sam', 'refined'], help='Stage label maps to save (default: sam refined)')
     parser.add_argument('--select-count', type=int, default=400,
                         help='Maximum greedy-selected masks for notebook stages')
-    parser.add_argument('--compact-strategy', nargs='+', choices=['greedy', 'mso', 'split'], default=['greedy'],
+    parser.add_argument('--compact-strategy', nargs='+', choices=['greedy', 'mso', 'split'], default=['greedy', 'split'],
                         help='Mask selection(s) for the compact stage, all from the same SAM masks: greedy and mso '
                              'count uncovered pixels; split counts how much a mask splits the partition, so nested '
-                             'masks are kept. Each one is saved as <id>_compact_<tag>.npy in the same folder')
+                             'masks are kept. Each one is saved as <id>_compact_<tag>.npy in the same folder '
+                             '(default: greedy split)')
     parser.add_argument('--mso-alpha', type=float, nargs='+', default=[0.5],
                         help='Exponent(s) on the unpicked area for mso; one file per value (compact_mso_<alpha>)')
     parser.add_argument('--fill-max-distance', type=float, default=3,
@@ -194,7 +195,7 @@ def partition_folder_name(data, args):
 
 def compact_tags_of(args):
     """File tags of the requested compact strategies, e.g. ['greedy', 'split']."""
-    strategies = getattr(args, 'compact_strategy', ['greedy'])
+    strategies = getattr(args, 'compact_strategy', ['greedy', 'split'])
     alphas = getattr(args, 'mso_alpha', [0.5])
     strategies = [strategies] if isinstance(strategies, str) else list(strategies)
     alphas = [alphas] if isinstance(alphas, (int, float)) else list(alphas)

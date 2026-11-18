@@ -5,8 +5,8 @@ data:
   input_format: directory
   image_dir: /beegfs/home/mrashid/repos/XAI/Shap_BPT_SAM_tests/data/data_full/CAMO-V.1.0/Images/Train
   mask_dir_final: CAMO_sam2_large_254_compact-sam_50
-  # Compact file read by XAI, previews and the audit: greedy (<id>_compact_greedy.npy), split, mso_0.5, ...
-  compact_strategy: greedy
+  # Compact file read by XAI, previews and the audit: split (<id>_compact_split.npy, default), greedy, mso_0.5, ...
+  compact_strategy: split
     
   # New SAM2 batch outputs; older partition directories are preserved.
   mask_dir_final_sam1: "CAMO_sam1_vit_b_254_compact-sam_50"

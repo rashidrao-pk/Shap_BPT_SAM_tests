@@ -26,7 +26,7 @@ python src/scripts/generate_celebahq_partitions.py --limit 2 --dry-run
 
 ## SAM1 (ViT-B)
 
-`--compact-strategy greedy split` saves both compact selections from one SAM run: `<id>_compact_greedy.npy` and `<id>_compact_split.npy` in the same folder. `data.compact_strategy` in the config picks the one used by XAI (default `greedy`); see [MSCOCO.md](MSCOCO.md#compare-compact-strategies-greedy-vs-mso).
+`--compact-strategy greedy split` saves both compact selections from one SAM run: `<id>_compact_greedy.npy` and `<id>_compact_split.npy` in the same folder. `data.compact_strategy` in the config picks the one used by XAI (`split` in every config); see [MSCOCO.md](MSCOCO.md#compare-compact-strategies-greedy-vs-mso).
 
 ```bash
 python src/scripts/generate_celebahq_partitions.py \

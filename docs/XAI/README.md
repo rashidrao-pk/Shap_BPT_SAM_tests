@@ -3,7 +3,7 @@
 For long EPITO jobs: [resume and Slurm instructions](RESUME_EPITO.md). To run the full XAI at chosen budgets (for example 3000 and 5000) one after another, resumably: [budget runs](BUDGET_RUNS.md). Resume is enabled by default; omit `--no-resume` to continue completed-image experiments.
 
 All runners compare **BPT**, **BPT + SAM_c**, and **SAM_c + Kernel SHAP**.
-SAM_c reads the saved compact partition maps: `<id>_compact_<strategy>.npy`, chosen by `data.compact_strategy` in the config (default `greedy`; older folders hold `<id>_compact.npy`, read as greedy). Non-greedy strategies write their results to `<partition folder>_<strategy>`.
+SAM_c reads the saved compact partition maps: `<id>_compact_<strategy>.npy`, chosen by `data.compact_strategy` in the config (**`split` in every config**; `--compact-strategy greedy` for the greedy file; older folders hold `<id>_compact.npy`, read as greedy). Non-greedy strategies write their results to `<partition folder>_<strategy>`.
 
 **Choose the partitions on the command line.** Every runner (`OC_*`, `OD_*`, `VL_*`) accepts the same options as `view_partitions.py`:
 - `--sam sam1 | sam2 | medsam | medicosam` picks the config's `data.mask_dir_final_<model>`, which is the folder the generator wrote for that model.

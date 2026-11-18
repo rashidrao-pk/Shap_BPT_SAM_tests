@@ -34,7 +34,7 @@ python -u src/scripts/run_busi_shapbpt.py run \
 - **`--sam sam1 | sam2 | medsam | medicosam`:** that model's folder, `data.mask_dir_final_<model>` in `BUSI_epito.yaml`, for example `BUSI_sam2_large_254_compact-sam_50`. `--sam sam1 sam2` runs both.
 - **Without `--sam`:** SAM-1 and SAM-2.
 - **`--partition-folder NAME`:** that folder. Its model is read from the name, so leave out `--sam`. A conflicting pair, such as `--sam sam2` with a `BUSI_sam1_...` folder, stops with an explanation.
-- **`--compact-strategy greedy | split | mso_0.5 ...`:** which compact file of the folder is explained (`<id>_compact_<strategy>.npy`). The default is `data.compact_strategy`, i.e. greedy. Results for a non-greedy strategy go to `<folder>_<strategy>`.
+- **`--compact-strategy greedy | split | mso_0.5 ...`:** which compact file of the folder is explained (`<id>_compact_<strategy>.npy`). The default is `data.compact_strategy`, which is `split` in the config. Results for a non-greedy strategy go to `<folder>_<strategy>`.
 
 Each run prints its choice first, e.g. `[sam2] partitions: BUSI_sam2_large_254_compact-sam_50 | compact file: <id>_compact_greedy.npy`.
 

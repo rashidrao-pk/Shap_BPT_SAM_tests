@@ -178,7 +178,7 @@ def prepare_inputs(kind, args):
     if not folder.is_dir():
         raise FileNotFoundError(folder)
     import partition_files
-    compact_stage = partition_files.configured_stage(data)  # data.compact_strategy, default greedy
+    compact_stage = partition_files.configured_stage(data)  # data.compact_strategy (split in every config)
     image_dir = resolve_path(data['image_dir'])
     if not image_dir.is_dir():
         raise FileNotFoundError(image_dir)

@@ -3,12 +3,13 @@
 One partition folder holds every compact selection made from the same SAM masks, each in its own file:
 
     <id>_sam.npy                 all SAM masks painted largest first (one per folder)
-    <id>_compact_greedy.npy      --compact-strategy greedy (the default)
+    <id>_compact_greedy.npy      --compact-strategy greedy
     <id>_compact_mso_0.5.npy     --compact-strategy mso --mso-alpha 0.5
-    <id>_compact_split.npy       --compact-strategy split (split_<N> for --min-region-pixels N != 64)
+    <id>_compact_split.npy       --compact-strategy split (split_<N> for --min-region-pixels N != 64); the generator
+                                 writes greedy and split by default, and the configs read split
     <id>_results.json            metadata, including one entry per compact file
 
-Readers choose a file with `data.compact_strategy` in the config (default `greedy`). Folders written before
+Readers choose a file with `data.compact_strategy` in the config (every config sets `split`; greedy if absent). Folders written before
 this layout have a single `<id>_compact.npy`, made with greedy selection; it is read as `compact_greedy`.
 """
 from pathlib import Path

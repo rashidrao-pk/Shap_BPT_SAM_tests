@@ -170,8 +170,9 @@ class CocoExportTest(unittest.TestCase):
         self.assertEqual(args.compact_strategy, ['mso'])
         self.assertEqual(args.mso_alpha, [0.7])
 
-        greedy = batch.create_parser().parse_args([])
-        self.assertEqual(greedy.compact_strategy, ['greedy'])
+        default = batch.create_parser().parse_args([])
+        self.assertEqual(default.compact_strategy, ['greedy', 'split'])  # Both by default
+        greedy = default
         self.assertEqual(greedy.mso_alpha, [0.5])
 
         several = batch.create_parser().parse_args([

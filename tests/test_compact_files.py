@@ -70,9 +70,9 @@ def test_one_run_writes_every_strategy_into_one_folder(dataset):
 
 def test_a_later_strategy_is_added_without_touching_existing_files(dataset):
     config, folder, calls = dataset
-    run(config)  # greedy only
+    run(config, '--compact-strategy', 'greedy')  # greedy only
     before = (folder / 'a_compact_greedy.npy').stat().st_mtime_ns
-    run(config)  # nothing to do
+    run(config, '--compact-strategy', 'greedy')  # nothing to do
     assert len(calls) == 2
     run(config, '--compact-strategy', 'greedy', 'split')
     assert len(calls) == 4  # SAM again, only for the missing split files
@@ -84,10 +84,10 @@ def test_a_later_strategy_is_added_without_touching_existing_files(dataset):
 
 def test_legacy_compact_files_count_as_greedy(dataset):
     config, folder, calls = dataset
-    run(config)
+    run(config, '--compact-strategy', 'greedy')
     for name in ['a', 'b']:
         (folder / f'{name}_compact_greedy.npy').rename(folder / f'{name}_compact.npy')
-    run(config)
+    run(config, '--compact-strategy', 'greedy')
     assert len(calls) == 2  # Legacy greedy files satisfy the greedy request
     image = np.zeros((40, 60, 3), np.uint8)
     assert load_refine_partitions(image, str(folder), 'a', 'compact_greedy')[0].shape == (40, 60)
@@ -119,3 +119,16 @@ def test_runner_partition_choice():
         parser.parse_args(['--sam', 'sam2', '--partition-folder', 'Y'])  # one or the other
     with pytest.raises(ValueError):
         pf.apply_partition_choice(config, compact_strategy='random')
+
+
+def test_default_run_writes_greedy_and_split(dataset):
+    config, folder, _ = dataset
+    run(config)
+    assert (folder / 'a_compact_greedy.npy').is_file() and (folder / 'a_compact_split.npy').is_file()
+
+
+def test_every_config_reads_split():
+    import yaml
+    for path in sorted((Path(__file__).resolve().parents[1] / 'src/configs').glob('*_epito*.yaml')):
+        assert pf.configured_stage(yaml.safe_load(path.read_text())['data']) == 'compact_split', path.name
+

@@ -10,6 +10,32 @@ python src/scripts/explanations/OD_yolo.py \
   --max-evals 1000 --bg-type full --no-heatmaps
 ```
 
+### SAM version and compact partitions
+
+The same command for each SAM model (`--sam`, its folder from the generator) and each saved compact file (`--compact-strategy`). Results of `split` go to `<partition-folder>_split`; each run prints `Partitions: ... | compact file: ...` first.
+
+```bash
+# SAM-1 ViT-B, greedy compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam1 --compact-strategy greedy --model yolo11s --show_gt --limit 1 \
+  --max-evals 1000 --bg-type full --no-heatmaps
+
+# SAM-1 ViT-B, split compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam1 --compact-strategy split --model yolo11s --show_gt --limit 1 --show-gt \
+  --max-evals 1000 --bg-type full --no-heatmaps
+
+# SAM-2 Large, greedy compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam2 --compact-strategy greedy --model yolo11s --show_gt --limit 1 --show-gt \
+  --max-evals 1000 --bg-type full --no-heatmaps
+
+# SAM-2 Large, split compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam2 --compact-strategy split --model yolo11s --show_gt --limit 1 \
+  --max-evals 1000 --bg-type full --no-heatmaps
+```
+
 For all options, the output layout, and how the explained class is chosen, see the [YOLO guide](OD_yolo.md).
 
 ## DETR

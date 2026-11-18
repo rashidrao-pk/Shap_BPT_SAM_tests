@@ -10,6 +10,32 @@ python src/scripts/explanations/COD_ViT.py \
   --budget 1000 --no-heatmaps --explain_all
 ```
 
+### SAM version and compact partitions
+
+The same command for each SAM model (`--sam`, its folder from the generator) and each saved compact file (`--compact-strategy`). Results of `split` go to `<partition-folder>_split`; each run prints `Partitions: ... | compact file: ...` first.
+
+```bash
+# SAM-1 ViT-B, greedy compact partitions
+python src/scripts/explanations/COD_ViT.py \
+  --config CAMO_epito --sam sam1 --compact-strategy greedy --show-gt --limit 1 \
+  --budget 1000 --no-heatmaps --explain_all
+
+# SAM-1 ViT-B, split compact partitions
+python src/scripts/explanations/COD_ViT.py \
+  --config CAMO_epito --sam sam1 --compact-strategy split --show-gt --limit 1 \
+  --budget 1000 --no-heatmaps --explain_all
+
+# SAM-2 Large, greedy compact partitions
+python src/scripts/explanations/COD_ViT.py \
+  --config CAMO_epito --sam sam2 --compact-strategy greedy --show-gt --limit 1 \
+  --budget 1000 --no-heatmaps --explain_all
+
+# SAM-2 Large, split compact partitions
+python src/scripts/explanations/COD_ViT.py \
+  --config CAMO_epito --sam sam2 --compact-strategy split --show-gt --limit 1 \
+  --budget 1000 --no-heatmaps --explain_all
+```
+
 The three partition methods share the budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. `--explain_all` adds LIME, Shap-AA, LRP, GradCAM, IDG, GradExp, and GradShap, and needs `requirements-xai-all.txt`. Remove `--limit 2` for all completed partitions. Add `--dry-run` to check paths without loading the model.
 
 The default classifier is torchvision's ImageNet ViT-B/16, and the explained class is its top ImageNet prediction, fixed for each image.

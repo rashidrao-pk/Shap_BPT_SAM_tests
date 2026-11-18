@@ -39,23 +39,40 @@ python -u src/scripts/run_busi_shapbpt.py run \
 Each run prints its choice first, e.g. `[sam2] partitions: BUSI_sam2_large_254_compact-sam_50 | compact file: <id>_compact_greedy.npy`.
 
 ```bash
-# SAM-2 partitions, split selection
+# SAM-1 ViT-B, greedy compact partitions
 python -u src/scripts/run_busi_shapbpt.py run \
-  --config BUSI_epito --model-dir checkpoints/busi_siglip --limit 1 \
-  --sam sam2 --compact-strategy split --regions 254 --budget 1000 --explain_all --batch-size 8 \
-  --show-gt --no-heatmaps --auc-num-samples 200
+  --config BUSI_epito --sam sam1 --compact-strategy greedy --model-dir checkpoints/busi_siglip --limit 1 \
+  --regions 254 --budget 1000 --explain_all --batch-size 8 --show-gt --no-heatmaps --auc-num-samples 200
 
-# A specific folder (no --sam needed)
+# SAM-1 ViT-B, split compact partitions
 python -u src/scripts/run_busi_shapbpt.py run \
-  --config BUSI_epito --model-dir checkpoints/busi_siglip --limit 1 \
-  --partition-folder BUSI_sam1_vit_b_254_compact-sam_50 --regions 254 --budget 1000 --explain_all \
-  --batch-size 8 --show-gt --no-heatmaps --auc-num-samples 200
+  --config BUSI_epito --sam sam1 --compact-strategy split --model-dir checkpoints/busi_siglip --limit 1 \
+  --regions 254 --budget 1000 --explain_all --batch-size 8 --show-gt --no-heatmaps --auc-num-samples 200
 
-# MedSAM partitions
+# SAM-2 Large, greedy compact partitions
 python -u src/scripts/run_busi_shapbpt.py run \
-  --config BUSI_epito --model-dir checkpoints/busi_siglip --limit 1 \
-  --sam medsam --regions 254 --budget 1000 --explain_all --batch-size 8 \
-  --show-gt --no-heatmaps --auc-num-samples 200
+  --config BUSI_epito --sam sam2 --compact-strategy greedy --model-dir checkpoints/busi_siglip --limit 1 \
+  --regions 254 --budget 1000 --explain_all --batch-size 8 --show-gt --no-heatmaps --auc-num-samples 200
+
+# SAM-2 Large, split compact partitions
+python -u src/scripts/run_busi_shapbpt.py run \
+  --config BUSI_epito --sam sam2 --compact-strategy split --model-dir checkpoints/busi_siglip --limit 1 \
+  --regions 254 --budget 1000 --explain_all --batch-size 8 --show-gt --no-heatmaps --auc-num-samples 200
+
+# MedSAM, greedy compact partitions
+python -u src/scripts/run_busi_shapbpt.py run \
+  --config BUSI_epito --sam medsam --compact-strategy greedy --model-dir checkpoints/busi_siglip --limit 1 \
+  --regions 254 --budget 1000 --explain_all --batch-size 8 --show-gt --no-heatmaps --auc-num-samples 200
+
+# MedicoSAM, greedy compact partitions
+python -u src/scripts/run_busi_shapbpt.py run \
+  --config BUSI_epito --sam medicosam --compact-strategy greedy --model-dir checkpoints/busi_siglip --limit 1 \
+  --regions 254 --budget 1000 --explain_all --batch-size 8 --show-gt --no-heatmaps --auc-num-samples 200
+
+# A specific folder (its model is read from the name; no --sam)
+python -u src/scripts/run_busi_shapbpt.py run \
+  --config BUSI_epito --partition-folder BUSI_sam1_vit_b_254_compact-sam_50 --compact-strategy greedy --model-dir checkpoints/busi_siglip --limit 1 \
+  --regions 254 --budget 1000 --explain_all --batch-size 8 --show-gt --no-heatmaps --auc-num-samples 200
 ```
 
 This mode reads existing compact partitions, so SAM checkpoint flags are unnecessary. To generate partitions first, use the dataset partition generator. The original command without `--explain_all` retains its separate hierarchical SAM/BPT pipeline and generation settings.

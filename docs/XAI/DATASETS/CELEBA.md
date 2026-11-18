@@ -35,6 +35,40 @@ python src/scripts/explanations/OC_CelebA.py \
   --explain_all --no-heatmaps --no-auc --no-resume
 ```
 
+### SAM version and compact partitions
+
+The same command for each SAM model (`--sam`, its folder from the generator) and each saved compact file (`--compact-strategy`). Results of `split` go to `<partition-folder>_split`; each run prints `Partitions: ... | compact file: ...` first.
+
+```bash
+# SAM-1 ViT-B, greedy compact partitions
+python src/scripts/explanations/OC_CelebA.py \
+  --config CelebAHQ_epito --sam sam1 --compact-strategy greedy \
+  --attribute Brown_Hair \
+  --show-gt --limit 1 \
+  --explain_all --no-heatmaps --no-auc --no-resume
+
+# SAM-1 ViT-B, split compact partitions
+python src/scripts/explanations/OC_CelebA.py \
+  --config CelebAHQ_epito --sam sam1 --compact-strategy split \
+  --attribute Brown_Hair \
+  --show-gt --limit 1 \
+  --explain_all --no-heatmaps --no-auc --no-resume
+
+# SAM-2 Large, greedy compact partitions
+python src/scripts/explanations/OC_CelebA.py \
+  --config CelebAHQ_epito --sam sam2 --compact-strategy greedy \
+  --attribute Brown_Hair \
+  --show-gt --limit 1 \
+  --explain_all --no-heatmaps --no-auc --no-resume
+
+# SAM-2 Large, split compact partitions
+python src/scripts/explanations/OC_CelebA.py \
+  --config CelebAHQ_epito --sam sam2 --compact-strategy split \
+  --attribute Brown_Hair \
+  --show-gt --limit 1 \
+  --explain_all --no-heatmaps --no-auc --no-resume
+```
+
 This runs BPT, BPT+SAM_c and SAM_c+KernelSHAP at one budget; LIME-1000 with
 100 requested SLIC segments; Shap-AA-1000; and all five gradient baselines.
 Select the common budget with [the separate pilot](BUDGET_ABLATION.md), then pass

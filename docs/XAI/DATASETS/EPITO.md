@@ -54,6 +54,60 @@ python src/scripts/explanations/OD_yolo.py \
   --class-aggregation sum
 ```
 
+### SAM version and compact partitions
+
+The same command for each SAM model (`--sam`, its folder from the generator) and each saved compact file (`--compact-strategy`). Results of `split` go to `<partition-folder>_split`; each run prints `Partitions: ... | compact file: ...` first.
+
+```bash
+# SAM-1 ViT-B, greedy compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam1 --compact-strategy greedy \
+  --limit 2 \
+  --max-evals 50 \
+  --eval-batch-size 16 \
+  --auc-batch-size 8 \
+  --verbose-level medium \
+  --model yolo11s \
+  --bg-type full \
+  --class-aggregation sum
+
+# SAM-1 ViT-B, split compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam1 --compact-strategy split \
+  --limit 2 \
+  --max-evals 50 \
+  --eval-batch-size 16 \
+  --auc-batch-size 8 \
+  --verbose-level medium \
+  --model yolo11s \
+  --bg-type full \
+  --class-aggregation sum
+
+# SAM-2 Large, greedy compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam2 --compact-strategy greedy \
+  --limit 2 \
+  --max-evals 50 \
+  --eval-batch-size 16 \
+  --auc-batch-size 8 \
+  --verbose-level medium \
+  --model yolo11s \
+  --bg-type full \
+  --class-aggregation sum
+
+# SAM-2 Large, split compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam2 --compact-strategy split \
+  --limit 2 \
+  --max-evals 50 \
+  --eval-batch-size 16 \
+  --auc-batch-size 8 \
+  --verbose-level medium \
+  --model yolo11s \
+  --bg-type full \
+  --class-aggregation sum
+```
+
 The runner discovers generated image IDs from the configured partition folder
 and selects the first two in sorted order. Confirm the printed `Masks`,
 `methods`, and `Images to process` values. Result paths are printed at startup.

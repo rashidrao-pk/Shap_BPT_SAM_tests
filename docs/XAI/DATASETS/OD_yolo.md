@@ -43,6 +43,36 @@ python src/scripts/explanations/OD_yolo.py \
   --dry-run
 ```
 
+### SAM version and compact partitions
+
+The same command for each SAM model (`--sam`, its folder from the generator) and each saved compact file (`--compact-strategy`). Results of `split` go to `<partition-folder>_split`; each run prints `Partitions: ... | compact file: ...` first.
+
+```bash
+# SAM-1 ViT-B, greedy compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam1 --compact-strategy greedy \
+  --limit 1 \
+  --dry-run
+
+# SAM-1 ViT-B, split compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam1 --compact-strategy split \
+  --limit 1 \
+  --dry-run
+
+# SAM-2 Large, greedy compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam2 --compact-strategy greedy \
+  --limit 1 \
+  --dry-run
+
+# SAM-2 Large, split compact partitions
+python src/scripts/explanations/OD_yolo.py \
+  --config MSCOCO_epito --sam sam2 --compact-strategy split \
+  --limit 1 \
+  --dry-run
+```
+
 This prints selected image IDs, methods, partition paths, and output root. It
 requires only Python/PyYAML, does not download weights or create results, and
 checks that images exist and their IDs occur in the COCO annotations. Incomplete

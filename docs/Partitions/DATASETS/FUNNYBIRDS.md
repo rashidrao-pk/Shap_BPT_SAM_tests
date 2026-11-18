@@ -15,6 +15,8 @@ python src/scripts/generate_funnybirds_partitions.py \
 
 ### SAM-1
 
+`--compact-strategy greedy split` saves both compact selections from one SAM run: `<id>_compact_greedy.npy` and `<id>_compact_split.npy` in the same folder. `data.compact_strategy` in the config picks the one used by XAI (default `greedy`); see [MSCOCO.md](MSCOCO.md#compare-compact-strategies-greedy-vs-mso).
+
 ```bash
 python src/scripts/generate_funnybirds_partitions.py \
   --config FunnyBirds_epito \
@@ -24,7 +26,7 @@ python src/scripts/generate_funnybirds_partitions.py \
   --device cuda \
   --max-regions 254 \
   --generate_at_least_n_masks 50 \
-  --save-partitions sam compact \
+  --save-partitions sam compact --compact-strategy greedy split \
   --limit 2
 ```
 
@@ -39,7 +41,7 @@ python src/scripts/generate_funnybirds_partitions.py \
   --device cuda \
   --max-regions 254 \
   --generate_at_least_n_masks 50 \
-  --save-partitions sam compact \
+  --save-partitions sam compact --compact-strategy greedy split \
   --limit 2
 ```
 

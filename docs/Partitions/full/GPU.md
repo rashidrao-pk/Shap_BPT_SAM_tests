@@ -17,7 +17,7 @@ When the prompt shows `GPU session ready on <node>`, run experiments directly, f
 ```bash
 python src/scripts/generate_coco_partitions.py --config MSCOCO_epito --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
-  --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact
+  --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact --compact-strategy greedy split
 ```
 
 `exit` ends the session and frees the GPU.
@@ -56,7 +56,7 @@ bash src/hpc/gpu.sh a100 --time 02:00:00             # EPITO A100 for 2 hours
 bash src/hpc/gpu.sh v100 --node cascadelake-V100S-02  # this V100S node
 bash src/hpc/gpu.sh best --tmux exp1                  # heaviest free GPU, inside tmux
 bash src/hpc/gpu.sh v100 -- python src/scripts/generate_busi_partitions.py --config BUSI_epito \
-  --model medsam --device cuda --generate_at_least_n_masks 50 --save-partitions sam compact --limit 1000
+  --model medsam --device cuda --generate_at_least_n_masks 50 --save-partitions sam compact --compact-strategy greedy split --limit 1000
 ```
 
 ## Keep the session alive: `--tmux`

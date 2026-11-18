@@ -213,14 +213,14 @@ python src/scripts/generate_dota_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda --max-regions 254 --generate_at_least_n_masks 200 \
-  --save-partitions sam compact --limit 2
+  --save-partitions sam compact --compact-strategy greedy split --limit 2
 
 # SAM-1 (optional, for the SAM1-vs-SAM2 comparison)
 python src/scripts/generate_dota_partitions.py \
   --config DOTA_epito --model sam1 \
   --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" --sam1-variant vit_b \
   --device cuda --max-regions 254 --generate_at_least_n_masks 200 \
-  --save-partitions sam compact --limit 2
+  --save-partitions sam compact --compact-strategy greedy split --limit 2
 ```
 
 Keep `--save-partitions sam compact` (other stages change the folder name). Remove `--limit` for all selected tiles; the command resumes. Preview and progress:

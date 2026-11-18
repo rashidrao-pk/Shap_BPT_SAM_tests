@@ -87,7 +87,7 @@ How to read it:
 The settings match the existing SAM runs on these datasets: up to 254 regions, a mask target of 50, and the `sam` and `compact` stages. The commands run in the EPITO session; for long runs, use the chained sbatch job below.
 
 ```bash
-COMMON=(--device cuda --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact)
+COMMON=(--device cuda --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --compact-strategy greedy split)
 
 # BUSI: all images (437 benign, 210 malignant, 133 normal; only benign and malignant have lesion masks)
 python src/scripts/generate_busi_partitions.py --config BUSI_epito --model medsam "${COMMON[@]}" --limit 1000
@@ -110,7 +110,7 @@ Start with `--image-id` or `--limit 5` to see a few results first. Runs resume p
 ```bash
 sbatch --export=ALL,CHAIN_LEFT=5 src/hpc/run_partitions.sbatch src/scripts/generate_busi_partitions.py \
   --config BUSI_epito --model medsam --device cuda --max-regions 254 --generate_at_least_n_masks 50 \
-  --save-partitions sam compact --limit 1000
+  --save-partitions sam compact --compact-strategy greedy split --limit 1000
 ```
 
 ## 4. Look at them and audit them

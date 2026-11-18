@@ -13,6 +13,8 @@ python src/scripts/generate_coco_partitions.py \
 
 ### SAM-1
 
+`--compact-strategy greedy split` saves both compact selections from one SAM run: `<id>_compact_greedy.npy` and `<id>_compact_split.npy` in the same folder. `data.compact_strategy` in the config picks the one used by XAI (default `greedy`); see [Compare compact strategies](#compare-compact-strategies-greedy-vs-mso).
+
 ```bash
 python src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito_sam1 \
@@ -23,6 +25,7 @@ python src/scripts/generate_coco_partitions.py \
   --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --save-partitions sam compact \
+  --compact-strategy greedy split \
   --limit 1000
 ```
 
@@ -41,6 +44,7 @@ python src/scripts/generate_coco_partitions.py \
   --max-regions 254 \
   --generate_at_least_n_masks 200 \
   --save-partitions sam compact \
+  --compact-strategy greedy split \
   --limit 1000
 ```
 
@@ -53,7 +57,7 @@ Add `--image-id ID [ID ...]` to generate only those images, for example to redo 
 ```bash
 python src/scripts/generate_coco_partitions.py --config MSCOCO_epito_sam1 --model sam1 \
   --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" --sam1-variant vit_b --device cuda \
-  --generate_at_least_n_masks 200 --save-partitions sam compact --image-id 76211 28285 57725 113867 11615
+  --generate_at_least_n_masks 200 --save-partitions sam compact --compact-strategy greedy split --image-id 76211 28285 57725 113867 11615
 ```
 
 ```bash
@@ -62,7 +66,7 @@ python src/scripts/generate_coco_partitions.py \
   --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
-  --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact --image-id 76211 28285 57725 113867 11615
+  --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact --compact-strategy greedy split --image-id 76211 28285 57725 113867 11615
 ```
 
 COCO IDs work padded or not (`76211` = `000000076211`); other datasets use the file stem, e.g. `--image-id "benign (12)"`. Unknown IDs stop the run before SAM loads. The output folder and resume settings are the same as for a full run, so the images join the normal folder, and a later full run skips them. Completed images are skipped unless `--overwrite` is given. Every `generate_*_partitions.py` has this flag.
@@ -78,14 +82,15 @@ COCO IDs work padded or not (`76211` = `000000076211`); other datasets use the f
 
 **Compact files (since 2026-11-18).** Each compact selection is a file of its own in the partition folder:
 
-| File | Made with |
-| --- | --- |
-| `<id>_sam.npy` | all SAM masks (one per image) |
-| `<id>_compact_greedy.npy` | `--compact-strategy greedy` (default) |
+| File                       | Made with                                |
+| -------------------------- | ---------------------------------------- |
+| `<id>_sam.npy`             | all SAM masks (one per image)            |
+| `<id>_compact_greedy.npy`  | `--compact-strategy greedy` (default)    |
 | `<id>_compact_mso_0.5.npy` | `--compact-strategy mso --mso-alpha 0.5` |
-| `<id>_compact_split.npy` | `--compact-strategy split` |
+| `<id>_compact_split.npy`   | `--compact-strategy split`               |
 
 The folder name does not depend on the strategy. Behaviour:
+
 - **One run, several strategies:** `--compact-strategy greedy split` runs SAM once per image and writes both files.
 - **Adding a strategy later:** run the same command with the new strategy added. Images that already have the other files run SAM again and write only the missing file; existing files are not touched.
 - **Which file is used:** `data.compact_strategy` in the config (`greedy` by default). It applies to XAI, `view_partitions --methods compact`, the audit and the comparison. XAI results for a non-greedy strategy go to `<folder>_<strategy>`, so they never overwrite the greedy results.
@@ -101,6 +106,7 @@ python src/hpc/merge_compact_folders.py --root /beegfs/home/mrashid/datasets/SAM
 ```
 
 The merge works per image:
+
 - `<base>_<tag>/<id>_compact.npy` becomes `<base>/<id>_compact_<tag>.npy`.
 - The metadata are merged.
 - A duplicate SAM map is dropped. A different one, from a separate SAM run, is kept as `<id>_sam_<tag>.npy` and flagged as `sam_run_differs` in the metadata.
@@ -139,17 +145,18 @@ Previews are saved under `previews/<partition folder>/`, so SAM-1 and SAM-2 prev
 
 `--compact-strategy` chooses how the compact stage picks SAM masks. Each step takes the mask with the highest score:
 
-| Strategy | Score | File |
-| --- | --- | --- |
-| `greedy` (default) | uncovered pixels × predicted IoU | `<id>_compact_greedy.npy` |
-| `mso` | uncovered pixels<sup>α</sup> × predicted IoU, with `--mso-alpha` α in (0, 1), default 0.5 | `<id>_compact_mso_<α>.npy` |
-| `split` | split gain × predicted IoU (see below); stops when no mask gains `--min-region-pixels` (default 64) | `<id>_compact_split.npy` (`_split_<N>` for another minimum) |
+| Strategy           | Score                                                                                               | File                                                        |
+| ------------------ | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `greedy` (default) | uncovered pixels × predicted IoU                                                                    | `<id>_compact_greedy.npy`                                   |
+| `mso`              | uncovered pixels<sup>α</sup> × predicted IoU, with `--mso-alpha` α in (0, 1), default 0.5           | `<id>_compact_mso_<α>.npy`                                  |
+| `split`            | split gain × predicted IoU (see below); stops when no mask gains `--min-region-pixels` (default 64) | `<id>_compact_split.npy` (`_split_<N>` for another minimum) |
 
 With α < 1, MSO favours smaller masks more than greedy does, so it usually picks more, smaller regions. Each strategy is saved as its own file in the same folder (see [Choose the partitions for XAI](#choose-the-partitions-for-xai)).
 
-**Why greedy and MSO can end with very few regions.** Both count only *uncovered* pixels and stop once every pixel is covered. SAM often returns one mask for a whole facade, wall or table. Once that mask is picked, every window, door or object inside it adds no uncovered pixel. Its score becomes 0 and selection stops. An image with 212 SAM masks can then end with 13 compact regions, and MSO cannot change this, because it only reorders the picks.
+**Why greedy and MSO can end with very few regions.** Both count only _uncovered_ pixels and stop once every pixel is covered. SAM often returns one mask for a whole facade, wall or table. Once that mask is picked, every window, door or object inside it adds no uncovered pixel. Its score becomes 0 and selection stops. An image with 212 SAM masks can then end with 13 compact regions, and MSO cannot change this, because it only reorders the picks.
 
 **`split` fixes this.** The partition is painted as before, smaller masks on top of larger ones. The **split gain** of a mask counts:
+
 - every unassigned pixel it covers;
 - for every region it cuts, the smaller of the two parts (pixels it takes vs pixels left).
 

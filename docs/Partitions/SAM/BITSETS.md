@@ -39,7 +39,7 @@ The batch generators do not keep SAM's raw masks, so the 254-region partitions n
 ```bash
 sbatch --export=ALL,CHAIN_LEFT=10 src/hpc/run_partitions.sbatch src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito --model sam1 --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" \
-  --sam1-variant vit_b --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact
+  --sam1-variant vit_b --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact --compact-strategy greedy split
 ```
 
 The explainers need no flag: `--label-words auto` is the default. Older `*_62_*` folders still work and give exactly the v1 trees. The audit labels them `SAM1-VB-K62`; the new ones are plain `SAM1-VB`. Their explanation results stay valid, and switching to the new folders recomputes each image, because each image's completion record stores its partition path.

@@ -140,7 +140,7 @@ python src/scripts/generate_imagenet_partitions.py \
   --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda --max-regions 254 \
   --generate_at_least_n_masks 100 \
-  --save-partitions sam compact refined
+  --save-partitions sam compact refined --compact-strategy greedy split
 ```
 
 Add `--dry-run` first to inspect the selected and pending counts. Matching

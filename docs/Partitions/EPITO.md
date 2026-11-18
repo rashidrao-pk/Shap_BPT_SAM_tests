@@ -87,7 +87,7 @@ python src/scripts/generate_coco_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --device cuda \
   --max-regions 254 \
-  --save-partitions sam compact \
+  --save-partitions sam compact --compact-strategy greedy split \
   --generate_at_least_n_masks 200
 ```
 
@@ -137,7 +137,7 @@ python src/scripts/generate_coco_partitions.py \
   --device cuda \
   --max-regions 254 \
   --generate_at_least_n_masks 200 \
-  --save-partitions sam compact boosted filled boosted_filled refined \
+  --save-partitions sam compact boosted filled boosted_filled refined --compact-strategy greedy split \
   --limit 500
 ```
 

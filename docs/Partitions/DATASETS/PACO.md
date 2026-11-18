@@ -15,6 +15,8 @@ python src/scripts/generate_paco_partitions.py \
 
 ### SAM-1
 
+`--compact-strategy greedy split` saves both compact selections from one SAM run: `<id>_compact_greedy.npy` and `<id>_compact_split.npy` in the same folder. `data.compact_strategy` in the config picks the one used by XAI (default `greedy`); see [MSCOCO.md](MSCOCO.md#compare-compact-strategies-greedy-vs-mso).
+
 ```bash
 python src/scripts/generate_paco_partitions.py \
   --config PACO_epito \
@@ -24,7 +26,7 @@ python src/scripts/generate_paco_partitions.py \
   --device cuda \
   --max-regions 254 \
   --generate_at_least_n_masks 50 \
-  --save-partitions sam compact \
+  --save-partitions sam compact --compact-strategy greedy split \
   --limit 2
 ```
 
@@ -39,7 +41,7 @@ python src/scripts/generate_paco_partitions.py \
   --device cuda \
   --max-regions 254 \
   --generate_at_least_n_masks 50 \
-  --save-partitions sam compact \
+  --save-partitions sam compact --compact-strategy greedy split \
   --limit 2
 ```
 
@@ -54,7 +56,7 @@ python src/scripts/generate_paco_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda --max-regions 254 --generate_at_least_n_masks 50 \
-  --save-partitions sam compact --limit 1000
+  --save-partitions sam compact --compact-strategy greedy split --limit 1000
 ```
 
 Remove `--limit 2` to process all 2,410 val images. Repeat the same command to resume: completed images are skipped.

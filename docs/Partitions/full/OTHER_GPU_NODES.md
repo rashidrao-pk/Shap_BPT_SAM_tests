@@ -49,7 +49,7 @@ In later sessions, the same `source` line only activates and checks. `--setup` r
 eval "$(bash src/hpc/gpu_check.sh --sbatch)"   # sets GPU_OPTS, GPU_NODE and exports SAM_ENV for that CPU type
 sbatch $GPU_OPTS --export=ALL,CHAIN_LEFT=10 src/hpc/run_partitions.sbatch src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito --model sam2 --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
-  --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact
+  --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact --compact-strategy greedy split
 ```
 
 `--export=ALL` carries `SAM_ENV` into the job. Files that pin `--nodelist=epito01` (`run_mscoco_large.sbatch`, `partitions_imagenet.sbatch`) also need `--nodelist=$GPU_NODE`. Build an x86 environment interactively once, as above, before sending x86 batch jobs.
@@ -188,7 +188,7 @@ GH="-p gracehopper --gres=gpu:gh200:1 --cpus-per-task=16 --mem=64G"
 sbatch $GH --export=ALL,CHAIN_LEFT=10 src/hpc/run_partitions.sbatch src/scripts/generate_coco_partitions.py \
   --config MSCOCO_epito --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
-  --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact
+  --device cuda --generate_at_least_n_masks 200 --save-partitions sam compact --compact-strategy greedy split
 
 # XAI at budgets 3000 and 5000, resumable
 sbatch $GH --export=ALL,CHAIN_LEFT=40 src/hpc/run_xai_budgets.sbatch --budgets 3000 5000 -- \
@@ -272,7 +272,7 @@ H200="-p llm --gres=gpu:h200:1 --cpus-per-task=16 --mem=64G"
 sbatch $H200 --export=ALL,SAM_ENV=/beegfs/home/mrashid/pt_312_sam_x86,CHAIN_LEFT=10 \
   src/hpc/run_partitions.sbatch src/scripts/generate_coco_partitions.py --config MSCOCO_epito --model sam2 \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" --device cuda \
-  --generate_at_least_n_masks 200 --save-partitions sam compact
+  --generate_at_least_n_masks 200 --save-partitions sam compact --compact-strategy greedy split
 ```
 
 The same `pt_312_sam_x86` environment also serves the L40S, V100S, T4 and L4 nodes, which are x86_64 too; it no longer depends on what each node has in `/opt`. The partition name suggests the node is meant for LLM jobs. If others are waiting, prefer `gracehopper`.

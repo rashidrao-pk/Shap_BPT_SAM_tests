@@ -7,6 +7,8 @@ First time: [download the dataset, classifier, and SAM checkpoints](BUSI_SETUP.m
 
 ## SAM1
 
+`--compact-strategy greedy split` saves both compact selections from one SAM run: `<id>_compact_greedy.npy` and `<id>_compact_split.npy` in the same folder. `data.compact_strategy` in the config picks the one used by XAI (default `greedy`); see [MSCOCO.md](MSCOCO.md#compare-compact-strategies-greedy-vs-mso).
+
 ```bash
 python src/scripts/generate_busi_partitions.py \
   --config BUSI_epito \
@@ -14,7 +16,7 @@ python src/scripts/generate_busi_partitions.py \
   --checkpoint "$PROJECT_DIR/checkpoints/sam1/sam_vit_b_01ec64.pth" \
   --sam1-variant vit_b \
   --device cuda --max-regions 254 --generate_at_least_n_masks 50 \
-  --save-partitions sam compact --limit 1000
+  --save-partitions sam compact --compact-strategy greedy split --limit 1000
 ```
 
 ## SAM2
@@ -26,7 +28,7 @@ python src/scripts/generate_busi_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda --max-regions 254 --generate_at_least_n_masks 50 \
-  --save-partitions sam compact --limit 1000
+  --save-partitions sam compact --compact-strategy greedy split --limit 1000
 ```
 
 #### Large Model
@@ -38,7 +40,7 @@ python src/scripts/generate_busi_partitions.py \
   --checkpoint "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt" \
   --sam2-config configs/sam2.1/sam2.1_hiera_l.yaml \
   --device cuda --max-regions 254 --generate_at_least_n_masks 50 \
-  --save-partitions sam compact --limit 1000
+  --save-partitions sam compact --compact-strategy greedy split --limit 1000
 ```
 
 Next: [SigLIP checkpoint](../MODELS/SigLIP_BUSI.md) and [BUSI explanations](../../XAI/DATASETS/BUSI.md).
@@ -84,8 +86,8 @@ Same settings, with a medical SAM instead. Setup, downloads and how they work: [
 
 ```bash
 python src/scripts/generate_busi_partitions.py --config BUSI_epito --model medsam --device cuda \
-  --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --limit 1000
+  --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --compact-strategy greedy split --limit 1000
 python src/scripts/generate_busi_partitions.py --config BUSI_epito --model medicosam --device cuda \
-  --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --limit 1000
+  --max-regions 254 --generate_at_least_n_masks 50 --save-partitions sam compact --compact-strategy greedy split --limit 1000
 python src/scripts/view_partitions.py --config BUSI_epito --sam medsam --limit 5 --methods sam compact
 ```

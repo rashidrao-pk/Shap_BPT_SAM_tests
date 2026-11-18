@@ -44,13 +44,14 @@ def test_paths_and_preview_folder_follow_the_choice(tmp_path):
     (tmp_path / 'images/000000076211.jpg').write_bytes(b'x')
     args = argparse.Namespace(config=str(config), image_id='76211', image=None, partitions=None, output=None,
                               methods=['sam', 'compact'], sam='sam2', partition_folder=None)
-    _, partitions, output = resolve_paths(args)
-    # Nothing generated yet: the new name (<id>_compact_greedy.npy); an existing legacy <id>_compact.npy is used too.
     folder = tmp_path / 'partitions/MSCOCO_sam2_large_254_compact-sam_200'
-    assert partitions[1] == folder / '000000076211_compact_greedy.npy'
     folder.mkdir(parents=True)
-    (folder / '000000076211_compact.npy').write_bytes(b'')
-    assert resolve_paths(args)[1][1] == folder / '000000076211_compact.npy'
+    for name in ['000000076211_sam.npy', '000000076211_compact_greedy.npy']:
+        (folder / name).write_bytes(b'')
+    _, partitions, output = resolve_paths(args)
+    assert partitions[1] == folder / '000000076211_compact_greedy.npy'  # 'compact' = data.compact_strategy (greedy)
+    (folder / '000000076211_compact_greedy.npy').rename(folder / '000000076211_compact.npy')
+    assert resolve_paths(args)[1][1] == folder / '000000076211_compact.npy'  # Legacy name, read as greedy
     assert output.parent.name == 'MSCOCO_sam2_large_254_compact-sam_200'
 
 
@@ -120,3 +121,18 @@ def test_lower_left_panel_shows_every_gt_object(tmp_path, monkeypatch):
     output = tmp_path / 'preview.png'
     view_partitions.render(image, [folder / '000000076211_compact.npy'], output, objects=(object_map, names))
     assert output.is_file()
+
+
+def test_a_missing_partition_is_reported_with_what_exists(tmp_path):
+    config = write_config(tmp_path)
+    (tmp_path / 'images').mkdir()
+    (tmp_path / 'images/000000076211.jpg').write_bytes(b'x')
+    folder = tmp_path / 'partitions/MSCOCO_sam2_large_254_compact-sam_200'
+    folder.mkdir(parents=True)
+    (folder / '000000076211_compact_greedy.npy').write_bytes(b'')
+    args = argparse.Namespace(config=str(config), image_id='76211', image=None, partitions=None, output=None,
+                              methods=['sam', 'compact_greedy'], sam='sam2', partition_folder=None)
+    from view_partitions import render
+    image, partitions, output = resolve_paths(args)
+    with pytest.raises(FileNotFoundError, match='not generated in .* yet .*missing 000000076211_sam.npy.*compact_greedy'):
+        render(image, partitions, output)

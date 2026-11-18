@@ -20,10 +20,17 @@ import partition_files
 
 def render(image_path, partition_paths, output, alpha=0.45, ground_truth=None, objects=None):
     """`objects`: (label map, names) of every GT object, drawn under the original instead of a second copy of it."""
-    image = np.asarray(Image.open(image_path).convert('RGB'))
     paths = [Path(path) for path in partition_paths]
     if not paths:
         raise ValueError('No partition maps selected')
+    missing = [path for path in paths if not path.is_file()]
+    if missing:
+        folder, image_id = missing[0].parent, Path(image_path).stem
+        present = sorted(path.name for path in folder.glob(f'{image_id}_*') if path.is_file())
+        raise FileNotFoundError(f'{image_id}: not generated in {folder.name} yet (missing '
+                                f'{", ".join(path.name for path in missing)}); files for this image there: '
+                                f'{", ".join(present) or "none"}')
+    image = np.asarray(Image.open(image_path).convert('RGB'))
     columns = len(paths) + 1 + int(ground_truth is not None)
     fig, axes = plt.subplots(2, columns, squeeze=False, figsize=(4 * columns, 7))
     axes[0, 0].imshow(image)
@@ -308,9 +315,11 @@ def main():
                 parser.error(f'no preview for {len(failed)} of {len(args.image_ids)} images: {" ".join(failed)}')
             return
         image, partitions, output = resolve_paths(args)
-    except ValueError as exc:
+        statistics = render(image, partitions, output, args.alpha, preview_ground_truth(args, image),
+                            preview_objects(args, image))
+    except (ValueError, FileNotFoundError) as exc:
         parser.error(str(exc))
-    print(json.dumps(render(image, partitions, output, args.alpha, preview_ground_truth(args, image), preview_objects(args, image)), indent=2))
+    print(json.dumps(statistics, indent=2))
     print(f'Preview: {output}')
 
 

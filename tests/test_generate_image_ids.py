@@ -35,3 +35,15 @@ def test_flag_parses_and_does_not_change_resume_settings():
     assert single.image_ids == ['76211', '139']
     assert gen.generation_settings(single) == gen.generation_settings(full)
     assert gen.partition_folder_name({'name': 'MSCOCO'}, single) == gen.partition_folder_name({'name': 'MSCOCO'}, full)
+
+
+def test_old_stamps_without_strategy_count_as_greedy():
+    from generate_coco_partitions import same_settings
+    old = {'model': 'sam2', 'max_regions': 254}
+    greedy = {**old, 'compact_strategy': 'greedy', 'mso_alpha': 0.5}
+    assert same_settings(old, greedy)
+    assert same_settings(greedy, {**old, 'compact_strategy': 'greedy', 'mso_alpha': 0.7})
+    assert not same_settings(old, {**old, 'compact_strategy': 'mso', 'mso_alpha': 0.5})
+    assert not same_settings({**old, 'compact_strategy': 'mso', 'mso_alpha': 0.5},
+                             {**old, 'compact_strategy': 'mso', 'mso_alpha': 0.7})
+    assert not same_settings(old, {**greedy, 'max_regions': 62})

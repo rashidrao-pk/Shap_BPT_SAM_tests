@@ -44,7 +44,7 @@ def test_preparation_freezes_common_pilot_before_execution(tmp_path):
     repo = tmp_path / 'repo'
     (repo / 'src/configs').mkdir(parents=True)
     partitions = tmp_path / 'partitions'
-    variants = ['MSCOCO_sam1_vit_b_254_compact-sam_200', 'MSCOCO_sam2_large_254_compact-sam_200']
+    variants = ['MSCOCO_sam1_vit_b_254_compact-sam_200_greedy', 'MSCOCO_sam2_large_254_compact-sam_200_greedy']
     for variant in variants:
         directory = partitions / variant
         directory.mkdir(parents=True)
@@ -78,7 +78,7 @@ def test_full_budget_preparation_pairs_variants_and_freezes_statistics(tmp_path)
     partitions = tmp_path / 'partitions'
     image = tmp_path / 'input.jpg'
     image.write_bytes(b'input bytes to hash')
-    for variant in ['ImageNet_sam1_vit_b_254_compact-sam_100', 'ImageNet_sam2_tiny_254_compact-sam_100']:
+    for variant in ['ImageNet_sam1_vit_b_254_compact-sam_100_greedy', 'ImageNet_sam2_tiny_254_compact-sam_100']:
         folder = partitions / variant
         folder.mkdir(parents=True)
         for index in range(22):

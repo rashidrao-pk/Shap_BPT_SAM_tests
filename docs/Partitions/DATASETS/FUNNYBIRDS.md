@@ -51,8 +51,8 @@ Keep `--save-partitions sam compact`. Saving other stages changes the folder nam
 
 | Model | Folder |
 | --- | --- |
-| SAM-1 | `FunnyBirds_sam1_vit_b_254_compact-sam_50` |
-| SAM-2 | `FunnyBirds_sam2_large_254_compact-sam_50` |
+| SAM-1 | `FunnyBirds_sam1_vit_b_254_compact-sam_50_greedy` |
+| SAM-2 | `FunnyBirds_sam2_large_254_compact-sam_50_greedy` |
 
 The config selects SAM-2. To explain SAM-1 partitions, set `data.mask_dir_final` to the SAM-1 folder.
 

@@ -32,7 +32,7 @@ The defaults leave names, folders and resume signatures exactly as before.
 
 ## Default: up to 254 regions
 
-Partition generation keeps up to **254 regions** by default (`--max-regions 254`, plus label 0), and every dataset config points to the `*_254_*` folders, for example `MSCOCO_sam1_vit_b_254_compact-sam_200`. How many regions an image gets depends on how many masks SAM returns; `--generate_at_least_n_masks` asks SAM for more.
+Partition generation keeps up to **254 regions** by default (`--max-regions 254`, plus label 0), and every dataset config points to the `*_254_*` folders, for example `MSCOCO_sam1_vit_b_254_compact-sam_200_greedy`. How many regions an image gets depends on how many masks SAM returns; `--generate_at_least_n_masks` asks SAM for more.
 
 The batch generators do not keep SAM's raw masks, so the 254-region partitions need a new SAM run. Long runs can be chained:
 

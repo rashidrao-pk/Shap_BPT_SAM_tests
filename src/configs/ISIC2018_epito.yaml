@@ -4,7 +4,7 @@ data:
   name: ISIC2018
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/ISIC2018/prepared_1024/validation/images
-  mask_dir_final: ISIC2018_sam2_large_254_compact-sam_50
+  mask_dir_final: ISIC2018_sam2_large_254_compact-sam_50_greedy
   ground_truth:
     format: isic2018
     root: /beegfs/home/mrashid/datasets/ISIC2018/prepared_1024/validation/masks

@@ -51,8 +51,8 @@ These are COCO `train2014` photos, so the existing MS-COCO partitions (`val2017`
 
 | Model | Folder                                  |
 | ----- | --------------------------------------- |
-| SAM-1 | `RefCOCO_sam1_vit_b_254_compact-sam_200` |
-| SAM-2 | `RefCOCO_sam2_large_254_compact-sam_200`  |
+| SAM-1 | `RefCOCO_sam1_vit_b_254_compact-sam_200_greedy` |
+| SAM-2 | `RefCOCO_sam2_large_254_compact-sam_200_greedy`  |
 
 ## Preview
 

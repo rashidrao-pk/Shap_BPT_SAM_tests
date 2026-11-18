@@ -199,6 +199,17 @@ def generation_settings(args):
     return settings
 
 
+def same_settings(previous, current):
+    """Compare resume stamps; stamps from before --compact-strategy existed count as greedy."""
+    def normalized(settings):
+        settings = dict(settings or {})
+        if settings.get('compact_strategy', 'greedy') == 'greedy':
+            settings.pop('compact_strategy', None)
+            settings.pop('mso_alpha', None)  # Unused by greedy.
+        return settings
+    return normalized(previous) == normalized(current)
+
+
 def notebook_stage_maps(annotations, shape, stages, select_count=400, max_distance=3):
     """Compute the notebook's greedy compact/booster/fill stages without plots."""
     import sam_notebook_pipeline as pipeline
@@ -276,7 +287,7 @@ def _run(args, progress_stream):
         if completed and not args.overwrite:
             previous = json.loads(metadata_path.read_text())
             settings = generation_settings(args)
-            if previous.get('generation_settings') != settings:
+            if not same_settings(previous.get('generation_settings'), settings):
                 raise ValueError(f'{image_id}: settings differ; use a new output folder or --overwrite')
             continue
         pending.append((image_id, path))

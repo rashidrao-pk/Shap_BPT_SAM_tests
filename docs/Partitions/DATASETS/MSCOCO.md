@@ -71,8 +71,8 @@ COCO IDs work padded or not (`76211` = `000000076211`); other datasets use the f
 
 | Model       | Folder                                  |
 | ----------- | --------------------------------------- |
-| SAM-1       | `MSCOCO_sam1_vit_b_254_compact-sam_200` |
-| SAM-2 Large | `MSCOCO_sam2_large_254_compact-sam_200` |
+| SAM-1       | `MSCOCO_sam1_vit_b_254_compact-sam_200_greedy` |
+| SAM-2 Large | `MSCOCO_sam2_large_254_compact-sam_200_greedy` |
 
 `data.mask_dir_final` selects the folder used by XAI. `MSCOCO_epito` currently selects SAM-1.
 

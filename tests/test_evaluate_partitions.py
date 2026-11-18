@@ -251,9 +251,9 @@ def test_label_iou_averages_over_objects():
 
 
 def test_labels_name_the_sam_model_and_size():
-    assert ep.sam_label('BUSI_sam1_vit_b_254_compact-sam_200') == 'SAM1-VB'
+    assert ep.sam_label('BUSI_sam1_vit_b_254_compact-sam_200_greedy') == 'SAM1-VB'
     assert ep.sam_label('BUSI_sam2_tiny_254_compact-sam_200') == 'SAM2-T'
-    assert ep.sam_label('BUSI_sam2_large_254_compact-sam_200') == 'SAM2-L'
+    assert ep.sam_label('BUSI_sam2_large_254_compact-sam_200_greedy') == 'SAM2-L'
     assert ep.sam_label('X_sam2_base_plus_254') == 'SAM2-B+'
 
 
@@ -274,4 +274,4 @@ def test_paper_table_has_one_labelled_row_per_segmenter(tmp_path, monkeypatch):
 def test_labels_name_a_region_cap_other_than_254():
     assert ep.sam_label('MSCOCO_sam1_vit_b_126_compact-sam_200') == 'SAM1-VB-K126'
     assert ep.sam_label('BUSI_sam2_large_62_compact-sam_50') == 'SAM2-L-K62'  # The old default cap.
-    assert ep.sam_label('MSCOCO_sam1_vit_b_254_compact-sam_200') == 'SAM1-VB'
+    assert ep.sam_label('MSCOCO_sam1_vit_b_254_compact-sam_200_greedy') == 'SAM1-VB'

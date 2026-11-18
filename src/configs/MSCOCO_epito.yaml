@@ -20,11 +20,11 @@ data:
   annotation_file: "/beegfs/home/mrashid/datasets/MS_COCO/annotations/annotations_trainval2017/annotations/instances_val2017.json"
 
   # XAI input folder: match the folder printed by partition generation.
-  mask_dir_final: "MSCOCO_sam1_vit_b_254_compact-sam_200"
+  mask_dir_final: "MSCOCO_sam1_vit_b_254_compact-sam_200_greedy"
   
   # New SAM2 batch outputs; older partition directories are preserved.
-  mask_dir_final_sam1: "MSCOCO_sam1_vit_b_254_compact-sam_200"
-  mask_dir_final_sam2: "MSCOCO_sam2_large_254_compact-sam_200"
+  mask_dir_final_sam1: "MSCOCO_sam1_vit_b_254_compact-sam_200_greedy"
+  mask_dir_final_sam2: "MSCOCO_sam2_large_254_compact-sam_200_greedy"
   
 evaluation:
   methods: [BPT, compact]

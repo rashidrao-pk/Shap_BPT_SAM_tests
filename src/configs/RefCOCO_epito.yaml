@@ -6,7 +6,7 @@ data:
   input_format: directory
   image_dir: /beegfs/home/mrashid/datasets/RefCOCO/prepared/val/images
   expressions: /beegfs/home/mrashid/datasets/RefCOCO/prepared/val/expressions.json
-  mask_dir_final: RefCOCO_sam2_large_254_compact-sam_200
+  mask_dir_final: RefCOCO_sam2_large_254_compact-sam_200_greedy
   ground_truth:
     format: refcoco
     root: /beegfs/home/mrashid/datasets/RefCOCO/raw/refcoco

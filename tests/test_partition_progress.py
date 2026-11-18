@@ -277,7 +277,7 @@ runpy.run_path(script, run_name='__main__')
             images.mkdir(parents=True)
             (images / 'benign (1).png').touch()
             base = root / 'partitions'
-            names = ['BUSI_sam1_vit_b_254_compact-sam_50', 'BUSI_sam2_tiny_254_compact-sam_50']
+            names = ['BUSI_sam1_vit_b_254_compact-sam_50_greedy', 'BUSI_sam2_tiny_254_compact-sam_50']
             for name in names:
                 folder = base / name
                 folder.mkdir(parents=True)
@@ -314,3 +314,11 @@ def test_time_summary_groups_by_model_dataset_and_total():
     assert summary['by_model']['SAM2-L']['seconds_per_image'] == 10.
     assert summary['by_dataset']['BUSI'] == {'folders': 2, 'images': 4, 'seconds': 30., 'seconds_per_image': 7.5}
     assert summary['total']['seconds'] == 60. and summary['total']['images'] == 5
+
+
+def test_sam_label_names_the_compact_strategy():
+    from check_partition_progress import sam_label
+    assert sam_label('MSCOCO_sam2_large_254_compact-sam_200_greedy') == 'SAM2-L'
+    assert sam_label('MSCOCO_sam2_large_254_compact-sam_200') == 'SAM2-L'
+    assert sam_label('MSCOCO_sam2_large_254_compact-sam_200_mso_0.5') == 'SAM2-L-MSO0.5'
+    assert sam_label('MSCOCO_sam1_vit_b_62_compact-sam_200_mso_0.7') == 'SAM1-VB-K62-MSO0.7'

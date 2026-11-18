@@ -94,8 +94,8 @@ def main():
             'output': str(output), 'source': str(info_path.parent), 'runner': runner})
     cfg = yaml.safe_load((repo / 'src/configs/MSCOCO_epito.yaml').read_text())
     base = Path(cfg['output']['partitions'])
-    variants = [cfg['data'].get('mask_dir_final_sam1', 'MSCOCO_sam1_vit_b_254_compact-sam_200'),
-                cfg['data'].get('mask_dir_final_sam2', 'MSCOCO_sam2_large_254_compact-sam_200')]
+    variants = [cfg['data'].get('mask_dir_final_sam1', 'MSCOCO_sam1_vit_b_254_compact-sam_200_greedy'),
+                cfg['data'].get('mask_dir_final_sam2', 'MSCOCO_sam2_large_254_compact-sam_200_greedy')]
     pools = []
     for name in variants:
         folder = base / name

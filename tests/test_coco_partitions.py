@@ -164,6 +164,16 @@ class CocoExportTest(unittest.TestCase):
         self.assertEqual(batch.partition_folder_name({'name': 'MS_COCO'}, args),
                          'MSCOCO_sam1_vit_b_62_refined_200')
 
+    def test_compact_strategy_arguments(self):
+        args = batch.create_parser().parse_args([
+            '--compact-strategy', 'mso', '--mso-alpha', '0.7'])
+        self.assertEqual(args.compact_strategy, 'mso')
+        self.assertEqual(args.mso_alpha, 0.7)
+
+        greedy = batch.create_parser().parse_args([])
+        self.assertEqual(greedy.compact_strategy, 'greedy')
+        self.assertEqual(greedy.mso_alpha, 0.5)
+
     def test_empty_masks(self):
         masks = np.zeros((0, 5, 6), dtype=bool)
         labels = batch.sam.refined_partitions(masks, 1, 3)

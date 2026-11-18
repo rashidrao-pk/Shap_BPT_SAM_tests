@@ -28,6 +28,14 @@ def parse_args():
     p.add_argument("--device", choices=["auto", "cpu", "mps", "cuda"], default="auto")
     p.add_argument("--max-regions", type=int, default=254)
     p.add_argument("--strategy", choices=["refined", "raw_overwrite", "compact"], default="refined")
+
+    p.add_argument('--compact-strategy', choices=['greedy', 'mso'], default='greedy',
+    help='Mask selection strategy for compact partitions: '
+         'greedy (original) or mso (Multi-Objective Selection).')
+
+    p.add_argument('--mso-alpha', type=float, default=0.5,
+        help='Exponent applied to unpicked area in the MSO selection strategy.')
+    
     p.add_argument("--output-dir", type=Path, default=Path("results/partitions/sam2"))
     p.add_argument("--checkpoint", type=Path, default=None)
     p.add_argument("--sam2-config", default=None,
@@ -351,11 +359,15 @@ def save_plot(image, partitions, target, title):
     fig.savefig(target, dpi=180, bbox_inches="tight")
     plt.close(fig)
 
-def select_masks_by_unpicked_area(masks, predicted_ious, n_masks_to_select):
+def select_masks_by_unpicked_area(masks, predicted_ious, n_masks_to_select, strategy='greedy', alpha=0.5):
     """
-    Iteratively selects masks using the following score:
+    Select masks iteratively according to their unpicked area and predicted IoU.
 
+    greedy:
         score = unpicked_area * predicted_iou
+
+    mso:
+        score = (unpicked_area ** alpha) * predicted_iou
 
     At each iteration, recalculates the scores of the remaining masks
     and selects the one with the highest score.
@@ -382,60 +394,56 @@ def select_masks_by_unpicked_area(masks, predicted_ious, n_masks_to_select):
     if n_masks_to_select < 1:
         raise ValueError("n_masks_to_select deve essere >= 1")
 
+    if strategy not in ("greedy", "mso"):
+        raise ValueError("strategy deve essere 'greedy' oppure 'mso'")
+
+    if strategy == "mso" and not 0 < alpha < 1:
+        raise ValueError("alpha deve essere compreso tra 0 e 1")
+
     if n == 0:
         return masks.copy()
 
     picked_pixels = np.zeros((h, w), dtype=bool)
-
     remaining_indices = list(range(n))
     selected_indices = []
 
     max_selections = min(n_masks_to_select, n)
 
     for _ in range(max_selections):
-
         best_index = None
         best_score = -1.0
         best_unpicked_area = 0
 
-        # Ricalcola lo score di tutte le maschere disponibili
         for idx in remaining_indices:
-
             unpicked_mask = masks[idx] & (~picked_pixels)
+            unpicked_area = int(np.count_nonzero(unpicked_mask))
 
-            unpicked_area = int(
-                np.count_nonzero(unpicked_mask)
-            )
-
-            score = (
-                unpicked_area * float(predicted_ious[idx])
-            )
+            if strategy == "greedy":
+                score = unpicked_area * float(predicted_ious[idx])
+            else:
+                score = (unpicked_area ** alpha) * float(predicted_ious[idx])
 
             if score > best_score:
                 best_index = idx
                 best_score = score
                 best_unpicked_area = unpicked_area
 
-        # Nessuna maschera aggiunge nuovi pixel
         if best_index is None or best_unpicked_area == 0:
             break
 
-        # Salva la maschera migliore
         selected_indices.append(best_index)
-
-        # Aggiorna la copertura
         picked_pixels |= masks[best_index]
-
-        # Rimuove la maschera selezionata dalle candidate
         remaining_indices.remove(best_index)
 
     return masks[selected_indices]
 
-def compact_partitions(masks, predicted_ious, max_regions):
+def compact_partitions(masks, predicted_ious, max_regions, strategy='greedy', alpha=0.5):
     selected_masks = select_masks_by_unpicked_area(
         masks,
         predicted_ious,
-        n_masks_to_select=max_regions
+        n_masks_to_select=max_regions,
+        strategy=strategy,
+        alpha=alpha
     )
 
     partitions = raw_overwrite(selected_masks)
@@ -512,7 +520,7 @@ def main():
         partitions = refined_partitions(masks, args.min_region_pixels, args.max_regions)
     elif args.strategy == "compact":
         
-        partitions = compact_partitions(masks, predicted_ious, args.max_regions)
+        partitions = compact_partitions(masks, predicted_ious, args.max_regions, strategy=args.compact_strategy, alpha=args.mso_alpha)
     else:
         partitions = raw_overwrite(masks)
         partitions = enforce_region_budget(partitions, args.max_regions).astype(np.uint16)
@@ -537,6 +545,8 @@ def main():
                    "stability_score_thresh": args.stability_score_thresh,
                    "min_region_pixels": args.min_region_pixels},
         "region_ids_are_labels_not_semantic_classes": True,
+        "compact_strategy": args.compact_strategy if args.strategy == "compact" else None,
+        "mso_alpha": args.mso_alpha if args.strategy == "compact" and args.compact_strategy == "mso" else None,
     }
     (out / f"{basename}.json").write_text(json.dumps(metadata, indent=2) + "\n")
     print(f"[success] image={image.shape} raw_masks={len(masks)} "

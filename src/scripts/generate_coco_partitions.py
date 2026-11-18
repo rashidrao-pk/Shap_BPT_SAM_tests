@@ -33,6 +33,10 @@ def create_parser(description=__doc__, default_config='MSCOCO_epito'):
                         default=['sam', 'refined'], help='Stage label maps to save (default: sam refined)')
     parser.add_argument('--select-count', type=int, default=400,
                         help='Maximum greedy-selected masks for notebook stages')
+    parser.add_argument('--compact-strategy', choices=['greedy', 'mso'], default='greedy',
+                        help='Mask selection strategy for the compact stage')
+    parser.add_argument('--mso-alpha', type=float, default=0.5,
+                        help='Exponent applied to unpicked area in the MSO strategy')
     parser.add_argument('--fill-max-distance', type=float, default=3,
                         help='Maximum gap-fill distance for notebook stages, in pixels')
     parser.add_argument('--generate_at_least_n_masks', '--generate-at-least-n-masks',
@@ -215,6 +219,12 @@ def _run(args, progress_stream):
     extra_stages = set(stages) - {'sam', 'refined'}
     if getattr(args, 'select_count', 400) < 1 or getattr(args, 'fill_max_distance', 3) < 0:
         raise ValueError('select-count must be positive and fill-max-distance nonnegative')
+    compact_strategy = getattr(args, 'compact_strategy', 'greedy')
+    mso_alpha = getattr(args, 'mso_alpha', 0.5)
+    if compact_strategy not in {'greedy', 'mso'}:
+        raise ValueError("compact-strategy must be 'greedy' or 'mso'")
+    if compact_strategy == 'mso' and not 0 < mso_alpha < 1:
+        raise ValueError('mso-alpha must be between 0 and 1')
     mask_target = getattr(args, 'generate_at_least_n_masks', None)
     if mask_target is not None and (mask_target < 1 or args.mask_tuning_max_steps < 1):
         raise ValueError('Mask target and tuning attempt count must be positive')
@@ -321,7 +331,9 @@ def _run(args, progress_stream):
             maps["compact"] = sam.compact_partitions(
                 masks,
                 predicted_ious,
-                args.max_regions
+                args.max_regions,
+                strategy=getattr(args, 'compact_strategy', 'greedy'),
+                alpha=getattr(args, 'mso_alpha', 0.5)
             )
 
         # Le altre strategie continuano a usare la pipeline notebook

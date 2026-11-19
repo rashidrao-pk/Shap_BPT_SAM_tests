@@ -7,6 +7,8 @@ installed build with:
 The Cython extension shap_bpt/bpt.pyx is compiled per CPU type and Python version
 (bpt.cpython-312-aarch64-linux-gnu.so on EPITO, ...-x86_64-linux-gnu.so on x86 nodes), so rebuild it on each:
     python -m pip install --no-deps --no-build-isolation --force-reinstall -e .
+Compiling needs Python.h: on HPC4AI mercurio the login node has no Python headers, so build the x86 extension on
+an x86 GPU node (e.g. bash src/hpc/gpu.sh v100 -- ...) and the ARM one on EPITO.
 """
 import re
 from pathlib import Path
@@ -60,7 +62,6 @@ setup(
               'feature attribution', 'segment anything', 'SAM'],
     classifiers=['Programming Language :: Python :: 3',
                  'Programming Language :: Cython',
-                 'License :: OSI Approved :: MIT License',
                  'Intended Audience :: Science/Research',
                  'Topic :: Scientific/Engineering :: Artificial Intelligence',
                  'Topic :: Scientific/Engineering :: Image Processing'],

@@ -37,7 +37,7 @@ python src/scripts/generate_camo_partitions.py \
   --limit 5
 ```
 
-## SAM2 - tiny
+## SAM2
 
 ```bash
 export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2

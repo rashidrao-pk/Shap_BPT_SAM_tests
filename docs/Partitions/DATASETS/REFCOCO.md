@@ -51,16 +51,16 @@ These are COCO `train2014` photos, so the existing MS-COCO partitions (`val2017`
 
 ### Choose the partitions for XAI
 
-| Model | Folder                                  |
-| ----- | --------------------------------------- |
+| Model | Folder                                   |
+| ----- | ---------------------------------------- |
 | SAM-1 | `RefCOCO_sam1_vit_b_254_compact-sam_200` |
-| SAM-2 | `RefCOCO_sam2_large_254_compact-sam_200`  |
+| SAM-2 | `RefCOCO_sam2_large_254_compact-sam_200` |
 
 ## Preview
 
 ```bash
 python src/scripts/view_partitions.py \
-  --config RefCOCO_epito --limit 5 --methods sam compact --show-gt
+  --config RefCOCO_epito --limit 5 --methods sam compact_greedy compact_split --show-gt
 ```
 
 The preview shows every referred object of the image.

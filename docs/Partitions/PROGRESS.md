@@ -3,6 +3,11 @@
 From the repository root, with Python and PyYAML available:
 
 ```bash
+env=/beegfs/home/mrashid/pt_312_sam_x86
+source "$env/bin/activate"
+```
+
+```bash
 python src/scripts/check_partition_progress.py --limit 1000
 ```
 

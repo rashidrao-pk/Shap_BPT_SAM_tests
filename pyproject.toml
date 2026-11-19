@@ -1,3 +1,6 @@
+# ShapBPT with SAM guidance. Package metadata and the version are in setup.py, which reads the version
+# from shap_bpt/_version.py (version history there). Check a build:
+#   python -c "import shap_bpt, pprint; pprint.pprint(shap_bpt.build_info())"
 [build-system]
 requires = ["setuptools>=64", "wheel", "Cython", "numpy"]
 build-backend = "setuptools.build_meta"

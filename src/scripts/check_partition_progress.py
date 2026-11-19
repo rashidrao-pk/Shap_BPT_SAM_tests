@@ -198,7 +198,14 @@ def inspect_folder(folder, expected_ids, dataset, methods=None):
             if image_id in expected_ids:
                 observed.add(image_id)
     total = len(expected_ids)
+    compact_files = {}  # strategy tag -> images in the subset with that compact file
+    for name in files:
+        if name.endswith('.npy') and '_compact' in name and output_image_id(name) in expected_ids:
+            tag = name[name.rindex('_compact') + len('_compact'):-4].lstrip('_') or 'greedy'  # legacy = greedy
+            compact_files.setdefault(tag, set()).add(output_image_id(name))
+    total = len(expected_ids)
     return {'dataset': dataset, 'folder': str(folder), 'completed': len(complete),
+            'compact_files': {tag: len(ids) for tag, ids in sorted(compact_files.items())},
             'total': total, 'percent': round(100 * len(complete) / total, 2) if total else 0,
             'partial': len(observed - complete), 'remaining': total - len(complete),
             'invalid_metadata': invalid_metadata,
@@ -283,10 +290,12 @@ def check_dataset(config_name, methods=None, limit=None, configured_only=False, 
     configured = base / data['mask_dir_final']
     folders = {configured}
     if not configured_only and base.is_dir():
-        prefix = re.sub(r'[^A-Za-z0-9-]', '', data['name']) + '_sam'
-        folders.update(path for path in base.iterdir() if path.is_dir() and path.name.startswith(prefix))
+        prefix = re.sub(r'[^A-Za-z0-9-]', '', data['name'])
+        model = re.compile(rf'{re.escape(prefix)}_(?:sam1|sam2|medsam|medicosam)_')
+        folders.update(path for path in base.iterdir() if path.is_dir() and model.match(path.name))
     rows = [inspect_folder(folder, expected, data['name'], methods) for folder in sorted(folders)]
     for row in rows:
+        row['compact_strategy'] = partition_files.configured_tag(data)
         row['input_selection'] = 'gt-only' if gt_only and data['name'].lower() == 'imagenet' else 'all'
         if row['input_selection'] == 'gt-only':
             row['gt_variant'] = data['ground_truth'].get('variant', 919)
@@ -372,6 +381,15 @@ def main():
               f'{row.get("display_folder", Path(row["folder"]).name)}')
         if row['status'] != 'present' or row['invalid_metadata']:
             print(f'  {row["status"]}; invalid metadata: {row["invalid_metadata"]}')
+        if row.get('compact_files'):
+            used = row.get('compact_strategy', 'greedy')
+            counts = ', '.join(f'{tag}{" (read by XAI)" if tag == used else ""}: {count}'
+                               for tag, count in row['compact_files'].items())
+            print(f'  compact files: {counts}')
+            if row['compact_files'].get(used, 0) < row['completed']:
+                print(f'  only {row["compact_files"].get(used, 0)} of {row["completed"]} completed images have '
+                      f'<id>_compact_{used}.npy, which XAI reads; rerun the generator with '
+                      f'--compact-strategy greedy {used} to add it')
         if row['subset_missing_timings'] or row['folder_missing_timings']:
             print(f'  Completed images missing timings: subset={row["subset_missing_timings"]}, '
                   f'folder={row["folder_missing_timings"]}')

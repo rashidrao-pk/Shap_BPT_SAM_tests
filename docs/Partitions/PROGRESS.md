@@ -86,6 +86,7 @@ says `counted on the GT-only selection`. `--gt-only` forces it, `--all-inputs` t
 - `Size(folder)`: all files recursively in that partition folder, including images beyond the limit and any extra files.
 - `Time(subset)`: sum of `total_time_sec` for completed images in the selected subset.
 - `Time(folder)`: sum of `total_time_sec` for all completed images in that folder.
+- `Greedy`, `Split`, `Other`: images of the subset with `<id>_compact_greedy.npy`, `<id>_compact_split.npy` or another compact file (e.g. `mso_0.5`). `*` marks the one XAI reads (`data.compact_strategy`, split by default). A line under the row warns when it lags behind `Completed`.
 
 Times use `HH:MM:SS`. Missing timing records are reported, and no timing data is
 shown as `n/a`. Timings count recorded successful per-image generation work;

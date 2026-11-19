@@ -396,23 +396,27 @@ def main():
             errors.append({'config': config, 'error': str(exc)})
     print(f'{"Dataset":<12} {"Completed / Total":>19} {"Progress":>9} {"Partial":>8} '
           f'{"Remaining":>10} {"Size(subset)":>12} {"Size(folder)":>12} '
-          f'{"Time(subset)":>12} {"Time(folder)":>12}  Folder')
+          f'{"Time(subset)":>12} {"Time(folder)":>12} {"Greedy":>7} {"Split":>7} {"Other":>12}  Folder')
     for row in rows:
+        files = row.get('compact_files') or {}
+        used = row.get('compact_strategy', 'greedy')
+
+        def cell(tag):
+            return f'{files.get(tag, 0)}{"*" if tag == used else ""}' if files else '-'
+        other = ', '.join(f'{tag}: {count}{"*" if tag == used else ""}' for tag, count in files.items()
+                          if tag not in ('greedy', 'split')) or '-'
         counts = f'{row["completed"]} / {row["total"]}'
         print(f'{row["dataset"]:<12} {counts:>19} {row["percent"]:>8.2f}% '
               f'{row["partial"]:>8} {row["remaining"]:>10} '
               f'{format_bytes(row["subset_bytes"]):>12} {format_bytes(row["folder_bytes"]):>12} '
               f'{format_duration(row["subset_generation_seconds"], row["subset_timed_images"]):>12} '
-              f'{format_duration(row["folder_generation_seconds"], row["folder_timed_images"]):>12}  '
+              f'{format_duration(row["folder_generation_seconds"], row["folder_timed_images"]):>12} '
+              f'{cell("greedy"):>7} {cell("split"):>7} {other:>12}  '
               f'{row.get("display_folder", Path(row["folder"]).name)}')
         if row['status'] != 'present' or row['invalid_metadata']:
             print(f'  {row["status"]}; invalid metadata: {row["invalid_metadata"]}')
-        if row.get('compact_files'):
-            used = row.get('compact_strategy', 'greedy')
-            counts = ', '.join(f'{tag}{" (read by XAI)" if tag == used else ""}: {count}'
-                               for tag, count in row['compact_files'].items())
-            print(f'  compact files: {counts}')
-            if row['compact_files'].get(used, 0) < row['completed']:
+        if files:
+            if files.get(used, 0) < row['completed']:
                 print(f'  only {row["compact_files"].get(used, 0)} of {row["completed"]} completed images have '
                       f'<id>_compact_{used}.npy, which XAI reads; rerun the generator with '
                       f'--compact-strategy greedy {used} to add it')
@@ -426,6 +430,8 @@ def main():
               'generated with --gt-only; pass --all-inputs to count the first N of all images instead.')
     if any(row.get('layout') == 'busi_pipeline' for row in rows):
         print('BUSI nested rows: sizes include SAM input_* outputs only; time is inference + refinement, excluding XAI.')
+    print('Greedy / Split / Other = images of the subset with <id>_compact_<strategy>.npy; * = the file XAI reads '
+          '(data.compact_strategy).')
     print('Size = logical file sizes; subset follows --limit, folder includes all files. '
           'Time = sum of recorded per-image generation times (HH:MM:SS), not Slurm wall time.')
     summary = time_summary(rows)

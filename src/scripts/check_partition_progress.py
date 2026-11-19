@@ -282,7 +282,30 @@ def inspect_busi_pipeline(root, data, expected_ids, methods=None):
     return rows
 
 
-def check_dataset(config_name, methods=None, limit=None, configured_only=False, busi_results_root=None, gt_only=False):
+def check_dataset(config_name, methods=None, limit=None, configured_only=False, busi_results_root=None, gt_only=False,
+                  auto_gt=True):
+    """auto_gt: for ImageNet without --gt-only, also count the GT-only selection and keep it when it matches the
+    folders better (they were generated with --gt-only, which selects other images before --limit)."""
+    rows = _check_dataset(config_name, methods, limit, configured_only, busi_results_root, gt_only)
+    if gt_only or not auto_gt or not rows or rows[0]['dataset'].lower() != 'imagenet':
+        return rows
+    if not any(row.get('folder_completed_images', 0) for row in rows):
+        return rows
+    try:
+        gt_rows = _check_dataset(config_name, methods, limit, configured_only, busi_results_root, True)
+    except (ValueError, KeyError, OSError):
+        return rows  # No ImageNet-S GT configured
+
+    def share(selection):
+        return sum(row['completed'] for row in selection) / max(sum(row['total'] for row in selection), 1)
+    if share(gt_rows) > share(rows):  # The GT-only selection explains the folders better
+        for row in gt_rows:
+            row['input_selection'] = 'gt-only (auto)'
+        return gt_rows
+    return rows
+
+
+def _check_dataset(config_name, methods=None, limit=None, configured_only=False, busi_results_root=None, gt_only=False):
     config = load_config(config_name)
     data = config['data']
     expected = source_ids(data, limit, gt_only)
@@ -353,6 +376,8 @@ def main():
     parser.add_argument('--configured-only', action='store_true', help='Check only data.mask_dir_final')
     parser.add_argument('--gt-only', '--gtonly', action='store_true',
                         help='ImageNet: count only inputs with configured ImageNetS GT before applying --limit; other datasets unchanged')
+    parser.add_argument('--all-inputs', action='store_true',
+                        help='ImageNet: do not switch to the GT-only selection automatically')
     parser.add_argument('--limit', type=int, help='Compare against first N inputs in generation order')
     parser.add_argument('--no-busi-pipeline', action='store_true',
                         help='Hide nested results/busi test partitions; retain all batch SAM variant folders')
@@ -365,7 +390,8 @@ def main():
     rows, errors = [], []
     for config in args.config:
         try:
-            rows.extend(check_dataset(config, args.methods, args.limit, args.configured_only, None if args.no_busi_pipeline else args.busi_results_root, args.gt_only))
+            rows.extend(check_dataset(config, args.methods, args.limit, args.configured_only, None if args.no_busi_pipeline else args.busi_results_root, args.gt_only,
+                                       auto_gt=not args.all_inputs))
         except (OSError, ValueError, KeyError, TypeError) as exc:
             errors.append({'config': config, 'error': str(exc)})
     print(f'{"Dataset":<12} {"Completed / Total":>19} {"Progress":>9} {"Partial":>8} '
@@ -395,14 +421,15 @@ def main():
                   f'folder={row["folder_missing_timings"]}')
     if any(row.get('input_selection') == 'gt-only' for row in rows):
         print('ImageNet: GT-only selection; annotated source images are selected BEFORE --limit, matching generation.')
+    if any(row.get('input_selection') == 'gt-only (auto)' for row in rows):
+        print('ImageNet: counted on the GT-only selection (images with ImageNet-S masks), because the folders were '
+              'generated with --gt-only; pass --all-inputs to count the first N of all images instead.')
     if any(row.get('layout') == 'busi_pipeline' for row in rows):
         print('BUSI nested rows: sizes include SAM input_* outputs only; time is inference + refinement, excluding XAI.')
     print('Size = logical file sizes; subset follows --limit, folder includes all files. '
           'Time = sum of recorded per-image generation times (HH:MM:SS), not Slurm wall time.')
     summary = time_summary(rows)
     print_time_summary(summary)
-    if not args.gt_only and any(row['dataset'].lower() == 'imagenet' for row in rows):
-        print('For ImageNet partitions generated with --gt-only, pass --gt-only here as well.')
     for error in errors:
         print(f'ERROR {error["config"]}: {error["error"]}')
     if args.json:

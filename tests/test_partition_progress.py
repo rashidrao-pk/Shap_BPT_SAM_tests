@@ -224,9 +224,13 @@ runpy.run_path(script, run_name='__main__')
             self.assertEqual(source_ids(data, 1000, gt_only=True), set(ids[-2:]))
             config = root / 'config.yaml'
             config.write_text(yaml.safe_dump({'data': data, 'output': {'partitions': str(base)}}))
-            plain = check_dataset(str(config), limit=2)[0]
+            plain = check_dataset(str(config), limit=2, auto_gt=False)[0]
             selected = check_dataset(str(config), limit=1000, gt_only=True)[0]
             self.assertEqual((plain['completed'], plain['total']), (0, 2))
+            # Without --gt-only, folders made with --gt-only are detected and counted on the GT-only selection
+            auto = check_dataset(str(config), limit=1000)[0]
+            self.assertEqual((auto['completed'], auto['total']), (2, 2))
+            self.assertEqual(auto['input_selection'], 'gt-only (auto)')
             self.assertEqual((selected['completed'], selected['total'], selected['percent']), (2, 2, 100))
             self.assertEqual(selected['subset_generation_seconds'], 10)
             self.assertEqual(selected['input_selection'], 'gt-only')

@@ -33,6 +33,7 @@ python src/scripts/generate_funnybirds_partitions.py \
 ### SAM-2
 
 ```bash
+export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
 python src/scripts/generate_funnybirds_partitions.py \
   --config FunnyBirds_epito \
   --model sam2 \

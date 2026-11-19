@@ -76,6 +76,12 @@ python src/scripts/check_partition_progress.py --limit 1000
 python src/scripts/check_partition_progress.py --limit 1000 --gt-only --no-busi-pipeline
 ```
 
+**ImageNet and `--gt-only`.** ImageNet partitions are generated with `--gt-only`: only validation images with an
+ImageNet-S mask, chosen before `--limit`. Counting the first 1000 of *all* validation images would find only the
+few of them that have masks (e.g. `11 / 1000`, while `Size(folder)` and `Time(folder)` show the full run). The
+check therefore also counts the GT-only selection and uses it when it matches the folders better; the output then
+says `counted on the GT-only selection`. `--gt-only` forces it, `--all-inputs` turns the automatic switch off.
+
 - `Size(subset)`: saved partition arrays, raw-mask NPZs, and results JSONs for the selected input IDs, including partial outputs.
 - `Size(folder)`: all files recursively in that partition folder, including images beyond the limit and any extra files.
 - `Time(subset)`: sum of `total_time_sec` for completed images in the selected subset.

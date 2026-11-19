@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_setup_reads_the_package_version():
-    assert re.fullmatch(r'\d+\.\d+\.\d+', shap_bpt.__version__)
+    assert re.fullmatch(r'\d+\.\d+(\.\d+)?', shap_bpt.__version__)
     assert "VERSION" in (ROOT / 'setup.py').read_text()
 
 

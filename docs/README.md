@@ -35,7 +35,7 @@ find /beegfs/home/mrashid/datasets/SAM_BPT/1000_boosted/ -type f | wc -l
 - Dataset Path
   - /beegfs/home/mrashid/datasets/MS_COCO
 - Code Repo:
-  - [github.com/ElleR01/shap_bpt_sam](www.github.com/ElleR01/shap_bpt_sam)
+  - [github.com/ElleR01/shap_bpt_sam](https://www.github.com/ElleR01/shap_bpt_sam)
 
 ```bash
 ls

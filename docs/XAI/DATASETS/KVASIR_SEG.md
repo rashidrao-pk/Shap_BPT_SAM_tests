@@ -1,6 +1,6 @@
 # Kvasir-SEG explanations
 
-Run from the repository root on a GPU node. First [download the dataset](../../DATASETS/KVASIR_SEG.md), get the checkpoint ([Kvasir v2 ViT](../../MODELS/KVASIR_VIT.md)), and [generate partitions](../../Partitions/DATASETS/KVASIR_SEG.md). Make sure `data.mask_dir_final` names the generated folder.
+Run from the repository root on a GPU node. First [download the dataset](../../SETUP/DATASETS/KVASIR_SEG.md), get the checkpoint ([Kvasir v2 ViT](../../SETUP/MODELS/KVASIR_VIT.md)), and [generate partitions](../../Partitions/DATASETS/KVASIR_SEG.md). Make sure `data.mask_dir_final` names the generated folder.
 
 ## Run
 

@@ -17,7 +17,7 @@ curl -L --fail \
   -o checkpoints/sam1/sam_vit_b_01ec64.pth
 ```
 
-For the package installation, see [EPITO setup](../Partitions/full/EPITO_SETUP.md).
+For the package installation, see [EPITO setup](../../Partitions/full/EPITO_SETUP.md).
 
 ## Use
 

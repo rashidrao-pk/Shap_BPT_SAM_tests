@@ -9,7 +9,7 @@ python src/scripts/explanations/OC_ResNet.py \
   --explain_all --no-heatmaps --no-resume
 ```
 
-Optional dependencies, inside the existing SAM/PyTorch environment:
+Optional dependencies, inside the existing SAM/PyTorch environment (which package each method needs: [XAI methods](../SETUP/XAI_METHODS.md)):
 
 ```bash
 python -m pip install -r requirements-xai-all.txt
@@ -119,7 +119,7 @@ Opt in with `--extra-methods hshap hshap-cs eac` next to `--explain_all`. Withou
 ## Architecture support
 
 - **OC_CelebA:** all comparison methods with the E5 CelebModel checkpoint; raw attribute
-  logits, direct resize, and GradCAM at `unit8.conv`. See [CelebA setup](CELEBA.md).
+  logits, direct resize, and GradCAM at `unit8.conv`. See [CelebA setup](DATASETS/CELEBA.md).
 - **OC_ResNet:** all listed methods, including LRP with explicit residual addition
   modules on a separate model copy. The copy's logits are checked against the
   scoring model before attribution.

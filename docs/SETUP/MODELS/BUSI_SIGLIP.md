@@ -32,4 +32,4 @@ It is a public classifier for the same three classes as the dataset, with docume
 - LRP is not available for this architecture.
 - Research diagnostics only, not clinical evidence.
 
-More detail: [SigLIP notes](../Partitions/MODELS/SigLIP_BUSI.md).
+More detail: [SigLIP notes](../../Partitions/MODELS/SigLIP_BUSI.md).

@@ -1,10 +1,10 @@
 # YOLO explanations from MS-COCO partitions
 
-Model: [YOLO11s](../../MODELS/YOLO.md)
+Model: [YOLO11s](../../SETUP/MODELS/YOLO.md)
 
 **Colour order.** Ultralytics reads NumPy arrays as BGR; the pipeline holds RGB. Since 2026-11-17 every array is converted in `yolo_io.py` before `model.predict` (input version 2). Earlier runs had red and blue swapped. When an older output folder is resumed, its AUC tables are renamed to `*.v1_swapped_channels.csv`, a `yolo_input.json` marker is written, and every image is recomputed. All-method completion markers from older runs no longer match either.
 
-[OD_yolo.py](../../src/scripts/explanations/OD_yolo.py) is a separate copy of
+[OD_yolo.py](../../../src/scripts/explanations/OD_yolo.py) is a separate copy of
 `run_yolo_full_all.py`. The original is unchanged. It retains YOLO prediction,
 ShapBPT/region Kernel SHAP, deletion/insertion AUC, faithfulness metrics,
 per-image heatmaps, plots, CSV summaries, resume checks, and the HTML report.

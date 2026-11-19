@@ -1,8 +1,8 @@
 # PartImageNet explanations
 
-Model: [ResNet-50](../../MODELS/RESNET50.md)
+Model: [ResNet-50](../../SETUP/MODELS/RESNET50.md)
 
-First [download assets and configure a split](../Partitions/DATASETS/PARTIMAGENET_SETUP.md), then [generate partitions](../Partitions/DATASETS/PARTNET.md). Ensure `data.mask_dir_final` matches the generated folder.
+First [download assets and configure a split](../../Partitions/DATASETS/PARTIMAGENET_SETUP.md), then [generate partitions](../../Partitions/DATASETS/PARTNET.md). Ensure `data.mask_dir_final` matches the generated folder.
 
 Inside an allocated GPU node:
 

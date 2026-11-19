@@ -26,4 +26,4 @@ python -c "from torchvision.models import vit_b_16; vit_b_16(weights='DEFAULT')"
 - ImageNet has no "camouflaged" class, so on CAMO the prediction is not about camouflage, and the mask marks the hidden object rather than the predicted class.
 - LRP is not available for this architecture.
 
-A classifier trained on CAMO must match torchvision's ViT-B/16: see [CAMO XAI](../XAI/DATASETS/CAMO.md#run).
+A classifier trained on CAMO must match torchvision's ViT-B/16: see [CAMO XAI](../../XAI/DATASETS/CAMO.md#run).

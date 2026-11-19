@@ -90,4 +90,4 @@ curl --fail --location --retry 3 \
   --output checkpoints/sam1/sam_vit_b_01ec64.pth
 ```
 
-Next: [generate BUSI partitions](BUSI.md), then [run XAI](../../XAI/BUSI.md). Downloads do not need repeating for each experiment.
+Next: [generate BUSI partitions](BUSI.md), then [run XAI](../../SETUP/DATASETS/BUSI.md). Downloads do not need repeating for each experiment.

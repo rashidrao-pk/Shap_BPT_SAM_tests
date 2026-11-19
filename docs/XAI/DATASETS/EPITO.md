@@ -1,6 +1,6 @@
 # EPITO: XAI from generated partitions
 
-First generate partitions using [Partitions/EPITO.md](../Partitions/EPITO.md).
+First generate partitions using [Partitions/EPITO.md](../../Partitions/EPITO.md).
 Generation and XAI are separate commands; XAI reuses the saved label maps.
 
 ## 1. Start a session
@@ -20,7 +20,7 @@ cd "$PROJECT_DIR"
 
 ## 2. Check the config
 
-[src/configs/MSCOCO_epito.yaml](../../src/configs/MSCOCO_epito.yaml) selects:
+[src/configs/MSCOCO_epito.yaml](../../../src/configs/MSCOCO_epito.yaml) selects:
 
 ```yaml
 data:
@@ -117,7 +117,7 @@ The new script ignores legacy method lists and defaults to the three SAM_c compa
 
 Increase `--limit`, or omit it to process all image IDs found in the partition
 folder. Generate those partitions first. For other models and experiment
-settings, see [the experiment matrix](../README_exp_epito.md).
+settings, see [the experiment matrix](../../README_exp_epito.md).
 
 Results are saved under `output.explanations` as
 `OD_yolo/<mask_dir_final>/bg_<background>_B<max-evals>/`.

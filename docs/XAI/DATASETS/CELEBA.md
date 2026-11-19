@@ -1,6 +1,6 @@
 # CelebA-HQ attribute explanations on EPITO
 
-Model: [CelebA CNN](../../MODELS/CELEBA_CNN.md)
+Model: [CelebA CNN](../../SETUP/MODELS/CELEBA_CNN.md)
 
 This runner uses the custom **CelebModel** and checkpoint from
 [the E5 notebook](https://github.com/rashidrao-pk/shap_bpt_tests/blob/main/notebooks/E5_CelebA/N1_Run_experiments_CelebA.ipynb).
@@ -71,7 +71,7 @@ python src/scripts/explanations/OC_CelebA.py \
 
 This runs BPT, BPT+SAM_c and SAM_c+KernelSHAP at one budget; LIME-1000 with
 100 requested SLIC segments; Shap-AA-1000; and all five gradient baselines.
-Select the common budget with [the separate pilot](BUDGET_ABLATION.md), then pass
+Select the common budget with [the separate pilot](../BUDGET_ABLATION.md), then pass
 `--budget-selection` to apply its validated result.
 **LRP and GradCAM are supported for this CNN.** The GradCAM target is `unit8.conv`,
 as in the notebook. The default background is `full`. Remove `--no-auc` to add

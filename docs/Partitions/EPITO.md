@@ -1,6 +1,6 @@
 # EPITO: generate MS-COCO partitions
 
-Requires the completed [one-time setup](../full/EPITO_SETUP.md).
+Requires the completed [one-time setup](full/EPITO_SETUP.md).
 Update the code on EPITO before running these commands, including the new
 `generate_coco_partitions.py`, the updated `generate_sam_partitions.py`,
 `run_yolo_full.py`, and `src/configs/MSCOCO_epito.yaml`.
@@ -211,7 +211,7 @@ partition refinement remains in use.
 
 ## 5. Run XAI separately
 
-After the first two images complete, follow [XAI/EPITO.md](../XAI/EPITO.md).
+After the first two images complete, follow [XAI/EPITO.md](../XAI/DATASETS/EPITO.md).
 You can run the two-image XAI smoke test before generating all COCO images.
 
 When finished, use `exit` to release the GPU allocation.

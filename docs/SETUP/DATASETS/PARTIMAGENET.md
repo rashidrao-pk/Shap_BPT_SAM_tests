@@ -16,5 +16,5 @@ The download script uses Python's standard library: it does not import NumPy, Py
 
 ## Next steps
 
-1. [Generate partitions](../Partitions/DATASETS/PARTNET.md)
-2. [Run explanations](../XAI/DATASETS/PARTIMAGENET.md)
+1. [Generate partitions](../../Partitions/DATASETS/PARTNET.md)
+2. [Run explanations](../../XAI/DATASETS/PARTIMAGENET.md)

@@ -1,6 +1,6 @@
 # Datasets
 
-How to download each dataset. Checkpoints have their own pages in [Models](../MODELS/README.md).
+How to download each dataset. Part of [Setup](../README.md). Checkpoints have their own pages in [Models](../MODELS/README.md); the packages for each XAI method are in [XAI methods](../XAI_METHODS.md).
 
 | Dataset                         | Ground truth for XAI   | Model      | Were the explained images in training? | Runner            |
 | ------------------------------- | ---------------------- | ---------------------- | -------------------------------------- | ----------------- |
@@ -75,19 +75,19 @@ The command exits with 1 if any dataset is `BLOCKED`. For exact partition progre
 
 ## Check partition quality
 
-Before spending time on XAI for a dataset, [evaluate its partitions](../Partitions/EVALUATE_PARTITIONS.md) against the ground truth. It gives a verdict for each dataset.
+Before spending time on XAI for a dataset, [evaluate its partitions](../../Partitions/EVALUATE_PARTITIONS.md) against the ground truth. It gives a verdict for each dataset.
 
 ## Added datasets
 
 - [x] MS-COCO
 - [x] ImageNet
-- [x] [PartImageNet](docs/DATASETS/PARTIMAGENET.md)
+- [x] [PartImageNet](PARTIMAGENET.md)
 - [x] Celeb-A-HQ
 - [x] CAMO
-- [x] [BUSI](docs/DATASETS/BUSI.md)
-- [x] [FunnyBirds](docs/DATASETS/FUNNY_BIRD.md)
-- [x] [PACO: Parts and Attributes of Common Objects](docs/DATASETS/PACO.md)
-- [x] [Kvasir-SEG](docs/DATASETS/KVASIR_SEG.md)
-- [x] [ISIC-2018](docs/DATASETS/ISIC_2018.md)
-- [x] [DOTA](docs/DATASETS/DOTA.md) (code and tests; first full EPITO run pending)
-- [x] [RefCOCO](docs/DATASETS/REFCOCO.md), vision–language with CLIP (code and tests; first full EPITO run pending)
+- [x] [BUSI](BUSI.md)
+- [x] [FunnyBirds](FUNNY_BIRD.md)
+- [x] [PACO: Parts and Attributes of Common Objects](PACO.md)
+- [x] [Kvasir-SEG](KVASIR_SEG.md)
+- [x] [ISIC-2018](ISIC_2018.md)
+- [x] [DOTA](DOTA.md) (code and tests; first full EPITO run pending)
+- [x] [RefCOCO](REFCOCO.md), vision–language with CLIP (code and tests; first full EPITO run pending)

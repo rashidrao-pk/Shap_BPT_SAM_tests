@@ -54,9 +54,9 @@ Changing `--tile`, `--stride`, `--min-keep` or the sample gives different tiles 
 
 ## 3. Next steps
 
-1. [Generate partitions](../Partitions/DATASETS/DOTA.md)
-2. [Evaluate partitions against GT](../Partitions/EVALUATE_PARTITIONS.md)
-3. [Run explanations](../XAI/DATASETS/DOTA.md)
+1. [Generate partitions](../../Partitions/DATASETS/DOTA.md)
+2. [Evaluate partitions against GT](../../Partitions/EVALUATE_PARTITIONS.md)
+3. [Run explanations](../../XAI/DATASETS/DOTA.md)
 
 ## Limits on what you can claim
 

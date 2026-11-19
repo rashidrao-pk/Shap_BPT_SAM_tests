@@ -1,6 +1,6 @@
 # PACO explanations
 
-Run from the repository root on a GPU node. First [download the dataset](../../DATASETS/PACO.md), get the checkpoint ([ResNet-50](../../MODELS/RESNET50.md)), and [generate partitions](../../Partitions/DATASETS/PACO.md). Make sure `data.mask_dir_final` names the generated folder.
+Run from the repository root on a GPU node. First [download the dataset](../../SETUP/DATASETS/PACO.md), get the checkpoint ([ResNet-50](../../SETUP/MODELS/RESNET50.md)), and [generate partitions](../../Partitions/DATASETS/PACO.md). Make sure `data.mask_dir_final` names the generated folder.
 
 ## Run
 

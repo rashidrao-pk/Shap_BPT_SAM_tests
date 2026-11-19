@@ -353,7 +353,7 @@ def check_dataset(config_name, pins=None):
     result.update(images=images, gt=gt)
     for area, check in [('images', images), ('ground truth', gt)]:
         if check.status != OK and check.detail:
-            problem(area, check, f'docs/DATASETS/{spec.doc}')
+            problem(area, check, f'docs/SETUP/DATASETS/{spec.doc}')
     sam = {'sam1': check_model(MODELS['sam1'], pins=pins), 'sam2': check_model(MODELS[spec.sam2], pins=pins)}
     override = config.get('model', {}).get('checkpoint')
     models = [check_model(MODELS[key], override if len(spec.models) == 1 else None, pins) for key in spec.models]
@@ -468,7 +468,7 @@ def problem_lines(results, packages, extension):
     for row in model_summary(results):
         item = row['item']
         if item.status != OK:
-            lines.append(f"- {item.model.label} [{item.status}]: {item.detail} (see docs/MODELS/{item.model.doc})")
+            lines.append(f"- {item.model.label} [{item.status}]: {item.detail} (see docs/SETUP/MODELS/{item.model.doc})")
     absent = [IMPORT_NAMES.get(name, name) for name, found in packages.items()
               if not found and name not in {*OPTIONAL_PACKAGES, 'shap_bpt'}]
     if absent:

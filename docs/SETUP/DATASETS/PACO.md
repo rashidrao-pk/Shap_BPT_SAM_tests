@@ -27,8 +27,8 @@ The PACO-EGO4D subset is not included: its frames need an [Ego4D licence](https:
 
 ## 3. Next steps
 
-1. [Generate partitions](../Partitions/DATASETS/PACO.md)
-2. [Run explanations](../XAI/DATASETS/PACO.md)
+1. [Generate partitions](../../Partitions/DATASETS/PACO.md)
+2. [Run explanations](../../XAI/DATASETS/PACO.md)
 
 ## Limits on what you can claim
 

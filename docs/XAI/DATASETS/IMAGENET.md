@@ -1,6 +1,6 @@
 # ImageNet explanations
 
-Run from the repository root on a GPU node. First [download the dataset](../../DATASETS/ImageNet.md), get the checkpoint ([ResNet-50](../../MODELS/RESNET50.md), [VGG16](../../MODELS/VGG16.md), [ViT-B/16](../../MODELS/VIT_B16.md)), and [generate partitions](../../Partitions/DATASETS/ImageNet.md). Make sure `data.mask_dir_final` names the generated folder.
+Run from the repository root on a GPU node. First [download the dataset](../../SETUP/DATASETS/ImageNet.md), get the checkpoint ([ResNet-50](../../SETUP/MODELS/RESNET50.md), [VGG16](../../SETUP/MODELS/VGG16.md), [ViT-B/16](../../SETUP/MODELS/VIT_B16.md)), and [generate partitions](../../Partitions/DATASETS/ImageNet.md). Make sure `data.mask_dir_final` names the generated folder.
 
 ## Run
 

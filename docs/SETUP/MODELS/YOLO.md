@@ -28,4 +28,4 @@ curl --fail --location -o src/checkpoints/yolo11s.pt \
 - YOLO and COCO number classes differently. Ground truth is matched by class name.
 - It trained on COCO `train2017`, so do not treat [PACO](../DATASETS/PACO.md) images as unseen by it.
 
-Usage: [YOLO guide](../XAI/DATASETS/OD_yolo.md).
+Usage: [YOLO guide](../../XAI/DATASETS/OD_yolo.md).

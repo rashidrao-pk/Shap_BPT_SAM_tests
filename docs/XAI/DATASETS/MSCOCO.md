@@ -1,6 +1,6 @@
 # MS-COCO explanations
 
-Run from the repository root on a GPU node. First [download the dataset](../../DATASETS/MS_COCO.md), get the checkpoint ([YOLO11s](../../MODELS/YOLO.md), [DETR](../../MODELS/DETR.md)), and [generate partitions](../../Partitions/DATASETS/MSCOCO.md). Make sure `data.mask_dir_final` names the generated folder.
+Run from the repository root on a GPU node. First [download the dataset](../../SETUP/DATASETS/MS_COCO.md), get the checkpoint ([YOLO11s](../../SETUP/MODELS/YOLO.md), [DETR](../../SETUP/MODELS/DETR.md)), and [generate partitions](../../Partitions/DATASETS/MSCOCO.md). Make sure `data.mask_dir_final` names the generated folder.
 
 ## YOLO
 
@@ -58,7 +58,7 @@ Drop `--local-files-only` if the weights are not cached yet. DETR needs `transfo
 
 - The score sums or maximizes over detections, so a map explains all detections of a class, not one object.
 - val2017 is outside both detectors' COCO training set, but it is the standard validation split, so treat it as a benchmark rather than unseen data.
-- PACO images overlap COCO. Do not explain them with these detectors as if they were unseen: see [PACO](../../DATASETS/PACO.md).
+- PACO images overlap COCO. Do not explain them with these detectors as if they were unseen: see [PACO](../../SETUP/DATASETS/PACO.md).
 
 ## Outputs and resume
 

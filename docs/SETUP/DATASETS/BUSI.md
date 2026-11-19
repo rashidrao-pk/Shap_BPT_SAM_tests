@@ -8,7 +8,7 @@ source /beegfs/home/mrashid/pt_312_sam/bin/activate
 unset PYTHONPATH
 ```
 
-For environment and SAM package installation, use [EPITO setup](../Partitions/full/EPITO_SETUP.md). Download files on a node with internet access; inference can use local copies afterward.
+For environment and SAM package installation, use [EPITO setup](../../Partitions/full/EPITO_SETUP.md). Download files on a node with internet access; inference can use local copies afterward.
 
 ## 1. Images and lesion masks
 
@@ -69,5 +69,5 @@ If extraction has a different nesting level, adjust the config paths and the che
 
 ## Next steps
 
-1. [Generate partitions](../Partitions/DATASETS/BUSI.md)
-2. [Run explanations](../XAI/DATASETS/BUSI.md)
+1. [Generate partitions](../../Partitions/DATASETS/BUSI.md)
+2. [Run explanations](../../XAI/DATASETS/BUSI.md)

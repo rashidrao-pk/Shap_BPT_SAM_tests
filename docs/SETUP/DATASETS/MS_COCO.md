@@ -39,5 +39,5 @@ Check that `val2017` holds 5,000 files. Your local copy at `/Users/rashid/data/D
 
 ## Next steps
 
-1. [Generate partitions](../Partitions/DATASETS/MSCOCO.md)
-2. [Run explanations](../XAI/DATASETS/MSCOCO.md)
+1. [Generate partitions](../../Partitions/DATASETS/MSCOCO.md)
+2. [Run explanations](../../XAI/DATASETS/MSCOCO.md)

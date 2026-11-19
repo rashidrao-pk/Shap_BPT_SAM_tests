@@ -196,6 +196,6 @@ export PYTORCH_ENABLE_MPS_FALLBACK=1
 cd ~/repos/Shap_BPT_SAM_tests
 ```
 
-Use [SAM_Exps.md](SAM_Exps.md) for partition generation. Set `PROJECT_DIR` and
+Use [SAM_Exps.md](../full/SAM_Exps.md) for partition generation. Set `PROJECT_DIR` and
 `SAM2_DIR` to your actual checkout paths and use `--device auto` in place of
 `--device cuda` in its commands.

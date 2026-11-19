@@ -23,7 +23,7 @@ curl -L --fail \
   -o "$SAM2_DIR/checkpoints/sam2.1_hiera_large.pt"
 ```
 
-For the package installation, see [EPITO setup](../Partitions/full/EPITO_SETUP.md).
+For the package installation, see [EPITO setup](../../Partitions/full/EPITO_SETUP.md).
 
 ## Use
 

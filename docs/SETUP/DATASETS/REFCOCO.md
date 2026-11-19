@@ -38,9 +38,9 @@ Only `--split val` is supported.
 
 ## 3. Next steps
 
-1. [Generate partitions](../Partitions/DATASETS/REFCOCO.md)
-2. [Evaluate partitions against GT](../Partitions/EVALUATE_PARTITIONS.md)
-3. [Run explanations](../XAI/DATASETS/REFCOCO.md)
+1. [Generate partitions](../../Partitions/DATASETS/REFCOCO.md)
+2. [Evaluate partitions against GT](../../Partitions/EVALUATE_PARTITIONS.md)
+3. [Run explanations](../../XAI/DATASETS/REFCOCO.md)
 
 ## Limits on what you can claim
 

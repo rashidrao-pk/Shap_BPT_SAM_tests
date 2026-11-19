@@ -1,6 +1,6 @@
 # RefCOCO explanations (vision–language)
 
-Run from the repository root on a GPU node. First [download the dataset](../../DATASETS/REFCOCO.md), get [CLIP ViT-B/32](../../MODELS/CLIP.md), and [generate partitions](../../Partitions/DATASETS/REFCOCO.md).
+Run from the repository root on a GPU node. First [download the dataset](../../SETUP/DATASETS/REFCOCO.md), get [CLIP ViT-B/32](../../SETUP/MODELS/CLIP.md), and [generate partitions](../../Partitions/DATASETS/REFCOCO.md).
 
 ## Run
 

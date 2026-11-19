@@ -28,8 +28,8 @@ Simula's server sends an incomplete TLS certificate chain, which Python rejects.
 
 ## 3. Next steps
 
-1. [Generate partitions](../Partitions/DATASETS/KVASIR_SEG.md)
-2. [Run explanations](../XAI/DATASETS/KVASIR_SEG.md)
+1. [Generate partitions](../../Partitions/DATASETS/KVASIR_SEG.md)
+2. [Run explanations](../../XAI/DATASETS/KVASIR_SEG.md)
 
 ## Limits on what you can claim
 

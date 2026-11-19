@@ -31,4 +31,4 @@ PY
 - `--class-aggregation sum` adds all detections of the class. `max` uses the strongest one.
 - It trained on COCO `train2017`, so do not treat [PACO](../DATASETS/PACO.md) images as unseen by it.
 
-Usage: [MS-COCO XAI](../XAI/DATASETS/MSCOCO.md).
+Usage: [MS-COCO XAI](../../XAI/DATASETS/MSCOCO.md).

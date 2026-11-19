@@ -66,5 +66,5 @@ Masks are RGB, with class ID `R + 256 * G`. Do not read them as grayscale.
 
 ## Next steps
 
-1. [Generate partitions](../Partitions/DATASETS/ImageNet.md)
-2. [Run explanations](../XAI/DATASETS/IMAGENET.md)
+1. [Generate partitions](../../Partitions/DATASETS/ImageNet.md)
+2. [Run explanations](../../XAI/DATASETS/IMAGENET.md)

@@ -47,6 +47,8 @@ Each run ends with a leaderboard, per-metric boxplots and a written verdict. To 
 
 ## Before running
 
+Setup first: [Setup](../SETUP/README.md), and the packages for every method in [XAI methods](../SETUP/XAI_METHODS.md).
+
 Activate your EPITO GPU environment and work from the repository root. In the
 dataset config, set `data.mask_dir_final` to the generated partition folder.
 That folder must include compact maps and completed `*_results.json` files.
@@ -176,7 +178,7 @@ A completion manifest is written only after all required artifacts succeed.
 Pretrained weights download on first use if absent; DETR supports
 `--local-files-only` when its checkpoint is already cached.
 
-See [partition generation](../Partitions/README.md) and [YOLO details](OD_yolo.md).
+See [partition generation](../Partitions/README.md) and [YOLO details](DATASETS/OD_yolo.md).
 CelebA-HQ attribute explanations use the E5 notebook's trained CNN:
 
 ```bash
@@ -186,7 +188,7 @@ python src/scripts/explanations/OC_CelebA.py \
   --explain_all --no-heatmaps --no-auc --no-resume
 ```
 
-See [CelebA checkpoint, attributes, and GT matching](CELEBA.md).
+See [CelebA checkpoint, attributes, and GT matching](DATASETS/CELEBA.md).
 
 ## Local validation
 
@@ -295,9 +297,9 @@ runs. No budget is claimed as a universal minimum.
 
 To see how much AUC+ and AUC- still change between consecutive budgets, without a reference map, see [budget steps](BUDGET_STEPS.md).
 
-BUSI breast ultrasound: see [BUSI SigLIP explanations](BUSI.md) for predicted-class explanations and lesion contours.
+BUSI breast ultrasound: see [BUSI SigLIP explanations](../SETUP/DATASETS/BUSI.md) for predicted-class explanations and lesion contours.
 
-PartImageNet: [download, partitions, and ResNet50 explanations](PARTIMAGENET.md).
+PartImageNet: [download, partitions, and ResNet50 explanations](../SETUP/DATASETS/PARTIMAGENET.md).
 
 Batch commands for every dataset/model, including ImageNet VGG16: [EPITO sbatch guide](EPITO_SBATCH/README.md).
 

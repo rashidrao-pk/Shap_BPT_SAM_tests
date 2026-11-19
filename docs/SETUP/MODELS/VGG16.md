@@ -20,4 +20,4 @@ python -c "from torchvision.models import vgg16; vgg16(weights='DEFAULT')"
 
 It is a plain CNN without residual connections, so it widens the architecture comparison with [ResNet-50](RESNET50.md) and [ViT-B/16](VIT_B16.md).
 
-Usage: [ImageNet XAI](../XAI/DATASETS/IMAGENET.md).
+Usage: [ImageNet XAI](../../XAI/DATASETS/IMAGENET.md).

@@ -61,10 +61,10 @@ python src/scripts/generate_sam_partitions.py \
 
 ## MS-COCO batches and XAI
 
-For compatible MS-COCO batch outputs, use [Partitions/EPITO.md](../Partitions/EPITO.md).
+For compatible MS-COCO batch outputs, use [Partitions/EPITO.md](../EPITO.md).
 The single-image filenames above are intended for inspection, not direct COCO
 XAI discovery. After generating the batch outputs, use
-[XAI/EPITO.md](../XAI/EPITO.md).
+[XAI/EPITO.md](../../XAI/DATASETS/EPITO.md).
 
 ## Optional SAM3 example
 

@@ -56,7 +56,7 @@ Known touch points (from a grep at commit `6a36122`). Treat as a checklist; the 
 | 16 | `docs/` | See §10 |
 | 17 | `tests/test_dota.py` | See §9 |
 
-Also read: `docs/DATASETS/ISIC_2018.md`, `docs/Partitions/DATASETS/ISIC2018.md`, `docs/XAI/DATASETS/MSCOCO.md`, `docs/Partitions/EVALUATE_PARTITIONS.md`, `docs/XAI/ROAD.md`, `docs/XAI/LEADERBOARD.md`, `docs/OUTPUT_PATHS.md`, `tests/test_added_datasets.py`.
+Also read: `docs/SETUP/DATASETS/ISIC_2018.md`, `docs/Partitions/DATASETS/ISIC2018.md`, `docs/XAI/DATASETS/MSCOCO.md`, `docs/Partitions/EVALUATE_PARTITIONS.md`, `docs/XAI/ROAD.md`, `docs/XAI/LEADERBOARD.md`, `docs/OUTPUT_PATHS.md`, `tests/test_added_datasets.py`.
 
 ---
 
@@ -84,7 +84,7 @@ Source A labels carry **no `difficult` flag**. Say so in the docs.
 
 Reuse `download()`, `check_hash()` and `extract()` from `download_partimagenet.py`, exactly as `download_paco` does. After the first successful download, **compute the SHA-256 and pin it** in the script (as the other datasets do). Do not leave `None`.
 
-Licence/terms: DOTA imagery comes from several sources (including Google Earth). **VERIFY** the current terms on the DOTA site and put the actual restriction (believed: academic use only) in `docs/DATASETS/DOTA.md`. Do not assert a licence you did not read.
+Licence/terms: DOTA imagery comes from several sources (including Google Earth). **VERIFY** the current terms on the DOTA site and put the actual restriction (believed: academic use only) in `docs/SETUP/DATASETS/DOTA.md`. Do not assert a licence you did not read.
 
 Target layout (root is `DATASET_ROOT`, i.e. `/beegfs/home/mrashid/datasets` by default):
 
@@ -156,7 +156,7 @@ curl --fail --location -o src/checkpoints/yolo11s-obb.pt \
 'dota': [(f'{ULTRALYTICS}/yolo11s-obb.pt', 'src/checkpoints/yolo11s-obb.pt', '<full sha256 after first download>')],
 ```
 
-so that `python src/scripts/download_datasets.py --dataset dota --assets model` works. Path convention follows `docs/MODELS/YOLO.md` (`src/checkpoints/`).
+so that `python src/scripts/download_datasets.py --dataset dota --assets model` works. Path convention follows `docs/SETUP/MODELS/YOLO.md` (`src/checkpoints/`).
 
 Load check (no GPU needed):
 
@@ -166,7 +166,7 @@ m = YOLO('src/checkpoints/yolo11s-obb.pt')
 assert m.task == 'obb' and len(m.names) == 15
 ```
 
-Record `m.names` in the docs. Create `docs/MODELS/YOLO_OBB.md` (same table layout as `YOLO.md`; limits: score sums all detections of a class; oriented boxes; trained on DOTAv1 train).
+Record `m.names` in the docs. Create `docs/SETUP/MODELS/YOLO_OBB.md` (same table layout as `YOLO.md`; limits: score sums all detections of a class; oriented boxes; trained on DOTAv1 train).
 
 ---
 
@@ -232,7 +232,7 @@ python src/scripts/check_partition_progress.py --config DOTA_epito
 
 `--show-gt` in `view_partitions.py` goes through `load_ground_truth`, so it needs the §6 loader. The folder name does not contain split/tile/stride, so changing any of those requires a different `output.partitions` root; say so in the docs.
 
-SAM checkpoints already exist for the other datasets (`docs/MODELS/SAM1.md`, `SAM2.md`); do not re-download.
+SAM checkpoints already exist for the other datasets (`docs/SETUP/MODELS/SAM1.md`, `SAM2.md`); do not re-download.
 
 ### GATE 2
 
@@ -425,12 +425,12 @@ python src/hpc/prepare_full_budget_study.py --repo . --study <folder> --datasets
 
 New pages, copying the structure and tone of the ISIC/COCO pages (short, command-first, a "Limits on what you can claim" section):
 
-- `docs/DATASETS/DOTA.md`: table (images, GT, model, download size, licence), the download+tiling command, tile design, leakage note, limits.
-- `docs/MODELS/YOLO_OBB.md`: as §4.
+- `docs/SETUP/DATASETS/DOTA.md`: table (images, GT, model, download size, licence), the download+tiling command, tile design, leakage note, limits.
+- `docs/SETUP/MODELS/YOLO_OBB.md`: as §4.
 - `docs/Partitions/DATASETS/DOTA.md`: as §5.3, folder names, progress, evaluation command.
 - `docs/XAI/DATASETS/DOTA.md`: as §8.4, how the explained class is chosen, ground truth, reading the results, outputs and resume.
 
-Update the index rows: `docs/DATASETS/README.md` (table row, "Added datasets" checklist, `check_partition_progress` command), `docs/Partitions/DATASETS/README.md`, `docs/XAI/README.md`, `docs/XAI/GROUND_TRUTH.md`, `docs/MODELS/README.md`.
+Update the index rows: `docs/SETUP/DATASETS/README.md` (table row, "Added datasets" checklist, `check_partition_progress` command), `docs/Partitions/DATASETS/README.md`, `docs/XAI/README.md`, `docs/XAI/GROUND_TRUTH.md`, `docs/SETUP/MODELS/README.md`.
 
 Required statements in the docs (be exact, not hedged away):
 

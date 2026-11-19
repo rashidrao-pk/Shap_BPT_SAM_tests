@@ -19,7 +19,7 @@ This is the model the [FIxLIP demo](https://shapiq.readthedocs.io/en/latest/demo
 
 ## How it is scored
 
-- The default score (`--score softmax-expressions`) is the softmax probability, at CLIP's logit scale, of the record's referring expression among all expressions of the same image. `--score cosine` is the raw cosine similarity, as in FIxLIP (about 0.1 to 0.35). The text is fixed; only the image is explained. See [RefCOCO XAI](../XAI/DATASETS/REFCOCO.md#score---score) for measured behaviour.
+- The default score (`--score softmax-expressions`) is the softmax probability, at CLIP's logit scale, of the record's referring expression among all expressions of the same image. `--score cosine` is the raw cosine similarity, as in FIxLIP (about 0.1 to 0.35). The text is fixed; only the image is explained. See [RefCOCO XAI](../../XAI/DATASETS/REFCOCO.md#score---score) for measured behaviour.
 - Text is embedded once per expression and cached.
 - **Preprocessing.** CLIP normally resizes the short side and crops the centre square, which can cut off an object at the edge. Here the whole image is resized to 224×224, so every object stays visible. A 4:3 photo is squeezed by up to a third along its long side.
 

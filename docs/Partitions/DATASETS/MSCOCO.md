@@ -1,8 +1,8 @@
 ## Generate Partitions for `MS-COCO` Dataset
 
 - [Connect first](../EPITO.md#1-start-a-gpu-session)
-- [Download the dataset](../../DATASETS/MS_COCO.md)
-- Download checkpoints: [SAM-1](../../MODELS/SAM1.md), [SAM-2](../../MODELS/SAM2.md)
+- [Download the dataset](../../SETUP/DATASETS/MS_COCO.md)
+- Download checkpoints: [SAM-1](../../SETUP/MODELS/SAM1.md), [SAM-2](../../SETUP/MODELS/SAM2.md)
 
 ### Check paths
 

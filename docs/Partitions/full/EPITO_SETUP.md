@@ -2,7 +2,7 @@
 
 For later sessions after installation, use [EPITO.md](EPITO.md).
 
-This guide follows [MAC_OS.md](MAC_OS.md), using the EPITO paths and environment
+This guide follows [MAC_OS.md](../machines/MAC_OS.md), using the EPITO paths and environment
 recorded in [../README.md](../README.md) and `src/scripts/prepare_setup.sh`.
 Run the steps in order in the same shell. Adjust the username/paths for another
 account. The environment has been set up on EPITO; use this document when rebuilding it.

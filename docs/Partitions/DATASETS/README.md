@@ -10,7 +10,7 @@
 - [ISIC 2018](ISIC2018.md)
 - [DOTA](DOTA.md)
 - [RefCOCO](REFCOCO.md)
-- [All datasets](../../DATASETS/README.md)
+- [All datasets](../../SETUP/DATASETS/README.md)
 
 ```bash
 find /beegfs/home/mrashid/datasets \

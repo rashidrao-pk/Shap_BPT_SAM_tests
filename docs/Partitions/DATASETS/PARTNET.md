@@ -1,7 +1,7 @@
 # PartImageNet on EPITO
 
-- [Download the dataset](../../DATASETS/PARTIMAGENET.md)
-- Download checkpoints: [SAM-1](../../MODELS/SAM1.md), [SAM-2](../../MODELS/SAM2.md)
+- [Download the dataset](../../SETUP/DATASETS/PARTIMAGENET.md)
+- Download checkpoints: [SAM-1](../../SETUP/MODELS/SAM1.md), [SAM-2](../../SETUP/MODELS/SAM2.md)
 
 This document covers **PartImageNet (2D images)**. First follow [one-time setup](PARTIMAGENET_SETUP.md) to download the dataset and ResNet50 classifier and set the config paths.
 

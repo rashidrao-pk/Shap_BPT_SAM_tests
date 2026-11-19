@@ -11,6 +11,8 @@ Code: `src/scripts/medical_segmenters.py`, wired into `generate_sam_partitions.b
 
 ## 1. One-time setup on EPITO
 
+Short version of the downloads: [MedSAM and MedicoSAM checkpoints](../../SETUP/MODELS/MEDICAL_SAM.md).
+
 Work in an EPITO session, which has the ARM environment and internet access:
 
 ```bash

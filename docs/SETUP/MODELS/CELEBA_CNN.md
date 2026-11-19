@@ -23,4 +23,4 @@ It is the model from the [reference E5 notebook](https://github.com/rashidrao-pk
 
 XAI explains the raw attribute logit, not a softmax probability, so scores are not comparable with the classifiers here.
 
-Usage: [CelebA XAI](../XAI/DATASETS/CELEBA.md).
+Usage: [CelebA XAI](../../XAI/DATASETS/CELEBA.md).

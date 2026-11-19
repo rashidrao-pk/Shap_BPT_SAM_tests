@@ -1,6 +1,6 @@
 # Models
 
-One page per model, with its download command and why it was chosen. Dataset pages link here.
+One page per model, with its download command and why it was chosen. Dataset pages link here. Part of [Setup](../README.md); the packages for the XAI methods are in [XAI methods](../XAI_METHODS.md).
 
 To check that every checkpoint is in place, run `python src/scripts/summary_setup.py`. See [Check your setup](../DATASETS/README.md#check-your-setup).
 
@@ -10,6 +10,7 @@ To check that every checkpoint is in place, run `python src/scripts/summary_setu
 | --- | --- |
 | [SAM-1](SAM1.md) | Every dataset |
 | [SAM-2](SAM2.md) | Every dataset |
+| [MedSAM, MedicoSAM](MEDICAL_SAM.md) | BUSI, ISIC 2018, Kvasir-SEG |
 
 ## Explained models
 

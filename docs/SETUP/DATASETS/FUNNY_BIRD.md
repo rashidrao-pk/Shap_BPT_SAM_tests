@@ -25,8 +25,8 @@ The dataset goes to `/beegfs/home/mrashid/datasets/FunnyBirds` (change the paren
 
 ## 3. Next steps
 
-1. [Generate partitions](../Partitions/DATASETS/FUNNYBIRDS.md)
-2. [Run explanations](../XAI/DATASETS/FUNNYBIRDS.md)
+1. [Generate partitions](../../Partitions/DATASETS/FUNNYBIRDS.md)
+2. [Run explanations](../../XAI/DATASETS/FUNNYBIRDS.md)
 
 ## Limits on what you can claim
 

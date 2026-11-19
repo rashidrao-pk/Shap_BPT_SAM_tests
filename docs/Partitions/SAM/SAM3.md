@@ -2,7 +2,7 @@
 
 Optional SAM3 installation notes, separate from the SAM1/SAM2 setup.
 These notes use a different package configuration (`unset PYTHONPATH`).
-After installation, see [SAM_Exps.md](SAM_Exps.md#optional-sam3-example).
+After installation, see [SAM_Exps.md](../full/SAM_Exps.md#optional-sam3-example).
 
 ```bash
 source /beegfs/home/mrashid/pt_312_sam/bin/activate

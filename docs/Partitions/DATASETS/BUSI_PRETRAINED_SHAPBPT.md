@@ -101,4 +101,4 @@ The script also sets this variable before importing `huggingface_hub`. Existing 
 
 Long runs resume from completed images by default. See [resume and Slurm jobs](../../XAI/RESUME_EPITO.md). An interrupted image repeats its XAI; `--no-resume` forces recomputation.
 
-For the same all-method comparison used by DETR and the other datasets, use `run_busi_shapbpt.py run --explain_all` with saved compact partitions or `OC_BUSI.py --explain_all`. See [BUSI all-method commands](../../XAI/BUSI.md).
+For the same all-method comparison used by DETR and the other datasets, use `run_busi_shapbpt.py run --explain_all` with saved compact partitions or `OC_BUSI.py --explain_all`. See [BUSI all-method commands](../../SETUP/DATASETS/BUSI.md).

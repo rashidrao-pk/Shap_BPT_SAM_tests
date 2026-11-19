@@ -48,7 +48,7 @@ counts (250 for COCO, 100 otherwise), numeric R², and saved arrays. SLIC return
 194 regions for the larger COCO fixture and 88 for the classifier fixtures.
 CelebA-HQ's partition/GT preview was checked separately. The subsequently added
 `OC_CelebA.py` runner and published-checkpoint smoke test are documented in
-[CELEBA.md](CELEBA.md).
+[CELEBA.md](DATASETS/CELEBA.md).
 
 Artifacts and a report index are in `results/all_methods_dataset_smoke/`, with
 `validation_summary.json` recording each check. The smoke runs used partition

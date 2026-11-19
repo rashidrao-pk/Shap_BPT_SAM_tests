@@ -1,6 +1,6 @@
 # FunnyBirds explanations
 
-Run from the repository root on a GPU node. First [download the dataset](../../DATASETS/FUNNY_BIRD.md), get the checkpoint ([FunnyBirds ResNet-50](../../MODELS/FUNNYBIRDS_RESNET50.md)), and [generate partitions](../../Partitions/DATASETS/FUNNYBIRDS.md). Make sure `data.mask_dir_final` names the generated folder.
+Run from the repository root on a GPU node. First [download the dataset](../../SETUP/DATASETS/FUNNY_BIRD.md), get the checkpoint ([FunnyBirds ResNet-50](../../SETUP/MODELS/FUNNYBIRDS_RESNET50.md)), and [generate partitions](../../Partitions/DATASETS/FUNNYBIRDS.md). Make sure `data.mask_dir_final` names the generated folder.
 
 ## Run
 

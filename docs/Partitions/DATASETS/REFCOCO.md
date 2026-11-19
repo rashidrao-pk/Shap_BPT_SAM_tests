@@ -1,8 +1,8 @@
 ## Generate Partitions for `RefCOCO` Dataset
 
 - [Connect first](../EPITO.md#1-start-a-gpu-session)
-- [Download the dataset](../../DATASETS/REFCOCO.md)
-- Download checkpoints: [SAM-1](../../MODELS/SAM1.md), [SAM-2](../../MODELS/SAM2.md)
+- [Download the dataset](../../SETUP/DATASETS/REFCOCO.md)
+- Download checkpoints: [SAM-1](../../SETUP/MODELS/SAM1.md), [SAM-2](../../SETUP/MODELS/SAM2.md)
 
 Run from the repository root on a GPU node. Partitions are made once per image (1,500), and every expression of that image uses them. Ground truth and expressions are never used to generate partitions.
 

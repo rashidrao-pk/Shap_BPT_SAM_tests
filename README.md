@@ -230,6 +230,8 @@ It is also possible to use other stopping criteria, like the area of the regions
 
 ## Installation
 
+For the SAM-guided experiments (environments, SAM checkpoints, datasets, models and the packages of every XAI method) see [docs/SETUP](docs/SETUP/README.md). The steps below install ShapBPT alone.
+
 The easiest way to use ShapBPT is by installing it through PyPI:
 
 ```sh
@@ -287,8 +289,8 @@ python -c "import shap_bpt; print(shap_bpt.__version__); print(shap_bpt.__releas
 
 <!-- # Examples
 
-- [ImageNet setup with BPT partitions](examples/ImageNET_BPT.ipynb)
-- [ImageNet setup, AA and BPT partitions](examples/ImageNET_BPT_AA.ipynb) -->
+- [ImageNet setup with BPT partitions](docs/source/notebooks/ImageNET_BPT.ipynb)
+- [ImageNet setup, AA and BPT partitions](docs/source/notebooks/ImageNET_BPT_AA.ipynb) -->
 
 ## 📖 Citation
 

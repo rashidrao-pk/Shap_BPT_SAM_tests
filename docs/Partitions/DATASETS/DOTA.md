@@ -1,8 +1,8 @@
 ## Generate Partitions for `DOTA` Dataset
 
 - [Connect first](../EPITO.md#1-start-a-gpu-session)
-- [Download the dataset and cut tiles](../../DATASETS/DOTA.md)
-- Download checkpoints: [SAM-1](../../MODELS/SAM1.md), [SAM-2](../../MODELS/SAM2.md)
+- [Download the dataset and cut tiles](../../SETUP/DATASETS/DOTA.md)
+- Download checkpoints: [SAM-1](../../SETUP/MODELS/SAM1.md), [SAM-2](../../SETUP/MODELS/SAM2.md)
 
 Run from the repository root on a GPU node. One tile is one image. Ground truth is never used to generate partitions.
 

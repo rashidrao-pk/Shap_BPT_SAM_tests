@@ -56,7 +56,7 @@ PY
 
 These are classification weights; VGG16 uses [IMAGENET1K_V1](https://docs.pytorch.org/vision/stable/models/generated/torchvision.models.vgg16.html). A local compatible checkpoint can be supplied with `--checkpoint` instead. Keep the matching `--weights` preprocessing choice.
 
-For other tasks, use the checkpoint setup in [CelebA](../CELEBA.md), [BUSI](../../Partitions/DATASETS/BUSI_SETUP.md), and [PartImageNet](../../Partitions/DATASETS/PARTIMAGENET_SETUP.md). Cache `facebook/detr-resnet-50` and YOLO weights before running if needed. All-method runs require the optional dependencies described in [ALL_METHODS.md](../ALL_METHODS.md).
+For other tasks, use the checkpoint setup in [CelebA](../DATASETS/CELEBA.md), [BUSI](../../Partitions/DATASETS/BUSI_SETUP.md), and [PartImageNet](../../Partitions/DATASETS/PARTIMAGENET_SETUP.md). Cache `facebook/detr-resnet-50` and YOLO weights before running if needed. All-method runs require the optional dependencies described in [ALL_METHODS.md](../ALL_METHODS.md).
 
 ## ImageNet: ResNet50
 
@@ -132,7 +132,7 @@ python -u src/scripts/explanations/OC_BUSI.py \
   --auc-num-samples 200 --local-files-only --bg-type full
 ```
 
-Repeat with a SAM1 or SAM2 config copy to compare both partition sources. The existing `run_busi_shapbpt.py run --explain_all --sam sam1` command can also select saved partitions and dispatch to this shared runner. See [BUSI all-method instructions](../BUSI.md). SigLIP GradCAM is supported; transformer LRP is reported unsupported.
+Repeat with a SAM1 or SAM2 config copy to compare both partition sources. The existing `run_busi_shapbpt.py run --explain_all --sam sam1` command can also select saved partitions and dispatch to this shared runner. See [BUSI all-method instructions](../../SETUP/DATASETS/BUSI.md). SigLIP GradCAM is supported; transformer LRP is reported unsupported.
 
 ## PartImageNet: ResNet50
 

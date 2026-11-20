@@ -330,18 +330,23 @@ def _check_dataset(config_name, methods=None, limit=None, configured_only=False,
 
 
 def time_summary(rows):
-    """Recorded generation time (subset) grouped by SAM model, by dataset, and in total."""
+    """Recorded generation time (subset) and storage (subset and whole folders), grouped by SAM model, by
+    dataset, and in total."""
     def group(key):
         groups = {}
         for row in rows:
-            item = groups.setdefault(key(row), {'folders': 0, 'images': 0, 'seconds': 0.})
+            item = groups.setdefault(key(row), {'folders': 0, 'images': 0, 'seconds': 0.,
+                                                'subset_bytes': 0, 'folder_bytes': 0})
             item['folders'] += 1
             item['images'] += row['subset_timed_images']
             item['seconds'] += row['subset_generation_seconds']
+            item['subset_bytes'] += row.get('subset_bytes', 0)
+            item['folder_bytes'] += row.get('folder_bytes', 0)
         for item in groups.values():
             item['seconds_per_image'] = item['seconds'] / item['images'] if item['images'] else None
         return groups
-    total = group(lambda row: 'Total')['Total'] if rows else {'folders': 0, 'images': 0, 'seconds': 0., 'seconds_per_image': None}
+    total = group(lambda row: 'Total')['Total'] if rows else {'folders': 0, 'images': 0, 'seconds': 0., 'seconds_per_image': None,
+                                                              'subset_bytes': 0, 'folder_bytes': 0}
     order = ['SAM1-VB', 'SAM1-VL', 'SAM1-VH', 'SAM1', 'SAM2-T', 'SAM2-S', 'SAM2-B+', 'SAM2-L', 'SAM2']
     models = group(lambda row: sam_label(row.get('display_folder', Path(row['folder']).name)))
     models = dict(sorted(models.items(), key=lambda item: order.index(item[0]) if item[0] in order else len(order)))
@@ -350,19 +355,24 @@ def time_summary(rows):
 
 
 def print_time_summary(summary):
-    print('\nGeneration time summary (recorded per-image times, subset):')
-    print(f'{"":<14} {"Folders":>7} {"Images":>7} {"Time":>10} {"s/image":>8}')
+    print('\nGeneration time and storage summary (time: recorded per-image times, subset):')
+    print(f'{"":<14} {"Folders":>7} {"Images":>7} {"Time":>10} {"s/image":>8} {"Size(subset)":>13} {"Size(folder)":>13}')
     for title, key in [('By model', 'by_model'), ('By dataset', 'by_dataset')]:
         print(title)
         for name, item in summary[key].items():
             per_image = f'{item["seconds_per_image"]:.1f}' if item['seconds_per_image'] is not None else 'n/a'
             print(f'  {name:<12} {item["folders"]:>7} {item["images"]:>7} '
-                  f'{format_duration(item["seconds"], item["images"]):>10} {per_image:>8}')
+                  f'{format_duration(item["seconds"], item["images"]):>10} {per_image:>8} '
+                  f'{format_bytes(item.get("subset_bytes", 0)):>13} {format_bytes(item.get("folder_bytes", 0)):>13}')
     total = summary['total']
     per_image = f'{total["seconds_per_image"]:.1f}' if total['seconds_per_image'] is not None else 'n/a'
     print(f'{"Total":<14} {total["folders"]:>7} {total["images"]:>7} '
-          f'{format_duration(total["seconds"], total["images"]):>10} {per_image:>8}   '
-          f'= {total["seconds"] / 3600:.1f} hours')
+          f'{format_duration(total["seconds"], total["images"]):>10} {per_image:>8} '
+          f'{format_bytes(total.get("subset_bytes", 0)):>13} {format_bytes(total.get("folder_bytes", 0)):>13}')
+    print(f'Total: {total["seconds"] / 3600:.1f} hours of generation; '
+          f'{format_bytes(total.get("subset_bytes", 0))} of partitions in the subset, '
+          f'{format_bytes(total.get("folder_bytes", 0))} in the whole folders '
+          f'(logical file sizes; disk usage on BeeGFS can differ, check with du -sh).')
     print('Models: SAM1-VB = SAM-1 ViT-B, SAM2-T = SAM-2 tiny, SAM2-L = SAM-2 large. s/image depends on the '
           'dataset and mask target, so compare models within a dataset.')
 

@@ -310,14 +310,29 @@ runpy.run_path(script, run_name='__main__')
 
 def test_time_summary_groups_by_model_dataset_and_total():
     import check_partition_progress as cpp
-    rows = [{'dataset': 'BUSI', 'folder': '/r/BUSI_sam2_large_254', 'subset_timed_images': 2, 'subset_generation_seconds': 20.},
-            {'dataset': 'BUSI', 'folder': '/r/BUSI_sam1_vit_b_254', 'subset_timed_images': 2, 'subset_generation_seconds': 10.},
-            {'dataset': 'CAMO', 'folder': '/r/CAMO_sam2_tiny_254', 'subset_timed_images': 1, 'subset_generation_seconds': 30.}]
+    rows = [{'dataset': 'BUSI', 'folder': '/r/BUSI_sam2_large_254', 'subset_timed_images': 2, 'subset_generation_seconds': 20.,
+             'subset_bytes': 1024, 'folder_bytes': 2048},
+            {'dataset': 'BUSI', 'folder': '/r/BUSI_sam1_vit_b_254', 'subset_timed_images': 2, 'subset_generation_seconds': 10.,
+             'subset_bytes': 1024, 'folder_bytes': 1024},
+            {'dataset': 'CAMO', 'folder': '/r/CAMO_sam2_tiny_254', 'subset_timed_images': 1, 'subset_generation_seconds': 30.,
+             'subset_bytes': 2 * 1024 ** 3, 'folder_bytes': 3 * 1024 ** 3}]
     summary = cpp.time_summary(rows)
     assert list(summary['by_model']) == ['SAM1-VB', 'SAM2-T', 'SAM2-L']
     assert summary['by_model']['SAM2-L']['seconds_per_image'] == 10.
-    assert summary['by_dataset']['BUSI'] == {'folders': 2, 'images': 4, 'seconds': 30., 'seconds_per_image': 7.5}
+    assert summary['by_dataset']['BUSI'] == {'folders': 2, 'images': 4, 'seconds': 30., 'seconds_per_image': 7.5,
+                                             'subset_bytes': 2048, 'folder_bytes': 3072}
     assert summary['total']['seconds'] == 60. and summary['total']['images'] == 5
+    assert summary['total']['folder_bytes'] == 3 * 1024 ** 3 + 3072
+
+
+def test_summary_prints_storage_per_group_and_in_total(capsys):
+    import check_partition_progress as cpp
+    rows = [{'dataset': 'CAMO', 'folder': '/r/CAMO_sam2_large_254', 'subset_timed_images': 2, 'subset_generation_seconds': 7200.,
+             'subset_bytes': 3 * 1024 ** 3, 'folder_bytes': 4 * 1024 ** 3}]
+    cpp.print_time_summary(cpp.time_summary(rows))
+    output = capsys.readouterr().out
+    assert 'Size(folder)' in output and '4.0 GiB' in output
+    assert 'Total: 2.0 hours of generation; 3.0 GiB of partitions in the subset, 4.0 GiB in the whole folders' in output
 
 
 def test_sam_label_names_the_compact_strategy():

@@ -83,6 +83,6 @@ All-method mode creates config snapshots under `results/busi/all_methods_configs
 
 `--show-gt` draws black lesion boundaries on attribution maps. Multiple mask files are united without flipping; empty annotated masks have no contour, and missing masks are reported as unavailable. The lesion region is not evidence that the predicted benign/malignant class is correct.
 
-The shared runner saves the normal combined XAI grid, an all-method comparison, numeric maps, and AUC/evaluation outputs. `--no-heatmaps` skips individual method PNGs while retaining the combined plots. AUC requests 200 points by default; repeated masks can reduce the actual count. GT diagnostics include tie-aware pointing accuracy and GT-selected best IoU; best IoU is not a fixed-threshold test score.
+The shared runner saves the normal combined XAI grid, an all-method comparison, numeric maps, and AUC/evaluation outputs. Individual method PNGs are off by default (`--heatmaps` in the shared runners adds them); the combined plots are always kept. AUC requests 200 points by default; repeated masks can reduce the actual count. GT diagnostics include tie-aware pointing accuracy and GT-selected best IoU; best IoU is not a fixed-threshold test score.
 
 Timing is reported per image. Repeat the same command to resume completed images; an interrupted image repeats its methods. Keep options unchanged and omit `--no-resume` for continuation.

@@ -88,7 +88,7 @@ python src/scripts/explanations/xai_leaderboard.py all --budget 1000 --bg-type f
 <output.evaluations>/OD_DOTA/<partition-folder>/bg_full_B1000/
 ```
 
-Repeat the same command to resume: completed tiles are skipped. Skipped tiles are checked again with one forward pass. `--no-heatmaps` skips individual method images, and keeps the combined plots and numeric results.
+Repeat the same command to resume: completed tiles are skipped. Skipped tiles are checked again with one forward pass. Individual method images are not saved by default (`--heatmaps` adds them; `--no-heatmaps` is accepted and changes nothing); the combined plots and numeric results are always kept. With `--show-gt`, the separate GT figure `<id>_gt.png` is saved only with `--gt-png`.
 
 ## Results so far
 

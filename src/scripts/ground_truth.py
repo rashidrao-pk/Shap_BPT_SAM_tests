@@ -531,15 +531,29 @@ def draw_ground_truth(ax, gt, image=None, alpha=.45, legend=False):
     return ax.imshow(overlay, origin='upper')
 
 
-def save_ground_truth(gt, image, folder, image_id):
+def save_ground_truth(gt, image, folder, image_id, preview=True):
+    """Mask (<id>_gt.npy), labels (<id>_gt_labels.npz) and metadata (<id>_gt.json); the figure <id>_gt.png
+    only with preview=True."""
     import matplotlib.pyplot as plt
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     mask_path = folder / f'{image_id}_gt.npy'
     labels_path = folder / f'{image_id}_gt_labels.npz'
-    preview_path = folder / f'{image_id}_gt.png'
+    preview_path = folder / f'{image_id}_gt.png' if preview else None
     np.save(mask_path, gt['mask'], allow_pickle=False)
     np.savez_compressed(labels_path, labels=gt['label_map'])
+    if preview:
+        save_ground_truth_figure(gt, image, preview_path)
+    metadata = {key: value for key, value in gt.items() if key not in {'mask', 'label_map'}}
+    metadata['semantic_colors'] = semantic_styles(gt)
+    metadata.update(mask_path=str(mask_path), labels_path=str(labels_path),
+                    preview_path=str(preview_path) if preview_path else None)
+    (folder / f'{image_id}_gt.json').write_text(json.dumps(metadata, indent=2) + '\n')
+    return metadata
+
+
+def save_ground_truth_figure(gt, image, preview_path):
+    import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 2, figsize=(10, 4))
     try:
         draw_ground_truth(axes[0], gt)
@@ -553,8 +567,3 @@ def save_ground_truth(gt, image, folder, image_id):
         fig.savefig(preview_path, dpi=140)
     finally:
         plt.close(fig)
-    metadata = {key: value for key, value in gt.items() if key not in {'mask', 'label_map'}}
-    metadata['semantic_colors'] = semantic_styles(gt)
-    metadata.update(mask_path=str(mask_path), labels_path=str(labels_path), preview_path=str(preview_path))
-    (folder / f'{image_id}_gt.json').write_text(json.dumps(metadata, indent=2) + '\n')
-    return metadata

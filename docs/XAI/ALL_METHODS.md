@@ -44,7 +44,7 @@ The 2×3 figure shows the three partition-based methods at the selected budget. 
 heatmap strip and, when GT has foreground, a second row of GT overlap panels.
 There is no standalone GT column; GT appears as boundaries on the attribution maps.
 The shared HTML report lets you scroll the wide comparison horizontally.
-`--no-heatmaps` skips individual PNGs but keeps the comparison. `--no-plots`
+Individual PNGs per method are saved only with `--heatmaps`; the comparison is always saved. `--no-plots`
 keeps numeric maps, metrics, and method status without figures.
 
 ## Methods and budgets

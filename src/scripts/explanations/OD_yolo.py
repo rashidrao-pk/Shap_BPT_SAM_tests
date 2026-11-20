@@ -623,14 +623,24 @@ def load_class_ground_truth(coco, image_no, class_name, image_shape):
                       if category_ids else 'class not in COCO categories', 'mask': mask}
 
 
-def save_ground_truth(ground_truth, image, folder, image_no):
+def save_ground_truth(ground_truth, image, folder, image_no, preview=True):
     import numpy as np
-    import matplotlib.pyplot as plt
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     mask_path = folder / f'{image_no}_gt.npy'
-    preview_path = folder / f'{image_no}_gt.png'
+    preview_path = folder / f'{image_no}_gt.png' if preview else None
     np.save(mask_path, ground_truth['mask'], allow_pickle=False)
+    if preview:
+        save_ground_truth_figure(ground_truth, image, preview_path)
+    summary = {key: value for key, value in ground_truth.items() if key != 'mask'}
+    summary.update(mask_path=str(mask_path), preview_path=str(preview_path) if preview_path else None)
+    (folder / f'{image_no}_gt.json').write_text(json.dumps(summary, indent=2) + '\n')
+    return summary
+
+
+def save_ground_truth_figure(ground_truth, image, preview_path):
+    import numpy as np
+    import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 2, figsize=(10, 4))
     try:
         axes[0].imshow(ground_truth['mask'], cmap='gray', vmin=0, vmax=1)
@@ -647,10 +657,6 @@ def save_ground_truth(ground_truth, image, folder, image_no):
         fig.savefig(preview_path, dpi=140)
     finally:
         plt.close(fig)
-    summary = {key: value for key, value in ground_truth.items() if key != 'mask'}
-    summary.update(mask_path=str(mask_path), preview_path=str(preview_path))
-    (folder / f'{image_no}_gt.json').write_text(json.dumps(summary, indent=2) + '\n')
-    return summary
 
 
 def collect_image_ids(masks_base_path: Path) -> list[str]:
@@ -773,9 +779,8 @@ def image_outputs_are_complete(path_results_img: Path, image_no: int, methods: l
         if not marker.is_file():
             return False
         # A marker written with the gradient methods also covers a run without them.
-        accepted = {comparison_signature(args)}
-        if not getattr(args, 'gradient_based', False):
-            accepted.add(comparison_signature(with_gradients(args)))
+        variants = [args, *([] if getattr(args, 'gradient_based', False) else [with_gradients(args)])]
+        accepted = {comparison_signature(variant, legacy) for variant in variants for legacy in (False, True)}
         try:
             saved = json.loads(marker.read_text())
             if saved.get('signature') not in accepted:
@@ -786,7 +791,8 @@ def image_outputs_are_complete(path_results_img: Path, image_no: int, methods: l
             return False
 
     if getattr(args, 'show_gt', False) and not all(
-            (path_results_img / f'{image_no}_gt{suffix}').is_file() for suffix in ['.npy', '.png', '.json']):
+            (path_results_img / f'{image_no}_gt{suffix}').is_file()
+            for suffix in ['.npy', '.json', *(['.png'] if getattr(args, 'save_gt_png', False) else [])]):
         return False
     if not args.save_plots:
         return True
@@ -1806,7 +1812,8 @@ def run(args):
                 timer.begin("ground_truth", "io")
                 ground_truth = load_class_ground_truth(
                     coco, image_no, input_data['explained_class'], input_data['image_to_explain'].shape)
-                summary = save_ground_truth(ground_truth, input_data['image_to_explain'], path_results_img, image_no)
+                summary = save_ground_truth(ground_truth, input_data['image_to_explain'], path_results_img, image_no,
+                                            preview=args.save_gt_png)
                 input_data['ground_truth'] = {**ground_truth, **summary}
                 timer.end()
             input_data["f_S"] = f_S
@@ -2191,14 +2198,22 @@ def parse_args():
     parser.add_argument("--no-auc", dest="compute_auc", action="store_false")
     parser.add_argument("--no-plots", dest="save_plots", action="store_false")
     parser.add_argument("--heatmaps-only", action="store_true", help="Save only per-method attribution heatmaps; skip XAI grid, AUC curves, and faithfulness curves.")
+    parser.add_argument("--heatmaps", dest="save_heatmaps", action="store_true",
+                        help="Also save one attribution heatmap PNG per method (off by default).")
     parser.add_argument("--no-heatmaps", dest="save_heatmaps", action="store_false",
-                         help="Do not save per-method attribution heatmap PNGs.")
+                         help="Default: no per-method attribution heatmap PNGs.")
+    parser.add_argument("--gt-png", dest="save_gt_png", action="store_true",
+                        help="With --show_gt, also save the GT figure <id>_gt.png (mask and JSON are always saved).")
     parser.add_argument("--no-html", dest="build_html", action="store_false")
-    parser.set_defaults(compute_auc=True, save_plots=True, save_heatmaps=True, build_html=True, budget_suffix=True, resume=True)
+    parser.set_defaults(compute_auc=True, save_plots=True, save_heatmaps=False, save_gt_png=False, build_html=True,
+                        budget_suffix=True, resume=True)
     from all_methods import add_arguments
     add_arguments(parser)
     guide_options.add_arguments(parser)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.heatmaps_only:
+        args.save_heatmaps = True  # Heatmaps are all that --heatmaps-only saves.
+    return args
 
 
 if __name__ == "__main__":

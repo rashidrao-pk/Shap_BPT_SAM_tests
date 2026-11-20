@@ -179,12 +179,18 @@ class ODYoloTest(unittest.TestCase):
         self.assertTrue(Path(summary['preview_path']).is_file())
         self.assertTrue(np.load(summary['mask_path']).all())
         self.assertEqual(json.loads((self.root / 'gt/1_gt.json').read_text())['class_name'], 'chair')
-        args = self.args('--show_gt', '--no-plots')
+        args = self.args('--show_gt', '--no-plots', '--gt-png')
         self.assertTrue(args.show_gt)
         (self.root / 'gt/1_predictions.json').write_text('{}')
         self.assertTrue(od.image_outputs_are_complete(self.root / 'gt', 1, [], args))
         (self.root / 'gt/1_gt.png').unlink()
         self.assertFalse(od.image_outputs_are_complete(self.root / 'gt', 1, [], args))
+        # By default the GT figure is not saved, so it is not needed to resume.
+        self.assertTrue(od.image_outputs_are_complete(self.root / 'gt', 1, [], self.args('--show_gt', '--no-plots')))
+        plain = od.save_ground_truth(gt, np.zeros((8, 10, 3), dtype=np.uint8), self.root / 'plain', 2, preview=False)
+        self.assertIsNone(plain['preview_path'])
+        self.assertFalse((self.root / 'plain/2_gt.png').exists())
+        self.assertTrue((self.root / 'plain/2_gt.npy').is_file())
 
     def test_all_method_resume_checks_settings_and_artifacts(self):
         from all_methods import comparison_signature

@@ -169,7 +169,9 @@ and `xai_results_report.html`. Existing complete images are skipped by default.
 - `--model-batch-size 4`: lower model-forward memory for the four new runners.
 - `--auc-num-samples 101`: insertion/deletion sampling for the new runners.
 - `--no-auc`: skip metric evaluation for a quick explanation smoke run.
-- `--no-heatmaps`: skip individual method heatmap PNGs; keep the combined XAI figure, evaluation plots, and numeric attribution NPZ. Supported by all five runners.
+- Individual method heatmap PNGs (`<method>_<id>.png`) are **off by default**; `--heatmaps` saves them. The combined XAI figure, evaluation plots and numeric attribution NPZ are always saved. `--no-heatmaps` is still accepted (it is the default).
+- With `--show-gt`, the GT mask, labels and metadata (`<id>_gt.npy`, `<id>_gt_labels.npz`, `<id>_gt.json`) are always saved; the separate GT figure `<id>_gt.png` only with `--gt-png`. The combined figures already draw the GT.
+- Images finished before these defaults changed (2026-11-20), with or without `--no-heatmaps`, are reused on resume.
 - `--no-plots`: save numeric outputs without explanation/evaluation plots.
 - `--no-resume`: recompute selected images when changing settings; alternatively use a separate `--output-dir`.
 
@@ -207,7 +209,7 @@ All explanation runners save a two-row, three-column figure:
 
 With `--show-gt`, available GT uses semantic-colored outlines when labels are available, and black outlines for binary masks, on all three attribution
 panels. AUC plots remain separate. The BPT panel cuts the explanation tree to
-the SAM_c region count. `--no-heatmaps` still keeps this combined figure.
+the SAM_c region count. This combined figure is always saved, with or without `--heatmaps`.
 Use `--no-resume` to regenerate previously saved figures.
 
 ### Optional all-method comparison

@@ -172,7 +172,7 @@ numbering differs). All segmentation instances of that class, including crowd
 annotations, are decoded through COCO and unioned into a boolean mask. Other
 classes are excluded. Polygon and RLE annotations use COCO's mask decoder.
 
-Each image saves `<image_no>_gt.npy`, `<image_no>_gt.png` (mask + overlay), and
+Each image saves `<image_no>_gt.npy`, `<image_no>_gt.png` (mask + overlay; only with `--gt-png`), and
 `<image_no>_gt.json` (class/category/annotation IDs and instance count). The XAI
 grid adds a GT overlay, and the HTML report includes the standalone GT preview.
 The predictions JSON also records the GT metadata. If that class has no matching

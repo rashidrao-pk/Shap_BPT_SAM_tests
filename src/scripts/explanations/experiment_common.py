@@ -113,8 +113,15 @@ def create_parser(kind, auc_background=True, road=True):
                             help='Skip the ROAD scores (road_* columns); add them later with evaluate_road.py')
         road_metric.add_arguments(parser)
     parser.add_argument('--no-plots', dest='save_plots', action='store_false')
+    # Separate PNGs are off by default: the combined XAI figure already shows every map and the GT.
+    parser.add_argument('--heatmaps', dest='save_heatmaps', action='store_true',
+                        help='Also save one heatmap PNG per method (<method>_<id>.png)')
     parser.add_argument('--no-heatmaps', dest='save_heatmaps', action='store_false',
-                        help='Skip individual heatmap PNGs; keep combined XAI plots and numeric attributions')
+                        help='Default: no per-method heatmap PNGs; combined plots and numeric maps are kept')
+    parser.add_argument('--gt-png', dest='save_gt_png', action='store_true',
+                        help='With --show-gt, also save the GT figure <id>_gt.png (the GT mask, labels and '
+                             'metadata are always saved)')
+    parser.set_defaults(save_heatmaps=False, save_gt_png=False)
     parser.add_argument('--no-html', dest='build_html', action='store_false')
     parser.add_argument('--verbose-level', choices=['low', 'medium', 'high'], default='medium')
     parser.add_argument('--fail-fast', action='store_true')
@@ -459,7 +466,7 @@ def write_json(path, value):
     temporary.replace(path)
 
 
-def run_signature(kind, args, config=None):
+def run_signature(kind, args, config=None, legacy_no_heatmaps=False):
     # ROAD only reads the finished maps, so its options never invalidate finished explanations.
     ignored = {'limit', 'image_ids', 'dry_run', 'resume', 'verbose_level', 'fail_fast', 'torch_threads', 'output_dir',
                'compute_road', 'road_fractions', 'road_noise', 'road_seed', 'road_short_side',
@@ -473,8 +480,12 @@ def run_signature(kind, args, config=None):
         for option in ['explain_all', 'gradient_based', 'bpt_budgets', 'lime_budgets', 'gradient_samples',
                        'idg_steps', 'attribution_batch_size', 'explanation_seed', 'aa_budget', 'lime_segments']:
             settings.pop(option, None)
-    if settings.get('save_heatmaps', True):
-        settings.pop('save_heatmaps', None)  # Preserve signatures from before this option existed.
+    # Figure options never change the maps or metrics. Runs before 2026-11-20 had save_heatmaps True by default
+    # (no key) and False with --no-heatmaps (key False); legacy_no_heatmaps rebuilds the latter.
+    settings.pop('save_heatmaps', None)
+    settings.pop('save_gt_png', None)
+    if legacy_no_heatmaps:
+        settings['save_heatmaps'] = False
     for option in ['attribute', 'attribute_file', 'budget_selection']:
         if settings.get(option) is None:
             settings.pop(option, None)
@@ -693,8 +704,9 @@ def run(kind, args, adapter=None):
     from all_methods import drop_gradient_rows, with_gradients
     # Images finished with the gradient methods (every --explain_all run before --gradient_based) are reused
     # by a run without them; their gradient rows are left out of this run's tables.
-    reusable = ((run_signature(kind, with_gradients(args), inputs['config']),)
-                if args.explain_all and not args.gradient_based else ())
+    variants = [args, *([with_gradients(args)] if args.explain_all and not args.gradient_based else [])]
+    reusable = tuple(run_signature(kind, variant, inputs['config'], legacy)
+                     for variant in variants for legacy in (False, True))
     run_dir.mkdir(parents=True, exist_ok=True)
     evaluations.mkdir(parents=True, exist_ok=True)
     prior, pending = [], []
@@ -817,7 +829,8 @@ def run(kind, args, adapter=None):
                     inputs['config'], record['image_path'], image.shape, gt_class=gt_class,
                     predicted_index=target, label_space=getattr(adapter, 'label_space', None),
                     predicted_class=prediction['explained_class'])
-                prediction['ground_truth'] = save_ground_truth(ground_truth, image, folder, image_id)
+                prediction['ground_truth'] = save_ground_truth(ground_truth, image, folder, image_id,
+                                                               preview=args.save_gt_png)
                 if args.verbose_level != 'low':
                     print(f"{image_id} GT: {ground_truth['class_name']}; {ground_truth['status']}; "
                           f"foreground pixels={ground_truth['foreground_pixels']}", flush=True)
@@ -965,7 +978,8 @@ def run(kind, args, adapter=None):
                 if args.compute_auc:
                     artifacts += [f'auc_results_{image_id}.png', f'faithfulness_curves_{image_id}.png']
             if args.show_gt:
-                artifacts += [f'{image_id}_gt{extension}' for extension in ['.npy', '.png', '.json', '_labels.npz']]
+                artifacts += [f'{image_id}_gt{extension}' for extension in
+                              ['.npy', '.json', '_labels.npz', *(['.png'] if args.save_gt_png else [])]]
             image_timing = {'image_id': image_id, 'total_time_sec': time.perf_counter() - started,
                             'explanation_time_sec': sum(float(row['time_exp']) for row in image_rows),
                             'evaluation_time_sec': sum(float(row['time_eval']) for row in image_rows)}

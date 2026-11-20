@@ -67,4 +67,4 @@ A numeric `--gt-class` is an ImageNet-S label ID, not a classifier index. See [G
 <output.evaluations>/OC_ResNet/<partition-folder>/bg_full_B1000/
 ```
 
-Repeat the same command to resume: completed images are skipped. `--no-heatmaps` skips individual method images, and keeps the combined plots and numeric results.
+Repeat the same command to resume: completed images are skipped. Individual method images are not saved by default (`--heatmaps` adds them; `--no-heatmaps` is accepted and changes nothing); the combined plots and numeric results are always kept. With `--show-gt`, the separate GT figure `<id>_gt.png` is saved only with `--gt-png`.

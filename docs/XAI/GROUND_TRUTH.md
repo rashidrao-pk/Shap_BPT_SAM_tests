@@ -78,13 +78,14 @@ New GT loaders save:
 ```text
 <image-id>_gt.npy          # Selected boolean mask
 <image-id>_gt_labels.npz   # Compressed original semantic/part labels, aligned to the image
-<image-id>_gt.png          # Mask and overlay
+<image-id>_gt.png          # Mask and overlay; only with --gt-png
 <image-id>_gt.json         # Sources, class scope, alignment, and status
 ```
 
 The combined 2×3 XAI figure draws black GT boundaries on each attribution panel;
-the HTML report also links the standalone GT overlay. `--no-heatmaps` skips
-individual explanation PNGs but keeps GT and the combined plot. The original
+the HTML report also links the standalone GT overlay when `--gt-png` saved it.
+Individual explanation PNGs are saved only with `--heatmaps`; GT data and the
+combined plot are always kept. The original
 YOLO COCO helper retains its existing GT file layout.
 
 To add GT to an already completed explanation run, use `--no-resume` or a separate

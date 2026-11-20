@@ -68,7 +68,12 @@ class ModelExplanationTest(unittest.TestCase):
         for kind, config in common.DEFAULT_CONFIGS.items():
             with patch.object(sys, 'argv', [kind + '.py']):
                 self.assertEqual(importlib.import_module(kind).parse_args().config, config)
-                self.assertTrue(importlib.import_module(kind).parse_args().save_heatmaps)
+                defaults = importlib.import_module(kind).parse_args()
+                self.assertFalse(defaults.save_heatmaps)  # Separate heatmap and GT PNGs are opt-in.
+                self.assertFalse(defaults.save_gt_png)
+            with patch.object(sys, 'argv', [kind + '.py', '--heatmaps', '--gt-png']):
+                options = importlib.import_module(kind).parse_args()
+                self.assertTrue(options.save_heatmaps and options.save_gt_png)
             with patch.object(sys, 'argv', [kind + '.py', '--no-heatmaps']):
                 self.assertFalse(importlib.import_module(kind).parse_args().save_heatmaps)
 
@@ -392,3 +397,28 @@ if __name__ == '__main__':
 def allx_gradients():
     from all_methods import GRADIENT_METHODS
     return GRADIENT_METHODS
+
+
+def test_old_runs_with_and_without_heatmaps_resume_under_the_new_defaults():
+    parser = common.create_parser('OC_ResNet')
+    new = parser.parse_args([])
+    assert not new.save_heatmaps
+    old_default = parser.parse_args([]); old_default.save_heatmaps = True
+    del old_default.save_gt_png  # A namespace from before --gt-png existed.
+    assert common.run_signature('OC_ResNet', new) == common.run_signature('OC_ResNet', old_default)
+    assert common.run_signature('OC_ResNet', parser.parse_args(['--heatmaps', '--gt-png'])) == \
+        common.run_signature('OC_ResNet', new)
+    # Runs made with --no-heatmaps before the change are matched by the legacy variant.
+    assert common.run_signature('OC_ResNet', new, legacy_no_heatmaps=True) != common.run_signature('OC_ResNet', new)
+
+
+def test_gt_figure_is_optional():
+    from ground_truth import save_ground_truth
+    import tempfile as _tempfile
+    gt = {'mask': np.ones((4, 4), dtype=bool), 'label_map': np.ones((4, 4), dtype=int), 'class_name': 'x',
+          'status': 'matched', 'foreground_pixels': 16}
+    with _tempfile.TemporaryDirectory() as directory:
+        folder = Path(directory)
+        metadata = save_ground_truth(gt, np.zeros((4, 4, 3), dtype=np.uint8), folder, 'a', preview=False)
+        assert metadata['preview_path'] is None and not (folder / 'a_gt.png').exists()
+        assert (folder / 'a_gt.npy').is_file() and (folder / 'a_gt_labels.npz').is_file() and (folder / 'a_gt.json').is_file()

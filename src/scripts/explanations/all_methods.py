@@ -158,7 +158,7 @@ def lime_segment_count(args, dataset_name):
     return 250 if str(dataset_name).replace('_', '').replace('-', '').lower() == 'mscoco' else 100
 
 
-def comparison_signature(args):
+def comparison_signature(args, legacy_no_heatmaps=False):
     import hashlib
     import json
     import guide_options
@@ -168,6 +168,11 @@ def comparison_signature(args):
         ignored |= set(guide_options.DEFAULTS)  # v1 merge: completion markers from before these options stay valid.
     values = without_unused_extras({key: value for key, value in vars(args).items() if key not in ignored})
     without_unset_gradients(values)
+    # Figure options: the GT PNG flag is new; save_heatmaps is fixed at its old default so markers written before
+    # 2026-11-20 without --no-heatmaps stay valid (OD_yolo also accepts the False variant).
+    values.pop('save_gt_png', None)
+    if 'save_heatmaps' in values:
+        values['save_heatmaps'] = not legacy_no_heatmaps
     return hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()
 
 

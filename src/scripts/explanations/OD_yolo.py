@@ -768,13 +768,17 @@ def image_outputs_are_complete(path_results_img: Path, image_no: int, methods: l
     if not (path_results_img / f"{image_no}_predictions.json").exists():
         return False
     if getattr(args, 'explain_all', False):
-        from all_methods import comparison_signature
+        from all_methods import comparison_signature, with_gradients
         marker = path_results_img / f'{image_no}_all_complete.json'
         if not marker.is_file():
             return False
+        # A marker written with the gradient methods also covers a run without them.
+        accepted = {comparison_signature(args)}
+        if not getattr(args, 'gradient_based', False):
+            accepted.add(comparison_signature(with_gradients(args)))
         try:
             saved = json.loads(marker.read_text())
-            if saved.get('signature') != comparison_signature(args):
+            if saved.get('signature') not in accepted:
                 return False
             if not all((path_results_img / name).is_file() for name in saved['artifacts']):
                 return False

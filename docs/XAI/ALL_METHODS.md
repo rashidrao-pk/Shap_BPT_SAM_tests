@@ -49,20 +49,31 @@ keeps numeric maps, metrics, and method status without figures.
 
 ## Methods and budgets
 
-In `--explain_all` mode the complete method list is:
+Methods are computed, tabled and plotted in this order:
 
 | Method | Default setting | Meaning |
 | --- | --- | --- |
 | BPT-N | `--budget N` | One selected BPT evaluation budget |
 | BPT+SAM_c-N | Same selected budget | BPT initialized with saved SAM_c regions |
 | SAM_c+KernelSHAP-N | Same selected budget | Kernel SHAP coalition samples on saved SAM_c regions |
-| LIME-1000 | `--lime-budgets 1000` | 1000 perturbation samples per background |
+| hShap-N, hShap-CS-N, EAC-N | Same selected budget; only with `--extra-methods` | [Extra baselines](#extra-baselines-h-shap-and-eac---extra-methods) |
 | Shap-AA-1000 | `--aa-budget 1000` | Axis-aligned hierarchical SHAP |
+| LIME-1000 | `--lime-budgets 1000` | 1000 perturbation samples per background |
 | LRP | Captum epsilon propagation | ResNet-50 logit relevance |
 | GradCAM | Last CNN block / ViT pre-attention normalization | Positive class activation map |
 | IDG | `--idg-steps 50` | Integrated **Decision** Gradients |
 | GradExp | `--gradient-samples 20` | SHAP GradientExplainer expected gradients |
 | GradShap | `--gradient-samples 20` | Captum GradientShap, noise standard deviation 0.0001 |
+
+The five gradient methods (LRP to GradShap) run only with `--gradient_based` (alias `--gradient-based`) next to
+`--explain_all`; Captum and SHAP are needed only then. Images finished by an earlier `--explain_all` run, which
+always included them, are reused by a run without the flag, and their gradient rows are left out of the new
+tables. Adding `--gradient_based` to a folder finished without it recomputes those images.
+
+```bash
+python src/scripts/explanations/OC_ResNet.py --config ImageNet_epito --show-gt --gt-only --limit 2 \
+  --explain_all --extra-methods hshap eac --gradient_based
+```
 
 Normal experiments use one `--budget N` (alias `--max-evals N`) for all three
 partition-based methods. Select it with the separate

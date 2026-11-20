@@ -280,7 +280,7 @@ def case_signature(case, args):
     import hashlib
     settings = {key: str(value) if isinstance(value, Path) else value
                 for key, value in vars(args).items()
-                if key not in {'command', 'limit', 'results', 'dataset', 'resume', 'explain_all', 'config',
+                if key not in {'command', 'limit', 'results', 'dataset', 'resume', 'explain_all', 'gradient_based', 'config',
                                'partition_folder', 'show_gt', 'no_heatmaps', 'no_auc', 'auc_num_samples'}}
     paths = [Path(case['image']), *map(Path, case['masks']),
              *args.model_dir.glob('*.json'), *args.model_dir.glob('*.safetensors')]
@@ -462,7 +462,8 @@ def run_all_methods(args):
                    '--auc-num-samples', str(args.auc_num_samples), '--explanation-seed', str(args.seed),
                    '--local-files-only']
         for flag, enabled in [('--show-gt', args.show_gt), ('--no-heatmaps', args.no_heatmaps),
-                              ('--no-resume', not args.resume), ('--no-auc', args.no_auc)]:
+                              ('--no-resume', not args.resume), ('--no-auc', args.no_auc),
+                              ('--gradient_based', args.gradient_based)]:
             if enabled:
                 command.append(flag)
         print(f'[all methods] {sam_model}: saved compact partitions {folder}', flush=True)
@@ -497,6 +498,8 @@ def main():
     parser.add_argument('--explain_all', '--explain-all', action='store_true',
                         help='Run the shared OC_BUSI comparison on saved compact partitions')
     parser.add_argument('--config', default='BUSI_epito', help='Dataset/output config for --explain_all')
+    parser.add_argument('--gradient_based', '--gradient-based', action='store_true',
+                        help='With --explain_all: also LRP, GradCAM, IDG, GradExp and GradShap (computed last)')
     parser.add_argument('--partition-folder', help='Saved partition folder name or absolute path; its model is '
                                                    'read from the name (e.g. BUSI_sam1_vit_b_254_compact-sam_50)')
     parser.add_argument('--compact-strategy', metavar='TAG',
@@ -510,6 +513,8 @@ def main():
     if args.command in ("download", "all"):
         download_assets(args.dataset, args.model_dir)
         if args.command == "download": return
+    if args.gradient_based and not args.explain_all:
+        parser.error('--gradient_based adds methods to --explain_all; pass both')
     if args.explain_all:
         if args.command not in {'run', 'all'}:
             parser.error('--explain_all applies to run/all commands')

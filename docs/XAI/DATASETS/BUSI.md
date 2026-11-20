@@ -15,7 +15,7 @@ python -u src/scripts/explanations/OC_BUSI.py \
   --no-heatmaps --auc-num-samples 200 --local-files-only --bg-type full
 ```
 
-Remove `--limit 1` to explain all completed partition images. The three partition methods share one budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. `--explain_all` also requests LIME-1000, Shap-AA-1000, LRP, GradCAM, IDG, GradExp, and GradShap. SigLIP GradCAM uses patch tokens without a CLS token; LRP remains explicitly unsupported and has no substitute attribution map. Optional methods require `requirements-xai-all.txt`.
+Remove `--limit 1` to explain all completed partition images. The three partition methods share one budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. `--explain_all` also requests Shap-AA-1000 and LIME-1000; add `--gradient_based` for LRP, GradCAM, IDG, GradExp and GradShap (last in tables and plots; `run_busi_shapbpt.py` forwards the flag). SigLIP GradCAM uses patch tokens without a CLS token; LRP remains explicitly unsupported and has no substitute attribution map. Optional methods require `requirements-xai-all.txt`.
 
 The loader uses the checkpoint's label order and the BUSI model-card transforms: RGB, direct 224×224 resize, tensor conversion, and mean/std 0.5. No `preprocessor_config.json` is required. Masked predictions use the fixed original predicted class and its softmax probability. The model weights remain frozen.
 

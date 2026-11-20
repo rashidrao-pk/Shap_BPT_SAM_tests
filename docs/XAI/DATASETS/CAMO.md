@@ -36,7 +36,7 @@ python src/scripts/explanations/COD_ViT.py \
   --budget 1000 --no-heatmaps --explain_all
 ```
 
-The three partition methods share the budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. `--explain_all` adds LIME, Shap-AA, LRP, GradCAM, IDG, GradExp, and GradShap, and needs `requirements-xai-all.txt`. Remove `--limit 2` for all completed partitions. Add `--dry-run` to check paths without loading the model.
+The three partition methods share the budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. `--explain_all` adds Shap-AA and LIME; `--gradient_based` next to it also adds LRP, GradCAM, IDG, GradExp and GradShap, computed and plotted last. Both need `requirements-xai-all.txt`. Remove `--limit 2` for all completed partitions. Add `--dry-run` to check paths without loading the model.
 
 The default classifier is torchvision's ImageNet ViT-B/16, and the explained class is its top ImageNet prediction, fixed for each image.
 

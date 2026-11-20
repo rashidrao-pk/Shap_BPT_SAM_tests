@@ -70,7 +70,7 @@ python src/scripts/explanations/OC_CelebA.py \
 ```
 
 This runs BPT, BPT+SAM_c and SAM_c+KernelSHAP at one budget; LIME-1000 with
-100 requested SLIC segments; Shap-AA-1000; and all five gradient baselines.
+100 requested SLIC segments; Shap-AA-1000; and, with `--gradient_based`, all five gradient baselines.
 Select the common budget with [the separate pilot](../BUDGET_ABLATION.md), then pass
 `--budget-selection` to apply its validated result.
 **LRP and GradCAM are supported for this CNN.** The GradCAM target is `unit8.conv`,

@@ -53,13 +53,13 @@ Which method runs on which architecture: [All methods](../XAI/ALL_METHODS.md#arc
 How they are switched on:
 
 ```bash
-# --explain_all adds LIME, Shap-AA, LRP, GradCAM, IDG, GradExp and GradShap;
-# --extra-methods adds h-Shap, h-Shap with cycle spinning and EAC
+# --explain_all adds Shap-AA and LIME; --extra-methods adds h-Shap, h-Shap with cycle spinning and EAC;
+# --gradient_based adds LRP, GradCAM, IDG, GradExp and GradShap
 python src/scripts/explanations/OC_ResNet.py --config ImageNet_epito --limit 2 \
-  --explain_all --extra-methods hshap hshap-cs eac
+  --explain_all --extra-methods hshap hshap-cs eac --gradient_based
 ```
 
-Without `--explain_all`, a run computes only the three partition methods (BPT, BPT+SAM_c, SAM_c+KernelSHAP).
+Without `--explain_all`, a run computes only the three partition methods (BPT, BPT+SAM_c, SAM_c+KernelSHAP). Captum and SHAP are needed only with `--gradient_based`.
 
 ## Re-implemented baselines (no install)
 
@@ -109,7 +109,7 @@ Then a two-image smoke run of every method:
 
 ```bash
 python src/scripts/explanations/OC_ResNet.py --config ImageNet_epito --gt-only --limit 2 \
-  --explain_all --extra-methods hshap hshap-cs eac --no-heatmaps --no-resume
+  --explain_all --extra-methods hshap hshap-cs eac --gradient_based --no-heatmaps --no-resume
 ```
 
 `<image>_method_status.json` in each image folder says which methods ran, and why any was skipped.

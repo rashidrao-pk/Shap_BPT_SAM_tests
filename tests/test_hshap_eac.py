@@ -84,7 +84,7 @@ def test_extra_methods_are_named_and_keep_old_signatures():
     plain = parser.parse_args([])
     extra = parser.parse_args(['--extra-methods', 'hshap', 'hshap-cs', 'eac'])
     names = all_methods.method_names(extra)
-    assert names[-3:] == ['hShap-1000', 'hShap-CS-1000', 'EAC-1000']
+    assert names[3:6] == ['hShap-1000', 'hShap-CS-1000', 'EAC-1000']  # Right after the three partition methods
     assert 'EAC-1000' not in all_methods.method_names(plain)
     legacy = argparse.Namespace(**{k: v for k, v in vars(plain).items() if k not in all_methods.EXTRA_OPTIONS})
     assert all_methods.comparison_signature(plain) == all_methods.comparison_signature(legacy)

@@ -25,7 +25,7 @@ This is the model the [FIxLIP demo](https://shapiq.readthedocs.io/en/latest/demo
 
 ## Methods
 
-- BPT, BPT+SAM_c and SAM_c+KernelSHAP; with `--explain_all`, LIME, Shap-AA, IDG, GradExp, GradShap and GradCAM.
+- BPT, BPT+SAM_c and SAM_c+KernelSHAP; with `--explain_all`, Shap-AA and LIME; with `--gradient_based` as well, GradCAM, IDG, GradExp and GradShap.
 - GradCAM uses the last vision block's pre-attention layer norm, on the 7×7 patch grid.
 - LRP has no transformer backend and is reported as unsupported.
 

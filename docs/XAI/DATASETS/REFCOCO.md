@@ -36,7 +36,7 @@ python src/scripts/explanations/VL_RefCOCO.py \
   --config RefCOCO_epito --sam sam2 --compact-strategy split --show-gt --limit 2 --budget 1000 --no-heatmaps
 ```
 
-The three partition methods share the budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. `--explain_all` adds LIME, Shap-AA, IDG, GradExp, GradShap and GradCAM; LRP is reported as unsupported. Add `--dry-run` to check paths without loading CLIP.
+The three partition methods share the budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. `--explain_all` adds Shap-AA and LIME; with `--gradient_based` also GradCAM, IDG, GradExp and GradShap (LRP is reported as unsupported). Add `--dry-run` to check paths without loading CLIP.
 
 | Option | Default | Meaning |
 | --- | --- | --- |

@@ -48,7 +48,7 @@ python src/scripts/explanations/OC_PartImageNet.py \
   --budget 1000 --no-heatmaps
 ```
 
-Remove `--limit 2` for all completed partitions in the configured split. Three methods share the budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. Add `--explain_all` for LIME, Shap-AA, and the optional gradient methods. Use the existing optional-method dependency setup.
+Remove `--limit 2` for all completed partitions in the configured split. Three methods share the budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. Add `--explain_all` for Shap-AA and LIME, and `--gradient_based` as well for the gradient methods. Use the existing optional-method dependency setup.
 
 The frozen ImageNet classifier's top predicted class is fixed throughout each image's explanation. No classifier fitting or part-supervision training is performed. The checkpoint is local, so loading it does not require downloading another backbone.
 

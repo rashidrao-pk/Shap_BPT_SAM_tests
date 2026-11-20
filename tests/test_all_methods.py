@@ -28,11 +28,14 @@ class AllMethodsTest(unittest.TestCase):
         from unittest.mock import Mock, patch
         args = common.create_parser('OC_ResNet').parse_args(['--explain_all'])
         self.assertEqual(allx.method_names(args), ['BPT-1000', 'BPT+SAM_c-1000',
-            'SAM_c+KernelSHAP-1000', 'LIME-1000', 'Shap-AA-1000', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'])
+            'SAM_c+KernelSHAP-1000', 'Shap-AA-1000', 'LIME-1000'])
+        args.gradient_based = True
+        self.assertEqual(allx.method_names(args), ['BPT-1000', 'BPT+SAM_c-1000',
+            'SAM_c+KernelSHAP-1000', 'Shap-AA-1000', 'LIME-1000', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'])
         args.bpt_budgets = [500, 1000]  # Explicit legacy/manual sweep remains available.
         expected = ['BPT-500', 'BPT-1000', 'BPT+SAM_c-500', 'BPT+SAM_c-1000',
-                    'SAM_c+KernelSHAP-500', 'SAM_c+KernelSHAP-1000', 'LIME-1000',
-                    'Shap-AA-1000', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap']
+                    'SAM_c+KernelSHAP-500', 'SAM_c+KernelSHAP-1000',
+                    'Shap-AA-1000', 'LIME-1000', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap']
         self.assertEqual(allx.method_names(args), expected)
         self.assertEqual(allx.lime_segment_count(args, 'MS_COCO'), 250)
         self.assertEqual(allx.lime_segment_count(args, 'ImageNet'), 100)
@@ -56,8 +59,8 @@ class AllMethodsTest(unittest.TestCase):
         self.assertEqual([call.kwargs['bpt'] for call in explainer.explain_instance.call_args_list],
                          [original_tree, original_tree, sam_tree, sam_tree, None])
         build.assert_called_once()
-        self.assertEqual(results[7][0], 'Shap-AA-1000')
-        self.assertEqual(results[7][2]['budget'], 1000)
+        self.assertEqual(results[6][0], 'Shap-AA-1000')  # Shap-AA before LIME
+        self.assertEqual(results[6][2]['budget'], 1000)
         args.lime_segments = 37
         self.assertEqual(allx.lime_segment_count(args, 'MS_COCO'), 37)
 
@@ -197,3 +200,34 @@ class AllMethodsTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def test_order_puts_extras_after_partition_methods_and_gradients_last():
+    args = common.create_parser('OC_ResNet').parse_args(
+        ['--explain_all', '--gradient_based', '--extra-methods', 'eac', 'hshap', '--max-evals', '500'])
+    assert allx.method_names(args) == ['BPT-500', 'BPT+SAM_c-500', 'SAM_c+KernelSHAP-500', 'hShap-500', 'EAC-500',
+                                       'Shap-AA-1000', 'LIME-1000', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap']
+
+
+def test_gradient_based_needs_explain_all():
+    args = common.create_parser('OC_ResNet').parse_args(['--gradient-based'])
+    try:
+        allx.validate(args)
+    except ValueError as error:
+        assert '--explain_all' in str(error)
+    else:
+        raise AssertionError('--gradient_based without --explain_all must fail')
+
+
+def test_runs_with_gradients_keep_the_signature_of_runs_before_the_flag():
+    parser = common.create_parser('OC_ResNet')
+    with_flag = parser.parse_args(['--explain_all', '--gradient_based'])
+    before = parser.parse_args(['--explain_all'])
+    del before.gradient_based  # A namespace from before the option existed.
+    without = parser.parse_args(['--explain_all'])
+    assert allx.comparison_signature(with_flag) == allx.comparison_signature(before)
+    assert allx.comparison_signature(without) != allx.comparison_signature(with_flag)
+    assert allx.comparison_signature(allx.with_gradients(without)) == allx.comparison_signature(with_flag)
+    rows = [{'method': 'BPT-8'}, {'method': 'GradCAM'}, {'label': 'LRP'}]
+    assert allx.drop_gradient_rows(rows, without) == [{'method': 'BPT-8'}]
+    assert allx.drop_gradient_rows(rows, with_flag) == rows

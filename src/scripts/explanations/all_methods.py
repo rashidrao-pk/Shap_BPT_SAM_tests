@@ -16,7 +16,10 @@ import numpy as np
 
 def add_arguments(parser):
     parser.add_argument('--explain_all', '--explain-all', action='store_true',
-                        help='Compare budgeted BPT, BPT+SAM_c, SAM_c+KernelSHAP, LIME, AA and gradient methods')
+                        help='Compare budgeted BPT, BPT+SAM_c, SAM_c+KernelSHAP, the --extra-methods, Shap-AA and LIME')
+    parser.add_argument('--gradient_based', '--gradient-based', action='store_true',
+                        help='With --explain_all, also compute the gradient methods (LRP, GradCAM, IDG, GradExp, '
+                             'GradShap); they come last in tables and plots')
     parser.add_argument('--bpt-budgets', '--partition-budgets', nargs='+', type=int, default=None,
                         help='Explicit manual sweep override; default is one --budget for all three methods')
     parser.add_argument('--budget-selection', type=Path,
@@ -41,6 +44,28 @@ def add_arguments(parser):
 
 EXTRA_OPTIONS = ['extra_methods', 'hshap_min_size', 'eac_mc_samples', 'eac_estimator']
 EXTRA_PREFIX = {'hshap': 'hShap', 'hshap-cs': 'hShap-CS', 'eac': 'EAC'}
+GRADIENT_METHODS = ['LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap']
+
+
+def with_gradients(args):
+    """A copy of args with --gradient_based on: the settings of runs made before the flag existed."""
+    import argparse
+    return argparse.Namespace(**{**vars(args), 'gradient_based': True})
+
+
+def without_unset_gradients(values):
+    """Before --gradient_based existed every --explain_all run computed the gradient methods. Dropping the flag
+    when it is on keeps those runs' signatures; a run without gradients keeps gradient_based: False."""
+    if values.get('gradient_based', True):
+        values.pop('gradient_based', None)
+    return values
+
+
+def drop_gradient_rows(rows, args):
+    """Rows of a finished image without the gradient methods, unless this run asks for them."""
+    if getattr(args, 'gradient_based', False):
+        return rows
+    return [row for row in rows if row.get('method', row.get('label')) not in GRADIENT_METHODS]
 
 
 def without_unused_extras(values):
@@ -95,7 +120,10 @@ def validate(args):
         raise ValueError('--aa-budget must be at least 2 and --lime-segments must be positive')
     if args.idg_steps < 2:
         raise ValueError('--idg-steps must be at least 2')
-    missing = [module for module in ['captum', 'lime', 'shap'] if importlib.util.find_spec(module) is None]
+    if getattr(args, 'gradient_based', False) and not args.explain_all:
+        raise ValueError('--gradient_based adds methods to --explain_all; pass both')
+    needed = ['lime'] + (['captum', 'shap'] if getattr(args, 'gradient_based', False) else [])
+    missing = [module for module in needed if importlib.util.find_spec(module) is None]
     if missing:
         raise ImportError('Install comparison dependencies: python -m pip install -r requirements-xai-all.txt '
                           f'(missing: {", ".join(missing)})')
@@ -108,12 +136,15 @@ def partition_methods(args):
 
 
 def method_names(args):
+    """Computation, table and plot order: the partition methods, h-Shap and EAC (--extra-methods), Shap-AA,
+    LIME, then the gradient methods with --gradient_based."""
+    extras = [method for method in EXTRA_PREFIX if method in (getattr(args, 'extra_methods', None) or [])]
     return ([f'{method}-{budget}' for method in partition_methods(args)
              for budget in partition_budgets(args)] +
+            [f'{EXTRA_PREFIX[method]}-{budget}' for method in extras for budget in partition_budgets(args)] +
+            [f'Shap-AA-{args.aa_budget}'] +
             [f'LIME-{budget}' for budget in dict.fromkeys(args.lime_budgets)] +
-            [f'Shap-AA-{args.aa_budget}', 'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'] +
-            [f'{EXTRA_PREFIX[method]}-{budget}' for method in getattr(args, 'extra_methods', None) or []
-             for budget in partition_budgets(args)])
+            (GRADIENT_METHODS if getattr(args, 'gradient_based', False) else []))
 
 
 def grid_methods(args):
@@ -136,6 +167,7 @@ def comparison_signature(args):
     if guide_options.is_default(args):
         ignored |= set(guide_options.DEFAULTS)  # v1 merge: completion markers from before these options stay valid.
     values = without_unused_extras({key: value for key, value in vars(args).items() if key not in ignored})
+    without_unset_gradients(values)
     return hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()
 
 
@@ -484,7 +516,7 @@ def compute_extra(runtime, args, adapter, image, replacements, explainer, tree, 
         import xai_timing
         timer = xai_timing.current()
         # Gradient methods run their forward/backward passes on the device inside this step.
-        timer.begin(f'method:{name}', 'gpu' if name in {'LRP', 'GradCAM', 'IDG', 'GradExp', 'GradShap'} else 'mixed')
+        timer.begin(f'method:{name}', 'gpu' if name in GRADIENT_METHODS else 'mixed')
         info = {'status': 'complete'}
         try:
             if name.startswith(('BPT-', 'BPT+SAM_c-', 'BPT+SAM_c@', 'SAM_c+KernelSHAP-', 'Shap-AA-')):

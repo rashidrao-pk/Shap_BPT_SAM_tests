@@ -213,8 +213,9 @@ Use `--no-resume` to regenerate previously saved figures.
 ### Optional all-method comparison
 
 Use `--explain_all` for BPT, BPT+SAM_c and SAM_c+KernelSHAP at one selected
-budget (`--budget N` or `--budget-selection selection.json`), LIME-1000 (250 requested SLIC segments for MS-COCO; 100 otherwise),
-Shap-AA-1000, LRP, GradCAM, IDG, GradExp and GradShap. See [commands, dependencies, budgets, and architecture
+budget (`--budget N` or `--budget-selection selection.json`), then h-Shap and EAC if `--extra-methods` asks
+for them, Shap-AA-1000 and LIME-1000 (250 requested SLIC segments for MS-COCO; 100 otherwise). Add
+`--gradient_based` for LRP, GradCAM, IDG, GradExp and GradShap, which come last. See [commands, dependencies, budgets, and architecture
 support](ALL_METHODS.md). The comparison includes GT-IoU panels when GT is available.
 
 Saved image panels retain their borders while hiding x/y ticks. Empty grid slots

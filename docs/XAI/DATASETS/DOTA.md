@@ -38,7 +38,7 @@ python src/scripts/explanations/OD_DOTA.py \
   --config DOTA_epito --sam sam2 --compact-strategy split --show-gt --limit 1 --budget 1000 --no-heatmaps
 ```
 
-The three partition methods share the budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. `--explain_all` adds LIME and Shap-AA. LRP, GradCAM, IDG, GradExp and GradShap have no detector adapter and are reported as unsupported, as for DETR. Add `--dry-run` to check paths without loading the model.
+The three partition methods share the budget: BPT, BPT+SAM_c, and SAM_c+KernelSHAP. `--explain_all` adds Shap-AA and LIME. With `--gradient_based`, LRP, GradCAM, IDG, GradExp and GradShap are reported as unsupported (no detector adapter), as for DETR, so leave it off. Add `--dry-run` to check paths without loading the model.
 
 | Option | Default | Meaning |
 | --- | --- | --- |

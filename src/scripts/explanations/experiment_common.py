@@ -466,10 +466,11 @@ def run_signature(kind, args, config=None):
                # Folder / compact-file choice: already part of the output folder, and absent from older runs.
                'partition_sam', 'partition_folder', 'partition_strategy'}
     settings = {key: jsonable(value) for key, value in vars(args).items() if key not in ignored}
-    from all_methods import without_unused_extras
+    from all_methods import without_unset_gradients, without_unused_extras
     without_unused_extras(settings)  # Earlier runs keep their signature while no extra method is requested
+    without_unset_gradients(settings)  # Runs from before --gradient_based had the gradient methods
     if not args.explain_all:
-        for option in ['explain_all', 'bpt_budgets', 'lime_budgets', 'gradient_samples',
+        for option in ['explain_all', 'gradient_based', 'bpt_budgets', 'lime_budgets', 'gradient_samples',
                        'idg_steps', 'attribution_batch_size', 'explanation_seed', 'aa_budget', 'lime_segments']:
             settings.pop(option, None)
     if settings.get('save_heatmaps', True):
@@ -499,13 +500,16 @@ def input_stamp(record):
             for key in ['image_path', 'partition_path']}
 
 
-def completed_manifest(folder, image_id, signature, stamp):
+def completed_manifest(folder, image_id, signature, stamp, also=()):
+    """also: other signatures whose finished images are reused (a run with more methods than this one)."""
     path = folder / f'{image_id}_complete.json'
     if not path.is_file():
         return None
     try:
         metadata = json.loads(path.read_text())
-        if metadata.get('signature') != signature or metadata.get('input_stamp') != stamp:
+        if metadata.get('signature') in also and metadata.get('input_stamp') == stamp:
+            pass
+        elif metadata.get('signature') != signature or metadata.get('input_stamp') != stamp:
             raise ValueError(f'{image_id}: run settings/inputs changed; use --no-resume or another --output-dir')
         if all((folder / name).is_file() for name in metadata['artifacts']):
             return metadata
@@ -686,13 +690,20 @@ def run(kind, args, adapter=None):
     device = runtime.torch.device(device_name)
     run_dir, evaluations = inputs['run_dir'], inputs['evaluation_dir']
     signature = run_signature(kind, args, inputs['config'])
+    from all_methods import drop_gradient_rows, with_gradients
+    # Images finished with the gradient methods (every --explain_all run before --gradient_based) are reused
+    # by a run without them; their gradient rows are left out of this run's tables.
+    reusable = ((run_signature(kind, with_gradients(args), inputs['config']),)
+                if args.explain_all and not args.gradient_based else ())
     run_dir.mkdir(parents=True, exist_ok=True)
     evaluations.mkdir(parents=True, exist_ok=True)
     prior, pending = [], []
     for record in inputs['records']:
         folder = run_dir / record['image_id']
-        manifest = completed_manifest(folder, record['image_id'], signature, input_stamp(record)) if args.resume else None
+        manifest = (completed_manifest(folder, record['image_id'], signature, input_stamp(record), reusable)
+                    if args.resume else None)
         if manifest is not None:
+            manifest['rows'] = drop_gradient_rows(manifest['rows'], args)
             prior.append(manifest)
         else:
             pending.append(record)

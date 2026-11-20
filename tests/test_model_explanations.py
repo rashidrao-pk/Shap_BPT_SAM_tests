@@ -298,7 +298,7 @@ class ModelExplanationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config, image_id = self.fixture(Path(directory), 'ImageNet')
             args = common.create_parser('OC_ResNet').parse_args([
-                '--config', str(config), '--explain_all', '--bpt-budgets', '8', '--lime-budgets', '8', '--aa-budget', '8',
+                '--config', str(config), '--explain_all', '--gradient_based', '--bpt-budgets', '8', '--lime-budgets', '8', '--aa-budget', '8',
                 '--gradient-samples', '2', '--idg-steps', '4', '--max-evals', '8',
                 '--no-auc', '--no-heatmaps', '--no-html', '--torch-threads', '2'])
             result = common.run('OC_ResNet', args, adapter=SmallAdapter())
@@ -318,6 +318,12 @@ class ModelExplanationTest(unittest.TestCase):
             self.assertFalse((folder / f'LIME-8_{image_id}.png').exists())
             resumed = common.run('OC_ResNet', args, adapter=SmallAdapter())
             self.assertEqual(len(resumed['rows']), len(result['rows']))
+            # Without --gradient_based the finished image is reused and its gradient rows are left out.
+            args.gradient_based = False
+            reduced = common.run('OC_ResNet', args, adapter=SmallAdapter())
+            methods = {row['method'] for row in reduced['rows']}
+            self.assertFalse(methods & set(allx_gradients()))
+            self.assertIn('BPT-8', methods)
 
     def test_two_row_layout_and_bpt_cut(self):
         from types import SimpleNamespace
@@ -381,3 +387,8 @@ class ModelExplanationTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def allx_gradients():
+    from all_methods import GRADIENT_METHODS
+    return GRADIENT_METHODS

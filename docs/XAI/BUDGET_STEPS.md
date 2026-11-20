@@ -58,19 +58,19 @@ python src/scripts/explanations/budget_steps.py --dataset BUSI --budget-steps 10
   --limit 30 --select stratified --dry-run   # Shows the runner, partitions, images and folder
 ```
 
-| `--dataset` | Runner (model) | Config | Notes |
-| --- | --- | --- | --- |
-| `MSCOCO` (default) | `OD_yolo` (YOLO11s) | `MSCOCO_epito_sam1` | `--runner OD_DETR` for DETR |
-| `ImageNet` | `OC_ResNet` (ResNet-50) | `ImageNet_epito` | Only images with ImageNetS GT (`--show-gt --gt-only` are on), as partitions exist only for those; `--runner OC_VGG` or `OC_ViT` for the other models |
-| `CelebAHQ` | `OC_CelebA` | `CelebAHQ_epito` | |
-| `CAMO` | `COD_ViT` | `CAMO_epito` | |
-| `BUSI` | `OC_BUSI` (SigLIP) | `BUSI_epito` | |
-| `PartImageNet` | `OC_PartImageNet` | `PartImageNet_epito` | |
-| `FunnyBirds` | `OC_FunnyBirds` | `FunnyBirds_epito` | |
-| `PACO` | `OC_PACO` | `PACO_epito` | |
-| `KvasirSEG` | `OC_KvasirSEG` | `KvasirSEG_epito` | |
-| `ISIC2018` | `OC_ISIC2018` | `ISIC2018_epito` | |
-| `DOTA` | `OD_DOTA` (YOLO11s-OBB) | `DOTA_epito` | |
+| `--dataset`        | Runner (model)          | Config               | Notes                                                                                                                                                |
+| ------------------ | ----------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MSCOCO` (default) | `OD_yolo` (YOLO11s)     | `MSCOCO_epito_sam1`  | `--runner OD_DETR` for DETR                                                                                                                          |
+| `ImageNet`         | `OC_ResNet` (ResNet-50) | `ImageNet_epito`     | Only images with ImageNetS GT (`--show-gt --gt-only` are on), as partitions exist only for those; `--runner OC_VGG` or `OC_ViT` for the other models |
+| `CelebAHQ`         | `OC_CelebA`             | `CelebAHQ_epito`     |                                                                                                                                                      |
+| `CAMO`             | `COD_ViT`               | `CAMO_epito`         |                                                                                                                                                      |
+| `BUSI`             | `OC_BUSI` (SigLIP)      | `BUSI_epito`         |                                                                                                                                                      |
+| `PartImageNet`     | `OC_PartImageNet`       | `PartImageNet_epito` |                                                                                                                                                      |
+| `FunnyBirds`       | `OC_FunnyBirds`         | `FunnyBirds_epito`   |                                                                                                                                                      |
+| `PACO`             | `OC_PACO`               | `PACO_epito`         |                                                                                                                                                      |
+| `KvasirSEG`        | `OC_KvasirSEG`          | `KvasirSEG_epito`    |                                                                                                                                                      |
+| `ISIC2018`         | `OC_ISIC2018`           | `ISIC2018_epito`     |                                                                                                                                                      |
+| `DOTA`             | `OD_DOTA` (YOLO11s-OBB) | `DOTA_epito`         |                                                                                                                                                      |
 
 - RefCOCO is not supported: its CLIP model scores each image against that image's referring expressions, and this study does not supply them.
 - `--runner` with `--dataset` may choose another model for the same data (`--dataset MSCOCO --runner OD_DETR`); a runner for another dataset is refused.
@@ -104,23 +104,23 @@ python src/scripts/explanations/budget_steps.py --budget-steps 100 500 1000 2000
 
 **How difficulty is measured.** No model is needed; it uses the GT and the SAM_c partition of each candidate image:
 
-| Feature | Harder when |
-| --- | --- |
-| `regions` (SAM_c cells) | more |
-| `objects`, `categories` | more |
-| `max_same_class` (instances of the most repeated class) | more |
-| `smallest_object`, `mean_object` (share of the image) | smaller |
-| `partition_fit` (mean best IoU of the partition with each GT object) | lower |
+| Feature                                                              | Harder when |
+| -------------------------------------------------------------------- | ----------- |
+| `regions` (SAM_c cells)                                              | more        |
+| `objects`, `categories`                                              | more        |
+| `max_same_class` (instances of the most repeated class)              | more        |
+| `smallest_object`, `mean_object` (share of the image)                | smaller     |
+| `partition_fit` (mean best IoU of the partition with each GT object) | lower       |
 
 Each feature is ranked across all candidates. The difficulty score is the mean of those percentile ranks, from 0 (easy) to 1 (hard), and the candidates are split into thirds. `stratified` takes hard, medium and easy images in turn; `hard` takes only the top third. With either, a larger `--limit` keeps the images already chosen. Features are computed once and cached in `image_difficulty.csv`. Scoring about 1000 COCO images takes a few minutes. `--difficulty-pool 300` scores only a random 300.
 
 **Where results go.** Explanations are cached in the `steps/` folder and shared by every selection, so an image already explained is not explained again. Reports go to `steps/stratified/` or `steps/hard/`:
 
-| File | Contents |
-| --- | --- |
+| File                          | Contents                                                               |
+| ----------------------------- | ---------------------------------------------------------------------- |
 | `image_difficulty_scored.csv` | Every candidate: features, score, stratum, and whether it was selected |
-| `budget_steps_by_stratum.csv` | Step summary within each stratum |
-| `settled_budget.json` | Settled budget overall and `by_stratum` |
+| `budget_steps_by_stratum.csv` | Step summary within each stratum                                       |
+| `settled_budget.json`         | Settled budget overall and `by_stratum`                                |
 
 The run also prints the settled budget for each stratum, for example "5000 overall; 7000 for hard images".
 
@@ -141,17 +141,17 @@ Saved in `<evaluations>/budget_steps/<dataset>/<runner>/<partitions>/bg_<backgro
 
 Studies made before the `<dataset>` level was added (`budget_steps/<runner>/<partitions>/...`) are moved under their dataset on the next run, and their cached maps are reused. `--dry-run` only reports the move.
 
-| File                       | Contents                                                      |
-| -------------------------- | ------------------------------------------------------------- |
-| `budget_steps.png`         | E[\|ΔAUC\|] per budget step, one panel each for AUC+ and AUC- |
-| `budget_auc.png`           | Mean AUC+ and AUC- at each budget                             |
-| `budget_auc.csv`           | AUC, time, and model calls for each image, method, and budget |
-| `budget_steps.csv`         | Signed and absolute change for each image, method, and step   |
-| `budget_steps_summary.csv` | Mean and SD across images for each method and step            |
-| `settled_budget.json`      | The settled budget for each method                            |
-| `budget_time.png`          | Mean explanation time per image at each budget (log scale)    |
+| File                       | Contents                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------ |
+| `budget_steps.png`         | E[\|ΔAUC\|] per budget step, one panel each for AUC+ and AUC-                              |
+| `budget_auc.png`           | Mean AUC+ and AUC- at each budget                                                          |
+| `budget_auc.csv`           | AUC, time, and model calls for each image, method, and budget                              |
+| `budget_steps.csv`         | Signed and absolute change for each image, method, and step                                |
+| `budget_steps_summary.csv` | Mean and SD across images for each method and step                                         |
+| `settled_budget.json`      | The settled budget for each method                                                         |
+| `budget_time.png`          | Mean explanation time per image at each budget (log scale)                                 |
 | `budget_timing.csv`        | Per method and budget: time mean, SD and total, AUC scoring time, model calls, ms per call |
-| `timing_summary.json`      | Totals per method, and this run: model load, wall time, maps computed and cached |
+| `timing_summary.json`      | Totals per method, and this run: model load, wall time, maps computed and cached           |
 
 ## Timing
 

@@ -397,14 +397,25 @@ def evaluate_dataset(name, args):
         print(f'Paired comparison: {len(selected_ids)} shared images before --limit', flush=True)
     labels = [f"{Path(name).stem.removesuffix('_epito')} {segmenter_label(folder, with_type(args, kind))}"
               for folder, kind in entries]
-    if len(set(labels)) != len(labels):
-        labels = [f'{Path(name).stem.removesuffix("_epito")} {entry_name(folder, kind)}' for folder, kind in entries]
+    labels = unique_labels(labels, entries, Path(name).stem.removesuffix('_epito'))
     results = []
     for (folder, kind), label in zip(entries, labels):
         summary, rows = evaluate_folder(name, config, folder, with_type(args, kind), selected_ids, label)
         summary.update(partitions=entry_name(folder, kind), partition_type=kind, baseline=(folder, kind) == baseline)
         results.append((summary, rows))
     return results
+
+
+def unique_labels(labels, entries, dataset):
+    """Labels that share a name get the mask target of their folder (compact-sam_50 -> -M50); the full
+    folder and stage name is the last resort, for those only."""
+    def target(folder):
+        match = re.search(r'compact-sam_(\d+)', folder.name)
+        return f'-M{match.group(1)}' if match else ''
+    labels = [label + target(folder) if labels.count(label) > 1 else label
+              for label, (folder, _) in zip(labels, entries)]
+    return [f'{dataset} {entry_name(folder, kind)}' if labels.count(label) > 1 else label
+            for label, (folder, kind) in zip(labels, entries)]
 
 
 def with_type(args, kind):
@@ -509,15 +520,18 @@ def conclusion(summaries, args):
 
 
 def print_table(summaries):
-    print(f"\n{'Dataset':<22} {'Verdict':<16} {'Images':>6} {'Objects':>8} {'Cells':>6} {'Mean':>6} {'SD':>6} {'Median':>7} {'Grid':>6} "
+    # Column widths follow the longest dataset label and verdict, so long labels keep the table aligned.
+    name = max([len('Dataset'), *(len(item['config']) for item in summaries)])
+    verdict = max([len('Verdict'), *(len(item['verdict']) for item in summaries)])
+    print(f"\n{'Dataset':<{name}}  {'Verdict':<{verdict}}  {'Images':>6} {'Objects':>8} {'Cells':>6} {'Mean':>6} {'SD':>6} {'Median':>7} {'Grid':>6} "
           f"{'>=.5':>6} {'>=.75':>6} {'>=.9':>6} {'Cover':>6}")
     for item in summaries:
-        print(f"{item['config']:<22} {item['verdict']:<16} {item['images']:>6} {item['objects']:>8} {item['cells']:>6.0f} "
+        print(f"{item['config']:<{name}}  {item['verdict']:<{verdict}}  {item['images']:>6} {item['objects']:>8} {item['cells']:>6.0f} "
               f"{item['mean_iou']:>6.3f} {item['std_iou']:>6.3f} {item['median_iou']:>7.3f} {item['grid_median_iou']:>6.3f} "
               f"{item['iou_50']:>6.1%} {item['iou_75']:>6.1%} {item['iou_90']:>6.1%} {item['median_coverage']:>5.1f}%")
     print()
     for item in summaries:
-        print(f"{item['config']}: {item['verdict']} - {item['reason']}")
+        print(f"{item['config'] + ':':<{name + 1}} {item['verdict']:<{verdict}}  {item['reason']}")
 
 
 def run(args):

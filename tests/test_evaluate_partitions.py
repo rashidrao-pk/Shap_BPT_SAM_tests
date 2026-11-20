@@ -285,3 +285,22 @@ def test_labels_name_a_region_cap_other_than_254():
     assert ep.sam_label('MSCOCO_sam1_vit_b_126_compact-sam_200') == 'SAM1-VB-K126'
     assert ep.sam_label('BUSI_sam2_large_62_compact-sam_50') == 'SAM2-L-K62'  # The old default cap.
     assert ep.sam_label('MSCOCO_sam1_vit_b_254_compact-sam_200') == 'SAM1-VB'
+
+
+def test_same_labels_get_the_mask_target_and_only_they_change():
+    root = Path('/p')
+    entries = [(root / 'PACO_sam1_vit_b_254_compact-sam_50', 'compact_split'),
+               (root / 'PACO_sam2_large_254_compact-sam_200', 'compact_split'),
+               (root / 'PACO_sam2_large_254_compact-sam_50', 'compact_split')]
+    labels = ['PACO SAM1-VB-SPLIT', 'PACO SAM2-L-SPLIT', 'PACO SAM2-L-SPLIT']
+    assert ep.unique_labels(labels, entries, 'PACO') == ['PACO SAM1-VB-SPLIT', 'PACO SAM2-L-SPLIT-M200',
+                                                         'PACO SAM2-L-SPLIT-M50']
+
+
+def test_table_columns_fit_the_longest_label(capsys):
+    item = {'verdict': 'USE', 'images': 1, 'objects': 1, 'cells': 1, 'mean_iou': .5, 'std_iou': .1, 'median_iou': .5,
+            'grid_median_iou': .4, 'iou_50': .5, 'iou_75': .2, 'iou_90': .1, 'median_coverage': 90., 'reason': 'ok'}
+    ep.print_table([{**item, 'config': 'PartImageNet SAM1-VB-SPLIT'},
+                    {**item, 'config': 'BUSI SAM1-VB-SPLIT', 'verdict': 'NEED PARTITIONS'}])
+    lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()][:3]
+    assert len({len(line) for line in lines}) == 1  # Every row ends in the same column.

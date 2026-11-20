@@ -33,7 +33,7 @@ Check the `found` and `images` columns: a folder whose generation was still runn
 - **One other strategy:** `--partition-type compact_split`.
 - **Several strategies on the same images:** `--partition-types compact_greedy compact_split --baseline-type compact_greedy`.
 
-Rows for strategies other than greedy are labelled with the strategy, e.g. `SAM2-L-SPLIT` or `SAM2-L-MSO0.5`. The commands are in [MSCOCO.md](DATASETS/MSCOCO.md#evaluate-quality-and-weak-greedy-cases).
+Rows for strategies other than greedy are labelled with the strategy, e.g. `SAM2-L-SPLIT` or `SAM2-L-MSO0.5`. Two folders of one dataset that differ only in the mask target (e.g. PACO `..._compact-sam_200` and `..._compact-sam_50`) add it: `SAM2-L-SPLIT-M200`, `SAM2-L-SPLIT-M50`. The printed table widens its first column to the longest label. The commands are in [MSCOCO.md](DATASETS/MSCOCO.md#evaluate-quality-and-weak-greedy-cases).
 
 ## Outputs
 

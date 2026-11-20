@@ -39,7 +39,7 @@ python src/scripts/generate_celebahq_partitions.py \
   --limit 5
 ```
 
-## SAM2.1 Large
+## SAM2.1
 
 ```bash
 export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2

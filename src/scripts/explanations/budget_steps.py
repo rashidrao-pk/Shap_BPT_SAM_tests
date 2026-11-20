@@ -5,6 +5,8 @@ Each image is explained at every budget and scored with insertion (AUC+) and del
 The step from one budget to the next is |AUC(next) - AUC(previous)| for that image, averaged
 over images. Unlike budget_ablation.py, this needs no high-budget reference map.
 Repeat the command to resume; add budgets to the list to reuse the finished ones.
+--dataset NAME picks the runner and config of one dataset; each dataset reports to its own folder,
+<evaluations>/budget_steps/<dataset>/<runner>/<partitions>/bg_<background>/<study>/.
 """
 import argparse
 import hashlib
@@ -27,14 +29,38 @@ DEFAULT_IMAGES = 5
 METRICS = {'auc_ins': 'AUC+', 'auc_del': 'AUC-'}
 STYLES = {'BPT': ('#2a78d6', 'o'), 'BPT+SAM_c': ('#eb6834', 's'), 'SAM_c+KernelSHAP': ('#1baf7a', '^')}
 INK, MUTED, GRID = '#0b0b0b', '#52514e', '#e6e5e0'
+# Dataset -> runner of its explained model; the config is the runner's default (common.DEFAULT_CONFIGS),
+# except MS-COCO/YOLO, which uses the SAM-1 config. RefCOCO is missing: its CLIP model needs each image's
+# referring expressions, which this study does not set.
+DATASETS = {'MSCOCO': 'OD_yolo', 'ImageNet': 'OC_ResNet', 'CelebAHQ': 'OC_CelebA', 'CAMO': 'COD_ViT',
+            'BUSI': 'OC_BUSI', 'PartImageNet': 'OC_PartImageNet', 'FunnyBirds': 'OC_FunnyBirds', 'PACO': 'OC_PACO',
+            'KvasirSEG': 'OC_KvasirSEG', 'ISIC2018': 'OC_ISIC2018', 'DOTA': 'OD_DOTA'}
+IMAGENET_RUNNERS = {'OC_ResNet', 'OC_VGG', 'OC_ViT'}
+
+
+def dataset_name(config):
+    """Folder name of the config's dataset: data.name without underscores (MS_COCO -> MSCOCO)."""
+    name = str(config.get('data', {}).get('name', '')).replace('_', '')
+    return next((key for key in DATASETS if key.lower() == name.lower()), name or 'unknown')
 
 
 def parser(argv=None):
     preliminary = argparse.ArgumentParser(add_help=False)
-    preliminary.add_argument('--runner', choices=ablation.RUNNERS, default='OD_yolo')
-    runner = preliminary.parse_known_args(argv)[0].runner
+    preliminary.add_argument('--dataset', choices=list(DATASETS))
+    preliminary.add_argument('--runner', choices=ablation.RUNNERS)
+    known = preliminary.parse_known_args(argv)[0]
+    if known.dataset and known.runner and known.runner != DATASETS[known.dataset]:
+        # Another model on the same data (OD_DETR on MS-COCO, OC_VGG on ImageNet) is fine; another dataset is not.
+        def expected(name):
+            return common.EXPECTED_DATASETS.get('OD_DETR' if name == 'OD_yolo' else name, 'imagenet')
+        if expected(known.runner) != expected(DATASETS[known.dataset]):
+            raise SystemExit(f'--runner {known.runner} does not explain {known.dataset}; '
+                             f'drop --runner or use {DATASETS[known.dataset]}')
+    runner = known.runner or DATASETS.get(known.dataset, 'OD_yolo')
     result = common.create_parser('OD_DETR' if runner == 'OD_yolo' else runner, auc_background=False, road=False)
     result.description = __doc__
+    result.add_argument('--dataset', choices=list(DATASETS), default=known.dataset,
+                        help='Dataset to study; sets --runner and --config (default: MSCOCO with OD_yolo)')
     result.add_argument('--runner', choices=ablation.RUNNERS, default=runner)
     result.add_argument('--budgets', '--budget-steps', nargs='+', type=int, default=DEFAULT_BUDGETS,
                         help='Budgets to test; each step is one budget to the next')
@@ -53,6 +79,9 @@ def parser(argv=None):
     result.set_defaults(bg_type='full')
     if runner == 'OD_yolo':
         result.set_defaults(model='yolo11s', config='MSCOCO_epito_sam1')
+    if runner in IMAGENET_RUNNERS:
+        # Partitions exist for the ImageNetS images, and difficulty needs their GT objects.
+        result.set_defaults(show_gt=True, gt_only=True)
     return result
 
 
@@ -415,6 +444,23 @@ def check_difficulty(args, inputs, report_folder, folder):
     return table
 
 
+def move_legacy_folder(root, dataset, runner, partitions, dry_run=False):
+    """Studies made before the dataset level (root/runner/partitions) move to root/dataset/runner/partitions.
+
+    Cached maps are matched by signature, not path, so they are reused after the move.
+    """
+    old, new = root / runner / partitions, root / dataset / runner / partitions
+    if not old.is_dir() or new.exists():
+        return None
+    print(f'{"Would move" if dry_run else "Moving"} earlier study: {old} -> {new}', flush=True)
+    if not dry_run:
+        new.parent.mkdir(parents=True, exist_ok=True)
+        old.rename(new)
+        if not any(old.parent.iterdir()):
+            old.parent.rmdir()
+    return new
+
+
 def run(args, adapter=None):
     validate(args)
     count, args.limit = args.limit, None  # Select uniformly from eligible partitions, not the first N filenames.
@@ -429,8 +475,10 @@ def run(args, adapter=None):
         identity['yolo_input_version'] = YOLO_INPUT_VERSION
     signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     root = resolve_path(args.output_dir) if args.output_dir else output_path(inputs['config'], 'evaluations') / 'budget_steps'
-    folder = (root / args.runner / inputs.get('partition_label', inputs['partition_dir'].name)
-              / f'bg_{args.bg_type}' / args.study_name)
+    partitions = inputs.get('partition_label', inputs['partition_dir'].name)
+    dataset = dataset_name(inputs['config'])
+    move_legacy_folder(root, dataset, args.runner, partitions, args.dry_run)
+    folder = root / dataset / args.runner / partitions / f'bg_{args.bg_type}' / args.study_name
     # Cached maps stay in folder for every selection; each selection reports to its own subfolder.
     report_folder = folder if args.select == 'random' else folder / args.select
     if args.check_difficulty is not None:
@@ -441,7 +489,7 @@ def run(args, adapter=None):
     else:
         records, strata = difficulty_records(args, inputs, folder, count or DEFAULT_IMAGES)
     images = [record['image_id'] for record in records]
-    print(json.dumps({'folder': str(report_folder), 'images': images, 'budgets': args.budgets, 'methods': args.methods,
+    print(json.dumps({'dataset': dataset, 'runner': args.runner, 'folder': str(report_folder), 'images': images, 'budgets': args.budgets, 'methods': args.methods,
                       'select': args.select, **({'strata': strata} if strata else {})}, indent=2), flush=True)
     if args.dry_run:
         return None
@@ -456,7 +504,7 @@ def run(args, adapter=None):
     run_started = time.perf_counter()
     if adapter is None:
         adapter = ablation.YoloAdapter(args, device) if args.runner == 'OD_yolo' else common.load_adapter(args.runner, args, device)
-    common.write_json(report_folder / 'study.json', {**identity, 'images': images, 'budgets': args.budgets, 'select': args.select,
+    common.write_json(report_folder / 'study.json', {**identity, 'dataset': dataset, 'images': images, 'budgets': args.budgets, 'select': args.select,
                                                      'methods': args.methods, 'tolerance': args.tolerance, 'device': str(device)})
     started, rows, summary = time.perf_counter(), [], None
     model_load_sec = started - run_started

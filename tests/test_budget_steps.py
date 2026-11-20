@@ -94,3 +94,40 @@ def test_a_larger_limit_keeps_the_images_already_finished():
 def test_listed_images_keep_their_order_and_all_run_by_default():
     assert budget_steps.select_images(['c', 'a', 'b'], None, 0, True) == ['c', 'a', 'b']
     assert budget_steps.select_images(['c', 'a', 'b'], 2, 0, True) == ['c', 'a']
+
+
+@pytest.mark.parametrize('dataset, runner, config', [
+    ('MSCOCO', 'OD_yolo', 'MSCOCO_epito_sam1'), ('ImageNet', 'OC_ResNet', 'ImageNet_epito'),
+    ('BUSI', 'OC_BUSI', 'BUSI_epito'), ('DOTA', 'OD_DOTA', 'DOTA_epito'), ('CAMO', 'COD_ViT', 'CAMO_epito')])
+def test_dataset_picks_its_runner_and_config(dataset, runner, config):
+    args = budget_steps.parser(['--dataset', dataset]).parse_args(['--dataset', dataset])
+    assert (args.dataset, args.runner, args.config) == (dataset, runner, config)
+
+
+def test_imagenet_selects_the_images_with_gt():
+    args = budget_steps.parser(['--dataset', 'ImageNet']).parse_args(['--dataset', 'ImageNet'])
+    assert args.show_gt and args.gt_only
+    assert not budget_steps.parser([]).parse_args([]).gt_only
+
+
+def test_another_model_on_the_same_dataset_is_allowed_but_not_another_dataset():
+    argv = ['--dataset', 'MSCOCO', '--runner', 'OD_DETR']
+    assert budget_steps.parser(argv).parse_args(argv).config == 'MSCOCO_epito'
+    with pytest.raises(SystemExit):
+        budget_steps.parser(['--dataset', 'BUSI', '--runner', 'OC_ResNet'])
+
+
+def test_dataset_folder_name_comes_from_the_config():
+    assert budget_steps.dataset_name({'data': {'name': 'MS_COCO'}}) == 'MSCOCO'
+    assert budget_steps.dataset_name({'data': {'name': 'kvasirseg'}}) == 'KvasirSEG'
+
+
+def test_an_earlier_study_moves_under_its_dataset(tmp_path):
+    old = tmp_path / 'OD_yolo' / 'MSCOCO_p_split' / 'bg_full' / 'steps'
+    old.mkdir(parents=True)
+    (old / 'study.json').write_text('{}')
+    assert budget_steps.move_legacy_folder(tmp_path, 'MSCOCO', 'OD_yolo', 'MSCOCO_p_split', dry_run=True) is not None
+    assert old.is_dir()  # A dry run only reports the move.
+    budget_steps.move_legacy_folder(tmp_path, 'MSCOCO', 'OD_yolo', 'MSCOCO_p_split')
+    assert (tmp_path / 'MSCOCO' / 'OD_yolo' / 'MSCOCO_p_split' / 'bg_full' / 'steps' / 'study.json').is_file()
+    assert not (tmp_path / 'OD_yolo').exists()

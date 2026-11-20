@@ -31,8 +31,6 @@ python src/scripts/generate_coco_partitions.py \
 
 ### SAM-2
 
-#### Large Model
-
 ```bash
 export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2
 python src/scripts/generate_coco_partitions.py \

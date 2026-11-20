@@ -19,9 +19,7 @@ python src/scripts/generate_busi_partitions.py \
   --save-partitions sam compact --compact-strategy greedy split --limit 1000
 ```
 
-## SAM2
-
-#### Large Model
+## SAM2.1
 
 ```bash
 export SAM2_DIR=/beegfs/home/mrashid/repos/third_party/sam2

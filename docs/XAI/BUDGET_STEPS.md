@@ -47,7 +47,46 @@ python src/scripts/explanations/budget_steps.py --image-ids 000000044279 0000001
 
 Finished maps are reused, so a larger `--limit` only computes the new images, and a new budget only computes that budget. A larger limit keeps the same images and adds more. Tables and plots show only the current command's images and budgets, and they replace the earlier ones unless you set `--study-name`. With one image there are no error bars.
 
-For another dataset, pass its runner and config, for example `--runner OC_ResNet --config ImageNet_epito`. Repeat a command to resume it. Plots and tables are refreshed after each image.
+Repeat a command to resume it. Plots and tables are refreshed after each image.
+
+## One study per dataset
+
+`--dataset NAME` picks the dataset's explained model (runner) and config. Each dataset gets its own folder, so studies never mix:
+
+```bash
+python src/scripts/explanations/budget_steps.py --dataset BUSI --budget-steps 100 500 1000 2000 3000 4000 5000 6000 8000 10000 \
+  --limit 30 --select stratified --dry-run   # Shows the runner, partitions, images and folder
+```
+
+| `--dataset` | Runner (model) | Config | Notes |
+| --- | --- | --- | --- |
+| `MSCOCO` (default) | `OD_yolo` (YOLO11s) | `MSCOCO_epito_sam1` | `--runner OD_DETR` for DETR |
+| `ImageNet` | `OC_ResNet` (ResNet-50) | `ImageNet_epito` | Only images with ImageNetS GT (`--show-gt --gt-only` are on), as partitions exist only for those; `--runner OC_VGG` or `OC_ViT` for the other models |
+| `CelebAHQ` | `OC_CelebA` | `CelebAHQ_epito` | |
+| `CAMO` | `COD_ViT` | `CAMO_epito` | |
+| `BUSI` | `OC_BUSI` (SigLIP) | `BUSI_epito` | |
+| `PartImageNet` | `OC_PartImageNet` | `PartImageNet_epito` | |
+| `FunnyBirds` | `OC_FunnyBirds` | `FunnyBirds_epito` | |
+| `PACO` | `OC_PACO` | `PACO_epito` | |
+| `KvasirSEG` | `OC_KvasirSEG` | `KvasirSEG_epito` | |
+| `ISIC2018` | `OC_ISIC2018` | `ISIC2018_epito` | |
+| `DOTA` | `OD_DOTA` (YOLO11s-OBB) | `DOTA_epito` | |
+
+- RefCOCO is not supported: its CLIP model scores each image against that image's referring expressions, and this study does not supply them.
+- `--runner` with `--dataset` may choose another model for the same data (`--dataset MSCOCO --runner OD_DETR`); a runner for another dataset is refused.
+- The partitions are those the XAI runs read: the config's `mask_dir_final`, `split` compact maps (`--sam`, `--compact-strategy` and `--partition-folder` change them as in every runner).
+- `--runner R --config C` without `--dataset` still works; the dataset folder is then named from the config's `data.name`.
+
+All datasets in one go (each resumes on its own; run them on separate GPU sessions if you can):
+
+```bash
+for d in MSCOCO ImageNet CelebAHQ CAMO BUSI PartImageNet FunnyBirds PACO KvasirSEG ISIC2018 DOTA; do
+  python src/scripts/explanations/budget_steps.py --dataset $d --budget-steps 100 500 1000 2000 3000 4000 5000 6000 8000 10000 \
+    --limit 30 --select stratified
+done
+```
+
+**Cost.** Every image is explained once per method and budget, and with the full background every coalition is scored on 5 backgrounds. With the 10 budgets above that is 2 × 39,600 coalitions per image. On MS-COCO/YOLO11s (≈ 83 ms per coalition on a GPU, 5 backgrounds included) one image takes about 1 h 50 min, so 30 images take about 55 h. Classifiers are faster per coalition; check `budget_time.png` after the first image. To cut time, test fewer budgets (each budget's cost is proportional to its size, so dropping 3000 and 6000 saves 23%), or start with `--limit 9` (3 per stratum) and raise the limit later: finished images are kept.
 
 ## Choose images by difficulty
 
@@ -98,7 +137,9 @@ For each method, metric and feature, this gives the Spearman correlation between
 
 ## Outputs
 
-Saved in `<evaluations>/budget_steps/<runner>/<partitions>/bg_<background>/steps/`:
+Saved in `<evaluations>/budget_steps/<dataset>/<runner>/<partitions>/bg_<background>/steps/` (reports of `--select stratified` or `hard` in `steps/stratified/` or `steps/hard/`), for example `budget_steps/MSCOCO/OD_yolo/MSCOCO_sam1_vit_b_254_compact-sam_200_split/bg_full/steps/stratified/`.
+
+Studies made before the `<dataset>` level was added (`budget_steps/<runner>/<partitions>/...`) are moved under their dataset on the next run, and their cached maps are reused. `--dry-run` only reports the move.
 
 | File                       | Contents                                                      |
 | -------------------------- | ------------------------------------------------------------- |

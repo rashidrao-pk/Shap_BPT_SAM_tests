@@ -8,7 +8,7 @@ source "$env/bin/activate"
 ```
 
 ```bash
-python src/scripts/check_partition_progress.py --limit 1000
+python src/scripts/check_partition_progress.py --limit 1000  --gt-only
 ```
 
 This checks MS-COCO, ImageNet, CelebA-HQ, and CAMO using their EPITO configs.
@@ -77,7 +77,7 @@ python src/scripts/check_partition_progress.py --limit 1000 --gt-only --no-busi-
 ```
 
 **ImageNet and `--gt-only`.** ImageNet partitions are generated with `--gt-only`: only validation images with an
-ImageNet-S mask, chosen before `--limit`. Counting the first 1000 of *all* validation images would find only the
+ImageNet-S mask, chosen before `--limit`. Counting the first 1000 of _all_ validation images would find only the
 few of them that have masks (e.g. `11 / 1000`, while `Size(folder)` and `Time(folder)` show the full run). The
 check therefore also counts the GT-only selection and uses it when it matches the folders better; the output then
 says `counted on the GT-only selection`. `--gt-only` forces it, `--all-inputs` turns the automatic switch off.

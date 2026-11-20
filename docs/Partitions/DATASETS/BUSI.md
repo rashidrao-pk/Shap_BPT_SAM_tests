@@ -33,6 +33,19 @@ python src/scripts/generate_busi_partitions.py \
   --save-partitions sam compact --compact-strategy greedy split --limit 5
 ```
 
+### Med-SAM
+
+```bash
+python src/scripts/generate_busi_partitions.py \
+  --config BUSI_epito \
+  --model medsam \
+  --device cuda \
+  --max-regions 254 \
+  --generate_at_least_n_masks 50 \
+  --save-partitions sam compact --compact-strategy greedy split \
+  --limit 2
+```
+
 Next: [SigLIP checkpoint](../MODELS/SigLIP_BUSI.md) and [BUSI explanations](../../XAI/DATASETS/BUSI.md).
 
 ## Preview saved partitions

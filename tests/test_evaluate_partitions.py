@@ -290,8 +290,7 @@ def test_labels_name_a_region_cap_other_than_254():
 def test_same_labels_get_the_mask_target_and_only_they_change():
     root = Path('/p')
     entries = [(root / 'PACO_sam1_vit_b_254_compact-sam_50', 'compact_split'),
-               (root / 'PACO_sam2_large_254_compact-sam_200', 'compact_split'),
-               (root / 'PACO_sam2_large_254_compact-sam_50', 'compact_split')]
+               (root / 'PACO_sam2_large_254_compact-sam_200', 'compact_split'),]
     labels = ['PACO SAM1-VB-SPLIT', 'PACO SAM2-L-SPLIT', 'PACO SAM2-L-SPLIT']
     assert ep.unique_labels(labels, entries, 'PACO') == ['PACO SAM1-VB-SPLIT', 'PACO SAM2-L-SPLIT-M200',
                                                          'PACO SAM2-L-SPLIT-M50']

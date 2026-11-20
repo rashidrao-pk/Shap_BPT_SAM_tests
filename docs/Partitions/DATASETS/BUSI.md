@@ -51,8 +51,9 @@ Next: [SigLIP checkpoint](../MODELS/SigLIP_BUSI.md) and [BUSI explanations](../.
 ```bash
 python src/scripts/view_partitions.py \
   --config BUSI_epito \
+  --sam sam2 \
   --limit 5 \
-  --methods sam compact
+  --methods sam compact_greedy compact_split
 ```
 
 ## Check progress

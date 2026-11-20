@@ -50,10 +50,10 @@ Keep `--save-partitions sam compact`. Saving other stages changes the folder nam
 
 ### Choose the partitions for XAI
 
-| Model | Folder                               |
-| ----- | ------------------------------------ |
-| SAM-1 | `PACO_sam1_vit_b_254_compact-sam_50` |
-| SAM-2 | `PACO_sam2_large_254_compact-sam_50` |
+| Model | Folder                                |
+| ----- | ------------------------------------- |
+| SAM-1 | `PACO_sam1_vit_b_254_compact-sam_200` |
+| SAM-2 | `PACO_sam2_large_254_compact-sam_200` |
 
 The config selects SAM-2. To explain SAM-1 partitions, set `data.mask_dir_final` to the SAM-1 folder.
 
